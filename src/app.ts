@@ -1,51 +1,42 @@
-import cors from 'cors';
-import express, { Application, Request, Response } from 'express';
+import express from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
+import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middleware';
+import { globalLimiter } from '@/shared/middleware/rate-limit.middleware';
+import { sendSuccess } from '@/shared/utils/response';
 
-import { env } from './config/env-config';
-import userRoutes from './features/user/routes/user.routes';
-import { apiErrorHandler, unmatchedRoutes } from './middleware/api-error.middleware';
-import { pinoLogger, loggerMiddleware } from './middleware/pino-logger';
-// import morgan from 'morgan';
-import { hostWhitelist, rateLimiter } from './middleware/security.middleware';
+// Import feature routes
+import authRoutes from '@/features/auth/auth.route';
+import usersRoutes from '@/features/users/users.route';
 
-const app: Application = express();
+const app = express();
 
-// Security middleware
-// app.use(hostWhitelist);
-app.use(rateLimiter);
+// Security & parsing middleware
 app.use(helmet());
-
-// Global Middlewares
+app.use(cors());
 app.use(express.json());
-app.use(cors()); // Enables CORS
+app.use(express.urlencoded({ extended: true }));
 
-// TODO: logger
-app.use(loggerMiddleware);
-app.use(pinoLogger);
-// if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
+// Rate limiting
+app.use(globalLimiter);
 
-const allowedURLs = env.WHITE_LIST_URLS || [];
-
-app.get('/', hostWhitelist(allowedURLs), (req: Request, res: Response): void => {
-  res.json('');
-  return;
+// Health check
+app.get('/health', (req, res) => {
+  sendSuccess(res, {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
 
-app.get('/heartbeat', (req: Request, res: Response): void => {
-  req.log.info('Heartbeat ok');
-  res.send('ok');
-  return;
-});
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 
-// API Routes
-app.use('/v1/users', userRoutes);
+// 404 handler
+app.use(notFoundHandler);
 
-// Error Handling Middleware (Optional)
-// For prisma error and other error
-app.use(apiErrorHandler);
+// Error handler (must be last)
+app.use(errorHandler);
 
-// Middleware for handling unmatched routes
-app.use(unmatchedRoutes);
-
-export { app };
+export default app;

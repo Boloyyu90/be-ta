@@ -1,18 +1,15 @@
 {
-  "name": "express-typescript-prisma-postgresql",
+  "name": "backend-tryout-system-with-proctoring",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "prebuild": "npm run lint && npm run format && npm run test:ci",
-    "build": "rm -rf dist && tsc && tsc-alias",
+    "dev": "nodemon --exec tsx src/server.ts",
+    "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "nodemon --ext ts --exec tsx src/server.ts",
-    "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext ts --fix",
-    "format": "prettier --write .",
-    "test": "vitest",
-    "test:ci": "vitest --run",
-    "prepare": "npx husky install"
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "keywords": [
     "Express",
@@ -22,7 +19,7 @@
   ],
   "author": "Sushant Rahate",
   "license": "MIT",
-  "description": "",
+  "description": "This is a backend built with Node.js, Express, TypeScript, and Prisma ORM. It follows modern best practices for API development, including strict type safety, structured error handling, security measures, and environment validation.",
   "devDependencies": {
     "@tsconfig/node20": "^20.1.4",
     "@types/bcrypt": "^5.0.2",
@@ -36,17 +33,7 @@
     "@types/pino-http": "^5.8.4",
     "@types/pino-pretty": "^4.7.5",
     "@types/supertest": "^6.0.2",
-    "@typescript-eslint/eslint-plugin": "^8.26.0",
-    "@typescript-eslint/parser": "^8.26.0",
     "@vitest/coverage-v8": "^3.0.8",
-    "eslint": "^9.22.0",
-    "eslint-config-prettier": "^10.1.1",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^5.2.3",
-    "eslint-plugin-security": "^3.0.1",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
-    "eslint-plugin-unicorn": "^57.0.0",
     "nodemon": "^3.1.9",
     "prettier": "^3.5.3",
     "prisma": "^6.4.1",
@@ -59,6 +46,7 @@
   "dependencies": {
     "@prisma/client": "^6.4.1",
     "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -71,5 +59,13 @@
     "pino-pretty": "^13.0.0",
     "uni-response": "^1.0.3",
     "zod": "^3.24.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Boloyyu90/be-ta.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Boloyyu90/be-ta/issues"
+  },
+  "homepage": "https://github.com/Boloyyu90/be-ta#readme"
 }
