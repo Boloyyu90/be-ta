@@ -6,22 +6,16 @@ import type { RegisterInput, LoginInput, RefreshTokenInput, LogoutInput } from '
 
 /**
  * Register controller
- * POST /api/auth/register
+ * POST /api/v1/auth/register
  */
 export const register = async (
   req: Request<{}, {}, RegisterInput>,
   res: Response,
-  next: NextFunction
-) => {
+  next: NextFunction,
+): Promise<void> => {
   try {
     const result = await authService.register(req.body);
-
-    sendSuccess(
-      res,
-      result,
-      'Registration successful',
-      HTTP_STATUS.CREATED
-    );
+    sendSuccess(res, result, 'Registration successful', HTTP_STATUS.CREATED);
   } catch (error) {
     next(error);
   }
@@ -29,22 +23,16 @@ export const register = async (
 
 /**
  * Login controller
- * POST /api/auth/login
+ * POST /api/v1/auth/login
  */
 export const login = async (
   req: Request<{}, {}, LoginInput>,
   res: Response,
-  next: NextFunction
-) => {
+  next: NextFunction,
+): Promise<void> => {
   try {
     const result = await authService.login(req.body);
-
-    sendSuccess(
-      res,
-      result,
-      'Login successful',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, result, 'Login successful', HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
@@ -52,23 +40,17 @@ export const login = async (
 
 /**
  * Refresh token controller
- * POST /api/auth/refresh
+ * POST /api/v1/auth/refresh
  */
 export const refreshToken = async (
   req: Request<{}, {}, RefreshTokenInput>,
   res: Response,
-  next: NextFunction
-) => {
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { refreshToken } = req.body;
     const tokens = await authService.refreshAccessToken(refreshToken);
-
-    sendSuccess(
-      res,
-      { tokens },
-      'Token refreshed successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, { tokens }, 'Token refreshed successfully', HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
@@ -76,23 +58,17 @@ export const refreshToken = async (
 
 /**
  * Logout controller
- * POST /api/auth/logout
+ * POST /api/v1/auth/logout
  */
 export const logout = async (
   req: Request<{}, {}, LogoutInput>,
   res: Response,
-  next: NextFunction
-) => {
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { refreshToken } = req.body;
     const result = await authService.logout(refreshToken);
-
-    sendSuccess(
-      res,
-      result,
-      'Logged out successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, result, 'Logged out successfully', HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }

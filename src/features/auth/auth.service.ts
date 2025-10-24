@@ -29,7 +29,7 @@ export const register = async (input: RegisterInput) => {
       email,
       password: hashedPassword,
       name,
-      role: UserRole.PARTICIPANT, // Default role
+      role: UserRole.PARTICIPANT,
     },
     select: {
       id: true,
@@ -83,11 +83,6 @@ export const login = async (input: LoginInput) => {
     throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
-  // Optional: Check if email is verified
-  // if (!user.isEmailVerified) {
-  //   throw new Error('Please verify your email before logging in');
-  // }
-
   // Generate tokens
   const tokens = await generateTokens(user.id, user.role);
 
@@ -111,6 +106,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
   const tokenDoc = await prisma.token.findUnique({
     where: {
       tokenHash: sha256(refreshToken),
+      expires: { gte: new Date() }, // Only get non-expired tokens
     },
     include: {
       user: {
@@ -123,25 +119,16 @@ export const refreshAccessToken = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    throw new Error('Invalid refresh token');
+    throw new Error(ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
   }
 
-  // Check if token is expired
-  if (tokenDoc.expires < new Date()) {
-    // Delete expired token
-    await prisma.token.delete({
-      where: { id: tokenDoc.id },
-    });
-    throw new Error('Refresh token expired');
-  }
+  // Generate new tokens
+  const tokens = await generateTokens(tokenDoc.user.id, tokenDoc.user.role);
 
   // Delete old refresh token
   await prisma.token.delete({
     where: { id: tokenDoc.id },
   });
-
-  // Generate new tokens
-  const tokens = await generateTokens(tokenDoc.user.id, tokenDoc.user.role);
 
   return tokens;
 };
@@ -150,7 +137,6 @@ export const refreshAccessToken = async (refreshToken: string) => {
  * Logout user (invalidate refresh token)
  */
 export const logout = async (refreshToken: string) => {
-  // Find and delete token
   const tokenDoc = await prisma.token.findUnique({
     where: {
       tokenHash: sha256(refreshToken),
@@ -158,7 +144,7 @@ export const logout = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    throw new Error('Token not found');
+    throw new Error(ERROR_MESSAGES.TOKEN_NOT_FOUND);
   }
 
   await prisma.token.delete({

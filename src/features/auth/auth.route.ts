@@ -4,52 +4,50 @@ import { authLimiter } from '@/shared/middleware/rate-limit.middleware';
 import * as authController from './auth.controller';
 import * as authValidation from './auth.validation';
 
-const router = Router();
+export const authRouter = Router();
 
 /**
- * @route   POST /api/auth/register
+ * @route   POST /api/v1/auth/register
  * @desc    Register a new user
  * @access  Public
  */
-router.post(
+authRouter.post(
   '/register',
-  authLimiter, // Rate limit: 5 attempts per 15 minutes
+  authLimiter,
   validate(authValidation.registerSchema),
   authController.register
 );
 
 /**
- * @route   POST /api/auth/login
+ * @route   POST /api/v1/auth/login
  * @desc    Login user
  * @access  Public
  */
-router.post(
+authRouter.post(
   '/login',
-  authLimiter, // Rate limit: 5 attempts per 15 minutes
+  authLimiter,
   validate(authValidation.loginSchema),
   authController.login
 );
 
 /**
- * @route   POST /api/auth/refresh
+ * @route   POST /api/v1/auth/refresh
  * @desc    Refresh access token
  * @access  Public
  */
-router.post(
+authRouter.post(
   '/refresh',
   validate(authValidation.refreshTokenSchema),
   authController.refreshToken
 );
 
 /**
- * @route   POST /api/auth/logout
+ * @route   POST /api/v1/auth/logout
  * @desc    Logout user
  * @access  Public
  */
-router.post(
+authRouter.post(
   '/logout',
   validate(authValidation.logoutSchema),
   authController.logout
 );
-
-export default router;

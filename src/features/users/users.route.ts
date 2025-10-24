@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
 import { validate } from '@/shared/middleware/validate.middleware';
-import * as usersController from './users.controller';
-import * as usersValidation from './users.validation';
+import * as usersController from '@/features/users/users.controller';
+import * as usersValidation from '@/features/users/users.validation';
 import { UserRole } from '@prisma/client';
 
 const router = Router();

@@ -5,9 +5,9 @@ import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middlew
 import { globalLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { sendSuccess } from '@/shared/utils/response';
 
-// Import feature routes
-import authRoutes from '@/features/auth/auth.route';
-import usersRoutes from '@/features/users/users.route';
+// Import version routers
+import { v1Router } from '@/routes/v1.route';
+// import { v2Router } from '@/routes/v2.route'; // Future
 
 const app = express();
 
@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiting
 app.use(globalLimiter);
 
-// Health check
+// Health check (no version)
 app.get('/health', (req, res) => {
   sendSuccess(res, {
     status: 'ok',
@@ -29,9 +29,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
+// API version routes
+app.use('/api/v1', v1Router);
+// app.use('/api/v2', v2Router); // Future
 
 // 404 handler
 app.use(notFoundHandler);
