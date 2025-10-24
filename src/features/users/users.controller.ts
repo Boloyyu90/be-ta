@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as usersService from './users.service';
 import { sendSuccess } from '@/shared/utils/response';
-import { HTTP_STATUS } from '@/config/constants';
+import { HTTP_STATUS, SUCCESS_MESSAGES } from '@/config/constants';
 import type {
   CreateUserInput,
   GetUsersQuery,
@@ -13,22 +13,17 @@ import type {
 
 /**
  * Create user controller
- * POST /api/users
+ * POST /api/v1/users
  */
 export const createUser = async (
-  req: Request,
+  req: Request<{}, {}, CreateUserInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = await usersService.createUser(req.body as CreateUserInput);
+    const user = await usersService.createUser(req.body);
 
-    sendSuccess(
-      res,
-      { user },
-      'User created successfully',
-      HTTP_STATUS.CREATED
-    );
+    sendSuccess(res, { user }, SUCCESS_MESSAGES.USER_CREATED, HTTP_STATUS.CREATED);
   } catch (error) {
     next(error);
   }
@@ -36,23 +31,17 @@ export const createUser = async (
 
 /**
  * Get users list controller
- * GET /api/users
+ * GET /api/v1/users
  */
 export const getUsers = async (
-  req: Request,
+  req: Request<{}, {}, {}, GetUsersQuery>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Validation middleware has already transformed query params
-    const result = await usersService.getUsers(req.query as unknown as GetUsersQuery);
+    const result = await usersService.getUsers(req.query);
 
-    sendSuccess(
-      res,
-      result,
-      'Users retrieved successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, result, SUCCESS_MESSAGES.USERS_RETRIEVED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
@@ -60,24 +49,18 @@ export const getUsers = async (
 
 /**
  * Get single user controller
- * GET /api/users/:id
+ * GET /api/v1/users/:id
  */
 export const getUserById = async (
-  req: Request,
+  req: Request<GetUserParams>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Validation middleware has already transformed id to number
-    const { id } = req.params as unknown as GetUserParams;
+    const { id } = req.params;
     const user = await usersService.getUserById(id);
 
-    sendSuccess(
-      res,
-      { user },
-      'User retrieved successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, { user }, SUCCESS_MESSAGES.USER_RETRIEVED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
@@ -85,24 +68,18 @@ export const getUserById = async (
 
 /**
  * Update user controller
- * PATCH /api/users/:id
+ * PATCH /api/v1/users/:id
  */
 export const updateUser = async (
-  req: Request,
+  req: Request<UpdateUserParams, {}, UpdateUserInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Validation middleware has already transformed id to number
-    const { id } = req.params as unknown as UpdateUserParams;
-    const user = await usersService.updateUser(id, req.body as UpdateUserInput);
+    const { id } = req.params;
+    const user = await usersService.updateUser(id, req.body);
 
-    sendSuccess(
-      res,
-      { user },
-      'User updated successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, { user }, SUCCESS_MESSAGES.USER_UPDATED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
@@ -110,24 +87,18 @@ export const updateUser = async (
 
 /**
  * Delete user controller
- * DELETE /api/users/:id
+ * DELETE /api/v1/users/:id
  */
 export const deleteUser = async (
-  req: Request,
+  req: Request<DeleteUserParams>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Validation middleware has already transformed id to number
-    const { id } = req.params as unknown as DeleteUserParams;
+    const { id } = req.params;
     const result = await usersService.deleteUser(id);
 
-    sendSuccess(
-      res,
-      result,
-      'User deleted successfully',
-      HTTP_STATUS.OK
-    );
+    sendSuccess(res, result, SUCCESS_MESSAGES.USER_DELETED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }

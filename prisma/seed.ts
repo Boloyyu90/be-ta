@@ -23,6 +23,7 @@ async function main() {
   });
 
   console.log('✅ Admin user created:', admin.email);
+  console.log('   Password: Admin123456');
 
   // Create participant user for testing
   const participant = await prisma.user.upsert({
@@ -38,10 +39,40 @@ async function main() {
   });
 
   console.log('✅ Participant user created:', participant.email);
+  console.log('   Password: Admin123456');
+
+  // Create additional test participants
+  const testUsers = [];
+  for (let i = 1; i <= 5; i++) {
+    const testUser = await prisma.user.upsert({
+      where: { email: `test${i}@example.com` },
+      update: {},
+      create: {
+        email: `test${i}@example.com`,
+        password: hashedPassword,
+        name: `Test User ${i}`,
+        role: UserRole.PARTICIPANT,
+        isEmailVerified: true,
+      },
+    });
+    testUsers.push(testUser);
+  }
+
+  console.log(`✅ Created ${testUsers.length} test users (test1@example.com - test5@example.com)`);
+  console.log('   Password: Admin123456');
+
+  console.log('');
+  console.log('🎉 Seed completed successfully!');
+  console.log('');
+  console.log('📝 Summary:');
+  console.log(`   - 1 Admin user: ${admin.email}`);
+  console.log(`   - 1 Participant user: ${participant.email}`);
+  console.log(`   - 5 Test users: test1@example.com - test5@example.com`);
+  console.log(`   - All passwords: Admin123456`);
 }
 
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error('❌ Seed error:', e);
     process.exit(1);
   })

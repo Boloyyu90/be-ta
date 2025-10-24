@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
 import { validate } from '@/shared/middleware/validate.middleware';
-import * as usersController from '@/features/users/users.controller';
-import * as usersValidation from '@/features/users/users.validation';
+import * as usersController from './users.controller';
+import * as usersValidation from './users.validation';
 import { UserRole } from '@prisma/client';
 
-const router = Router();
+export const usersRouter = Router();
 
 /**
- * @route   POST /api/users
+ * @route   POST /api/v1/users
  * @desc    Create a new user
  * @access  Private (Admin only)
  */
-router.post(
+usersRouter.post(
   '/',
   authenticate,
   authorize(UserRole.ADMIN),
@@ -21,11 +21,11 @@ router.post(
 );
 
 /**
- * @route   GET /api/users
+ * @route   GET /api/v1/users
  * @desc    Get users list with filters
  * @access  Private (Admin only)
  */
-router.get(
+usersRouter.get(
   '/',
   authenticate,
   authorize(UserRole.ADMIN),
@@ -34,11 +34,11 @@ router.get(
 );
 
 /**
- * @route   GET /api/users/:id
+ * @route   GET /api/v1/users/:id
  * @desc    Get single user by ID
  * @access  Private (Admin only)
  */
-router.get(
+usersRouter.get(
   '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
@@ -47,11 +47,11 @@ router.get(
 );
 
 /**
- * @route   PATCH /api/users/:id
+ * @route   PATCH /api/v1/users/:id
  * @desc    Update user by ID
  * @access  Private (Admin only)
  */
-router.patch(
+usersRouter.patch(
   '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
@@ -60,16 +60,14 @@ router.patch(
 );
 
 /**
- * @route   DELETE /api/users/:id
+ * @route   DELETE /api/v1/users/:id
  * @desc    Delete user by ID
  * @access  Private (Admin only)
  */
-router.delete(
+usersRouter.delete(
   '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.deleteUserSchema),
   usersController.deleteUser
 );
-
-export default router;
