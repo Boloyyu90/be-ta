@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UserRole } from '@prisma/client';
 
 // ==================== REQUEST SCHEMAS ====================
 
@@ -51,7 +52,7 @@ export const logoutSchema = z.object({
   }),
 });
 
-// ==================== TYPE EXPORTS ====================
+// ==================== REQUEST TYPES ====================
 
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
@@ -60,27 +61,28 @@ export type LogoutInput = z.infer<typeof logoutSchema>['body'];
 
 // ==================== RESPONSE TYPES ====================
 
+export interface UserPublicData {
+  id: number;
+  email: string;
+  name: string;
+  role: UserRole;
+  isEmailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TokensData {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface AuthResponse {
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-    isEmailVerified: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  };
-  tokens: {
-    accessToken: string;
-    refreshToken: string;
-  };
+  user: UserPublicData;
+  tokens: TokensData;
 }
 
 export interface TokenResponse {
-  tokens: {
-    accessToken: string;
-    refreshToken: string;
-  };
+  tokens: TokensData;
 }
 
 export interface LogoutResponse {

@@ -3,9 +3,6 @@ import { UserRole } from '@prisma/client';
 
 // ==================== REQUEST SCHEMAS ====================
 
-/**
- * Create user schema (Admin only)
- */
 export const createUserSchema = z.object({
   body: z.object({
     email: z
@@ -34,9 +31,6 @@ export const createUserSchema = z.object({
   }),
 });
 
-/**
- * Get users list schema (with filters)
- */
 export const getUsersSchema = z.object({
   query: z.object({
     page: z
@@ -59,9 +53,6 @@ export const getUsersSchema = z.object({
   }),
 });
 
-/**
- * Get single user schema
- */
 export const getUserSchema = z.object({
   params: z.object({
     id: z
@@ -72,9 +63,6 @@ export const getUserSchema = z.object({
   }),
 });
 
-/**
- * Update user schema
- */
 export const updateUserSchema = z.object({
   params: z.object({
     id: z
@@ -112,9 +100,6 @@ export const updateUserSchema = z.object({
     }),
 });
 
-/**
- * Delete user schema
- */
 export const deleteUserSchema = z.object({
   params: z.object({
     id: z
@@ -125,7 +110,7 @@ export const deleteUserSchema = z.object({
   }),
 });
 
-// ==================== TYPE EXPORTS ====================
+// ==================== REQUEST TYPES ====================
 
 export type CreateUserInput = z.infer<typeof createUserSchema>['body'];
 export type GetUsersQuery = z.infer<typeof getUsersSchema>['query'];
@@ -136,10 +121,7 @@ export type DeleteUserParams = z.infer<typeof deleteUserSchema>['params'];
 
 // ==================== RESPONSE TYPES ====================
 
-/**
- * User public data (without password)
- */
-export interface UserResponse {
+export interface UserPublicData {
   id: number;
   email: string;
   name: string;
@@ -149,21 +131,15 @@ export interface UserResponse {
   updatedAt: Date;
 }
 
-/**
- * User with stats (for detail view)
- */
-export interface UserDetailResponse extends UserResponse {
+export interface UserDetailData extends UserPublicData {
   _count: {
     createdExams: number;
     userExams: number;
   };
 }
 
-/**
- * Users list response with pagination
- */
 export interface UsersListResponse {
-  users: UserResponse[];
+  users: UserPublicData[];
   pagination: {
     page: number;
     limit: number;
@@ -174,30 +150,14 @@ export interface UsersListResponse {
   };
 }
 
-/**
- * Single user response
- */
-export interface SingleUserResponse {
-  user: UserDetailResponse;
+export interface UserResponse {
+  user: UserPublicData;
 }
 
-/**
- * User created response
- */
-export interface UserCreatedResponse {
-  user: UserResponse;
+export interface UserDetailResponse {
+  user: UserDetailData;
 }
 
-/**
- * User updated response
- */
-export interface UserUpdatedResponse {
-  user: UserResponse;
-}
-
-/**
- * User deleted response
- */
 export interface UserDeletedResponse {
   message: string;
 }

@@ -4,14 +4,34 @@ import { hash } from '@/shared/utils/hash';
 import { ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
-import { USER_PUBLIC_SELECT, USER_DETAIL_SELECT } from './users.types';
-import type { CreateUserData, UpdateUserData, GetUsersFilter } from './users.types';
+import type { CreateUserInput, UpdateUserInput, GetUsersQuery } from './users.validation';
+
+// Reusable Prisma select objects (internal to service)
+const USER_PUBLIC_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  isEmailVerified: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+const USER_DETAIL_SELECT = {
+  ...USER_PUBLIC_SELECT,
+  _count: {
+    select: {
+      createdExams: true,
+      userExams: true,
+    },
+  },
+} as const;
 
 /**
  * Create a new user (Admin only)
  */
-export const createUser = async (data: CreateUserData) => {
-  const { email, password, name, role } = data;
+export const createUser = async (input: CreateUserInput) => {
+  const { email, password, name, role } = input;
 
   logger.info({ email }, 'Creating new user');
 
@@ -47,7 +67,7 @@ export const createUser = async (data: CreateUserData) => {
 /**
  * Get users list with filters and pagination
  */
-export const getUsers = async (filter: GetUsersFilter) => {
+export const getUsers = async (filter: GetUsersQuery) => {
   const { page, limit, role, search } = filter;
 
   logger.debug({ filter }, 'Fetching users list');
@@ -107,7 +127,7 @@ export const getUserById = async (id: number) => {
 /**
  * Update user by ID
  */
-export const updateUser = async (id: number, data: UpdateUserData) => {
+export const updateUser = async (id: number, data: UpdateUserInput) => {
   logger.info({ userId: id, updates: Object.keys(data) }, 'Updating user');
 
   // Check if user exists
