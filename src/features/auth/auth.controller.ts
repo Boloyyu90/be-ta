@@ -2,16 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import * as authService from './auth.service';
 import { sendSuccess } from '@/shared/utils/response';
 import { HTTP_STATUS } from '@/config/constants';
-import type { RegisterInput, LoginInput, RefreshTokenInput, LogoutInput } from './auth.validation';
 
 /**
  * Register controller
  * POST /api/v1/auth/register
  */
 export const register = async (
-  req: Request<{}, {}, RegisterInput>,
+  req: Request, 
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const result = await authService.register(req.body);
@@ -26,9 +25,9 @@ export const register = async (
  * POST /api/v1/auth/login
  */
 export const login = async (
-  req: Request<{}, {}, LoginInput>,
+  req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const result = await authService.login(req.body);
@@ -43,9 +42,9 @@ export const login = async (
  * POST /api/v1/auth/refresh
  */
 export const refreshToken = async (
-  req: Request<{}, {}, RefreshTokenInput>,
+  req: Request, 
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const { refreshToken } = req.body;
@@ -61,9 +60,9 @@ export const refreshToken = async (
  * POST /api/v1/auth/logout
  */
 export const logout = async (
-  req: Request<{}, {}, LogoutInput>,
+  req: Request, 
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const { refreshToken } = req.body;

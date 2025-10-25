@@ -4,6 +4,7 @@ import { validate } from '@/shared/middleware/validate.middleware';
 import * as usersController from './users.controller';
 import * as usersValidation from './users.validation';
 import { UserRole } from '@prisma/client';
+import { asyncHandler } from '@/shared/utils/route-handler';
 
 export const usersRouter = Router();
 
@@ -17,7 +18,7 @@ usersRouter.post(
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.createUserSchema),
-  usersController.createUser
+  usersController.createUser,
 );
 
 /**
@@ -30,7 +31,7 @@ usersRouter.get(
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.getUsersSchema),
-  usersController.getUsers
+  asyncHandler(usersController.getUsers)
 );
 
 /**
@@ -43,7 +44,7 @@ usersRouter.get(
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.getUserSchema),
-  usersController.getUserById
+  asyncHandler(usersController.getUserById)
 );
 
 /**
@@ -56,7 +57,7 @@ usersRouter.patch(
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.updateUserSchema),
-  usersController.updateUser
+   asyncHandler(usersController.updateUser)
 );
 
 /**
@@ -69,5 +70,5 @@ usersRouter.delete(
   authenticate,
   authorize(UserRole.ADMIN),
   validate(usersValidation.deleteUserSchema),
-  usersController.deleteUser
+  asyncHandler(usersController.deleteUser) 
 );

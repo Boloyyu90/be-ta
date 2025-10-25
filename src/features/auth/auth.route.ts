@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validate } from '@/shared/middleware/validate.middleware';
 import { authLimiter } from '@/shared/middleware/rate-limit.middleware';
+import { asyncHandler } from '@/shared/utils/route-handler';
 import * as authController from './auth.controller';
 import * as authValidation from './auth.validation';
 
@@ -15,7 +16,7 @@ authRouter.post(
   '/register',
   authLimiter,
   validate(authValidation.registerSchema),
-  authController.register
+  asyncHandler(authController.register),
 );
 
 /**
@@ -27,7 +28,7 @@ authRouter.post(
   '/login',
   authLimiter,
   validate(authValidation.loginSchema),
-  authController.login
+  asyncHandler(authController.login),
 );
 
 /**
@@ -38,7 +39,7 @@ authRouter.post(
 authRouter.post(
   '/refresh',
   validate(authValidation.refreshTokenSchema),
-  authController.refreshToken
+  asyncHandler(authController.refreshToken),
 );
 
 /**
@@ -49,5 +50,5 @@ authRouter.post(
 authRouter.post(
   '/logout',
   validate(authValidation.logoutSchema),
-  authController.logout
+  asyncHandler(authController.logout),
 );
