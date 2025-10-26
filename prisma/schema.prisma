@@ -1,8 +1,3 @@
-// ============================================================================
-// PRISMA SCHEMA — MVP Tryout System w/ Proctoring (Pragmatic)
-// Project: be-ta (Backend Tryout with Proctoring)
-// ============================================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,9 +7,136 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// ENUMS
-// ============================================================================
+model User {
+  id              Int        @id @default(autoincrement())
+  name            String
+  email           String     @unique
+  password        String
+  role            UserRole   @default(PARTICIPANT)
+  isEmailVerified Boolean    @default(false) @map("is_email_verified")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  createdExams    Exam[]     @relation("ExamCreator")
+  tokens          Token[]
+  userExams       UserExam[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Token {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique @map("token_hash")
+  type      TokenType
+  expires   DateTime
+  userId    Int       @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([type])
+  @@map("tokens")
+}
+
+model QuestionBank {
+  id            Int            @id @default(autoincrement())
+  content       String
+  options       Json
+  correctAnswer String         @map("correct_answer")
+  defaultScore  Int            @default(5) @map("default_score")
+  questionType  QuestionType   @default(TIU) @map("question_type")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  examQuestions ExamQuestion[]
+
+  @@index([questionType])
+  @@index([createdAt])
+  @@map("question_bank")
+}
+
+model Exam {
+  id              Int            @id @default(autoincrement())
+  title           String
+  description     String?
+  startTime       DateTime?      @map("start_time")
+  endTime         DateTime?      @map("end_time")
+  durationMinutes Int            @default(60) @map("duration_minutes")
+  createdBy       Int            @map("created_by")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  examQuestions   ExamQuestion[]
+  creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
+  userExams       UserExam[]
+
+  @@index([createdBy])
+  @@index([startTime])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id          Int          @id @default(autoincrement())
+  examId      Int          @map("exam_id")
+  questionId  Int          @map("question_id")
+  orderNumber Int          @map("order_number")
+  answers     Answer[]
+  exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question    QuestionBank @relation(fields: [questionId], references: [id])
+
+  @@unique([examId, questionId])
+  @@index([examId])
+  @@index([questionId])
+  @@map("exam_questions")
+}
+
+model UserExam {
+  id               Int               @id @default(autoincrement())
+  userId           Int               @map("user_id")
+  examId           Int               @map("exam_id")
+  startedAt        DateTime?         @map("started_at")
+  totalScore       Int?              @map("total_score")
+  status           ExamStatus        @default(IN_PROGRESS)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  submittedAt      DateTime?         @map("submitted_at")
+  answers          Answer[]
+  proctoringEvents ProctoringEvent[]
+  exam             Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, examId])
+  @@index([userId])
+  @@index([examId])
+  @@index([status])
+  @@map("user_exams")
+}
+
+model Answer {
+  id             Int          @id @default(autoincrement())
+  userExamId     Int          @map("user_exam_id")
+  examQuestionId Int          @map("exam_question_id")
+  selectedOption String?      @map("selected_option")
+  isCorrect      Boolean?     @map("is_correct")
+  answeredAt     DateTime     @default(now()) @map("answered_at")
+  examQuestion   ExamQuestion @relation(fields: [examQuestionId], references: [id])
+  userExam       UserExam     @relation(fields: [userExamId], references: [id], onDelete: Cascade)
+
+  @@unique([userExamId, examQuestionId])
+  @@index([userExamId])
+  @@map("answers")
+}
+
+model ProctoringEvent {
+  id         Int                 @id @default(autoincrement())
+  userExamId Int                 @map("user_exam_id")
+  eventType  ProctoringEventType @map("event_type")
+  eventTime  DateTime            @default(now()) @map("event_time")
+  metadata   Json?
+  userExam   UserExam            @relation(fields: [userExamId], references: [id], onDelete: Cascade)
+
+  @@index([userExamId])
+  @@index([eventType])
+  @@index([eventTime])
+  @@map("proctoring_events")
+}
 
 enum UserRole {
   ADMIN
@@ -29,9 +151,9 @@ enum ExamStatus {
 }
 
 enum QuestionType {
-  TIU // Tes Intelegensia Umum
-  TKP // Tes Karakteristik Pribadi
-  TWK // Tes Wawasan Kebangsaan
+  TIU
+  TKP
+  TWK
 }
 
 enum ProctoringEventType {
@@ -46,180 +168,4 @@ enum TokenType {
   REFRESH
   RESET_PASSWORD
   VERIFY_EMAIL
-}
-
-// ============================================================================
-// USER MANAGEMENT
-// ============================================================================
-
-model User {
-  id              Int       @id @default(autoincrement())
-  name            String
-  email           String    @unique
-  password        String
-  role            UserRole  @default(PARTICIPANT)
-  isEmailVerified Boolean   @default(false) @map("is_email_verified")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tokens       Token[]
-  createdExams Exam[]     @relation("ExamCreator")
-  userExams    UserExam[]
-
-  @@index([email])
-  @@index([role])
-  @@map("users")
-}
-
-// ============================================================================
-// TOKEN MANAGEMENT
-// ============================================================================
-
-model Token {
-  id        Int       @id @default(autoincrement())
-  tokenHash String    @unique @map("token_hash") // SHA-256 hash of actual token
-  type      TokenType
-  expires   DateTime
-  userId    Int       @map("user_id")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([userId])
-  @@index([tokenHash])
-  @@index([type])
-  @@map("tokens")
-}
-
-// ============================================================================
-// QUESTION BANK
-// ============================================================================
-
-model QuestionBank {
-  id            Int          @id @default(autoincrement())
-  content       String       @db.Text
-  options       Json         // { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." }
-  correctAnswer String       @map("correct_answer") // "A" | "B" | "C" | "D" | "E"
-  defaultScore  Int          @default(5) @map("default_score")
-  questionType  QuestionType @default(TIU) @map("question_type")
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  examQuestions ExamQuestion[]
-
-  @@index([questionType])
-  @@index([createdAt])
-  @@map("question_bank")
-}
-
-// ============================================================================
-// EXAM MANAGEMENT
-// ============================================================================
-
-model Exam {
-  id              Int       @id @default(autoincrement())
-  title           String
-  description     String?   @db.Text
-  startTime       DateTime? @map("start_time")
-  endTime         DateTime? @map("end_time")
-  durationMinutes Int?      @map("duration_minutes")
-
-  createdBy Int      @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  creator       User           @relation("ExamCreator", fields: [createdBy], references: [id])
-  examQuestions ExamQuestion[]
-  userExams     UserExam[]
-
-  @@index([createdBy])
-  @@index([startTime])
-  @@map("exams")
-}
-
-// ============================================================================
-// EXAM–QUESTION (Many-to-Many)
-// ============================================================================
-
-model ExamQuestion {
-  id          Int @id @default(autoincrement())
-  examId      Int @map("exam_id")
-  questionId  Int @map("question_id")
-  orderNumber Int @map("order_number")
-
-  exam     Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
-  question QuestionBank @relation(fields: [questionId], references: [id], onDelete: Restrict)
-  answers  Answer[]
-
-  @@unique([examId, questionId])
-  @@index([examId])
-  @@index([questionId])
-  @@map("exam_questions")
-}
-
-// ============================================================================
-// USER EXAM SESSION
-// ============================================================================
-
-model UserExam {
-  id         Int        @id @default(autoincrement())
-  userId     Int        @map("user_id")
-  examId     Int        @map("exam_id")
-  startedAt  DateTime?  @map("started_at")
-  finishedAt DateTime?  @map("finished_at")
-  totalScore Int?       @map("total_score")
-  status     ExamStatus @default(IN_PROGRESS)
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exam             Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
-  answers          Answer[]
-  proctoringEvents ProctoringEvent[]
-
-  @@unique([userId, examId])
-  @@index([userId])
-  @@index([examId])
-  @@index([status])
-  @@map("user_exams")
-}
-
-// ============================================================================
-// ANSWER SUBMISSION
-// ============================================================================
-
-model Answer {
-  id             Int      @id @default(autoincrement())
-  userExamId     Int      @map("user_exam_id")
-  examQuestionId Int      @map("exam_question_id")
-  selectedOption String?  @map("selected_option")
-  isCorrect      Boolean? @map("is_correct")
-  answeredAt     DateTime @default(now()) @map("answered_at")
-
-  userExam     UserExam     @relation(fields: [userExamId], references: [id], onDelete: Cascade)
-  examQuestion ExamQuestion @relation(fields: [examQuestionId], references: [id], onDelete: Restrict)
-
-  @@unique([userExamId, examQuestionId])
-  @@index([userExamId])
-  @@map("answers")
-}
-
-// ============================================================================
-// PROCTORING EVENTS
-// ============================================================================
-
-model ProctoringEvent {
-  id         Int                 @id @default(autoincrement())
-  userExamId Int                 @map("user_exam_id")
-  eventType  ProctoringEventType @map("event_type")
-  eventTime  DateTime            @default(now()) @map("event_time")
-  metadata   Json?
-
-  userExam UserExam @relation(fields: [userExamId], references: [id], onDelete: Cascade)
-
-  @@index([userExamId])
-  @@index([eventType])
-  @@index([eventTime])
-  @@map("proctoring_events")
 }
