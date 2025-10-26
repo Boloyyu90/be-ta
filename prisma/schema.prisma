@@ -128,13 +128,15 @@ model ProctoringEvent {
   id         Int                 @id @default(autoincrement())
   userExamId Int                 @map("user_exam_id")
   eventType  ProctoringEventType @map("event_type")
-  eventTime  DateTime            @default(now()) @map("event_time")
+  timestamp  DateTime            @default(now())
+  severity   String              @default("LOW")  // LOW, MEDIUM, HIGH
   metadata   Json?
   userExam   UserExam            @relation(fields: [userExamId], references: [id], onDelete: Cascade)
 
   @@index([userExamId])
   @@index([eventType])
-  @@index([eventTime])
+  @@index([timestamp])
+  @@index([severity])
   @@map("proctoring_events")
 }
 
@@ -157,9 +159,9 @@ enum QuestionType {
 }
 
 enum ProctoringEventType {
-  FACE_NOT_DETECTED
+  FACE_DETECTED
+  NO_FACE_DETECTED
   MULTIPLE_FACES
-  PHONE_DETECTED
   LOOKING_AWAY
 }
 

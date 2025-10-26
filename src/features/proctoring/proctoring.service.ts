@@ -16,39 +16,45 @@ import type {
 // ==================== HELPER FUNCTIONS ====================
 
 /**
- * Calculate risk score based on events
+ * Calculate risk score based on proctoring events
+ * Algorithm considers frequency and severity of violations
  */
 const calculateRiskScore = (
   events: Array<{ eventType: ProctoringEventType; severity: string }>
 ): { score: number; level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' } => {
+  // Base weights for each event type (0-100 scale)
   const weights: Record<ProctoringEventType, number> = {
-    FACE_DETECTED: 0,
-    NO_FACE_DETECTED: 15,
-    MULTIPLE_FACES: 20,
-    LOOKING_AWAY: 5,
-    TAB_SWITCH: 10,
-    COPY_PASTE: 15,
-    RIGHT_CLICK: 5,
-    FULLSCREEN_EXIT: 10,
-    SUSPICIOUS_BEHAVIOR: 25,
+    FACE_DETECTED: 0, // Positive event, no penalty
+    NO_FACE_DETECTED: 20, // High concern - user absent
+    MULTIPLE_FACES: 25, // Very high concern - potential helper
+    LOOKING_AWAY: 5, // Minor concern - could be thinking
   };
 
+  // Severity multipliers
   const severityMultiplier: Record<string, number> = {
     LOW: 1.0,
-    MEDIUM: 1.2,
-    HIGH: 1.5,
+    MEDIUM: 1.5,
+    HIGH: 2.0,
   };
 
   let totalScore = 0;
 
+  // Calculate weighted score
   for (const event of events) {
+    // Skip positive events
+    if (event.eventType === ProctoringEventType.FACE_DETECTED) {
+      continue;
+    }
+
     const baseWeight = weights[event.eventType] || 0;
     const multiplier = severityMultiplier[event.severity] || 1.0;
     totalScore += baseWeight * multiplier;
   }
 
+  // Normalize to 0-100 scale
   const normalizedScore = Math.min(100, totalScore);
 
+  // Determine risk level based on thresholds
   let level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   if (normalizedScore < 20) level = 'LOW';
   else if (normalizedScore < 40) level = 'MEDIUM';
@@ -59,8 +65,13 @@ const calculateRiskScore = (
 };
 
 /**
- * Analyze image for face detection
- * TODO: Replace with actual YOLO/ML integration
+ * Mock face detection analysis
+ * TODO: Replace with actual YOLO/ML service integration
+ *
+ * This mock implementation simulates realistic detection scenarios:
+ * - 85% chance of detecting face when present
+ * - 5% chance of detecting multiple faces
+ * - 10% chance of detecting looking away behavior
  */
 const analyzeFaceDetection = async (
   imageBase64: string
@@ -68,33 +79,61 @@ const analyzeFaceDetection = async (
   detected: boolean;
   faceCount: number;
   confidence: number;
+  headPose?: { yaw: number; pitch: number; roll: number };
   boundingBoxes: Array<{ x: number; y: number; width: number; height: number; confidence: number }>;
 }> => {
-  logger.info('Running face detection analysis');
+  logger.info('Running face detection analysis (MOCK)');
+
+  // Simulate processing delay (real ML inference takes 300-800ms)
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   try {
-    // Mock implementation - replace with actual ML inference
-    const mockResult = {
-      detected: Math.random() > 0.2,
-      faceCount: Math.random() > 0.9 ? 2 : 1,
-      confidence: 0.85 + Math.random() * 0.15,
-      boundingBoxes: [
-        {
-          x: 100 + Math.random() * 50,
+    // Mock detection logic with realistic probabilities
+    const random = Math.random();
+
+    // 85% chance face detected
+    const detected = random > 0.15;
+
+    // 5% chance of multiple faces
+    const faceCount = random > 0.95 ? 2 : detected ? 1 : 0;
+
+    // Confidence between 0.75 and 0.98
+    const confidence = detected ? 0.75 + Math.random() * 0.23 : 0;
+
+    // Mock head pose estimation (yaw: left-right, pitch: up-down, roll: tilt)
+    // Normal range: yaw ±20°, pitch ±15°, roll ±10°
+    // Looking away: yaw > 30° or pitch > 25°
+    const headPose = detected
+      ? {
+        yaw: -30 + Math.random() * 60, // -30° to 30°
+        pitch: -20 + Math.random() * 40, // -20° to 20°
+        roll: -10 + Math.random() * 20, // -10° to 10°
+      }
+      : undefined;
+
+    // Mock bounding boxes
+    const boundingBoxes =
+      faceCount > 0
+        ? Array.from({ length: faceCount }, (_, i) => ({
+          x: 100 + i * 300 + Math.random() * 50,
           y: 80 + Math.random() * 40,
           width: 200 + Math.random() * 50,
           height: 250 + Math.random() * 50,
-          confidence: 0.9 + Math.random() * 0.1,
-        },
-      ],
-    };
+          confidence: 0.85 + Math.random() * 0.13,
+        }))
+        : [];
 
     logger.info(
-      { detected: mockResult.detected, faceCount: mockResult.faceCount },
-      'Face detection completed'
+      {
+        detected,
+        faceCount,
+        confidence: confidence.toFixed(2),
+        headPose,
+      },
+      'Face detection completed (MOCK)'
     );
 
-    return mockResult;
+    return { detected, faceCount, confidence, headPose, boundingBoxes };
   } catch (error) {
     logger.error({ error }, 'Face detection failed');
     throw new Error('Failed to analyze image');
@@ -103,19 +142,34 @@ const analyzeFaceDetection = async (
 
 // ==================== SERVICE FUNCTIONS ====================
 
+/**
+ * Log a single proctoring event
+ */
 export const logEvent = async (input: LogEventInput) => {
   const { userExamId, eventType, metadata, severity } = input;
 
-  logger.debug({ userExamId, eventType }, 'Logging proctoring event');
+  logger.debug({ userExamId, eventType, severity }, 'Logging proctoring event');
 
+  // Validate user exam exists and is active
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
+    select: {
+      id: true,
+      submittedAt: true,
+      status: true,
+    },
   });
 
   if (!userExam) {
-    throw new Error('User exam not found');
+    throw new Error('User exam session not found');
   }
 
+  // Prevent logging events for already submitted exams
+  if (userExam.submittedAt) {
+    throw new Error('Cannot log events for submitted exam');
+  }
+
+  // Create proctoring event
   const event = await prisma.proctoringEvent.create({
     data: {
       userExamId,
@@ -126,7 +180,7 @@ export const logEvent = async (input: LogEventInput) => {
     },
   });
 
-  logger.info({ eventId: event.id }, 'Event logged');
+  logger.info({ eventId: event.id, eventType, severity }, 'Proctoring event logged successfully');
 
   return {
     message: 'Event logged successfully',
@@ -141,43 +195,58 @@ export const logEvent = async (input: LogEventInput) => {
   };
 };
 
+/**
+ * Log multiple proctoring events in batch
+ * Useful for frontend buffering and sending events in batches
+ */
 export const logEventsBatch = async (input: LogEventsBatchInput) => {
   const { events } = input;
 
-  logger.info({ count: events.length }, 'Logging batch events');
+  logger.info({ count: events.length }, 'Logging batch proctoring events');
 
+  // Validate all user exams exist
   const userExamIds = [...new Set(events.map((e) => e.userExamId))];
   const userExams = await prisma.userExam.findMany({
     where: { id: { in: userExamIds } },
-    select: { id: true },
+    select: { id: true, submittedAt: true },
   });
 
   if (userExams.length !== userExamIds.length) {
-    throw new Error('One or more user exams not found');
+    throw new Error('One or more user exam sessions not found');
   }
 
-  const createdEvents = await prisma.proctoringEvent.createMany({
+  // Check for submitted exams
+  const submittedExams = userExams.filter((ue) => ue.submittedAt !== null);
+  if (submittedExams.length > 0) {
+    throw new Error(
+      `Cannot log events for submitted exam(s): ${submittedExams.map((e) => e.id).join(', ')}`
+    );
+  }
+
+  // Create events in batch
+  await prisma.proctoringEvent.createMany({
     data: events.map((e) => ({
       userExamId: e.userExamId,
       eventType: e.eventType,
-      metadata: (e.metadata as Prisma.JsonObject) || undefined,
+      metadata: (e.metadata as Prisma.JsonObject) || Prisma.JsonNull,
       severity: e.severity || 'LOW',
       timestamp: new Date(),
     })),
   });
 
-  const fetchedEvents = await prisma.proctoringEvent.findMany({
+  // Fetch created events to return with IDs
+  const createdEvents = await prisma.proctoringEvent.findMany({
     where: { userExamId: { in: userExamIds } },
     orderBy: { timestamp: 'desc' },
     take: events.length,
   });
 
-  logger.info({ logged: createdEvents.count }, 'Batch logged');
+  logger.info({ logged: createdEvents.length }, 'Batch events logged successfully');
 
   return {
-    message: `Successfully logged ${createdEvents.count} event(s)`,
-    logged: createdEvents.count,
-    events: fetchedEvents.map((e) => ({
+    message: `Successfully logged ${createdEvents.length} event(s)`,
+    logged: createdEvents.length,
+    events: createdEvents.map((e) => ({
       id: e.id,
       userExamId: e.userExamId,
       eventType: e.eventType,
@@ -188,11 +257,30 @@ export const logEventsBatch = async (input: LogEventsBatchInput) => {
   };
 };
 
-export const getEvents = async (userExamId: number, filter: GetEventsQuery) => {
+/**
+ * Get proctoring events for a specific user exam
+ * Used by participants to review their own events
+ */
+export const getEvents = async (userExamId: number, userId: number, filter: GetEventsQuery) => {
   const { eventType, severity, page, limit } = filter;
 
-  logger.debug({ userExamId, filter }, 'Fetching events');
+  logger.debug({ userExamId, userId, filter }, 'Fetching proctoring events');
 
+  // Verify ownership
+  const userExam = await prisma.userExam.findUnique({
+    where: { id: userExamId },
+    select: { userId: true },
+  });
+
+  if (!userExam) {
+    throw new Error('User exam session not found');
+  }
+
+  if (userExam.userId !== userId) {
+    throw new Error('Unauthorized to view these events');
+  }
+
+  // Build query filters
   const where: Prisma.ProctoringEventWhereInput = {
     userExamId,
     ...(eventType && { eventType }),
@@ -201,6 +289,7 @@ export const getEvents = async (userExamId: number, filter: GetEventsQuery) => {
 
   const skip = (page - 1) * limit;
 
+  // Execute queries
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -223,17 +312,34 @@ export const getEvents = async (userExamId: number, filter: GetEventsQuery) => {
   return createPaginatedResponse(mappedEvents, page, limit, total);
 };
 
-export const getStats = async (userExamId: number): Promise<ProctoringStatsResponse> => {
-  logger.debug({ userExamId }, 'Calculating stats');
+/**
+ * Get proctoring statistics for a user exam
+ * Provides comprehensive analytics about proctoring activity
+ */
+export const getStats = async (
+  userExamId: number,
+  userId: number
+): Promise<ProctoringStatsResponse> => {
+  logger.debug({ userExamId, userId }, 'Calculating proctoring statistics');
 
+  // Verify ownership and get exam details
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
+    include: {
+      user: { select: { name: true } },
+      exam: { select: { title: true } },
+    },
   });
 
   if (!userExam) {
-    throw new Error('User exam not found');
+    throw new Error('User exam session not found');
   }
 
+  if (userExam.userId !== userId) {
+    throw new Error('Unauthorized to view these statistics');
+  }
+
+  // Fetch all events for this exam session
   const events = await prisma.proctoringEvent.findMany({
     where: { userExamId },
     orderBy: { timestamp: 'asc' },
@@ -241,15 +347,15 @@ export const getStats = async (userExamId: number): Promise<ProctoringStatsRespo
 
   const totalEvents = events.length;
 
+  // Count suspicious events (exclude FACE_DETECTED which is positive)
   const suspiciousEvents = events.filter(
-    (e) =>
-      e.eventType !== ProctoringEventType.FACE_DETECTED &&
-      e.eventType !== ProctoringEventType.RIGHT_CLICK
+    (e) => e.eventType !== ProctoringEventType.FACE_DETECTED
   );
   const suspiciousCount = suspiciousEvents.length;
   const suspiciousPercentage =
     totalEvents > 0 ? Math.round((suspiciousCount / totalEvents) * 100) : 0;
 
+  // Group by event type
   const eventTypeMap = new Map<ProctoringEventType, number>();
   for (const event of events) {
     eventTypeMap.set(event.eventType, (eventTypeMap.get(event.eventType) || 0) + 1);
@@ -261,6 +367,7 @@ export const getStats = async (userExamId: number): Promise<ProctoringStatsRespo
     percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0,
   }));
 
+  // Group by severity
   const severityMap = new Map<string, number>();
   for (const event of events) {
     severityMap.set(event.severity, (severityMap.get(event.severity) || 0) + 1);
@@ -272,12 +379,14 @@ export const getStats = async (userExamId: number): Promise<ProctoringStatsRespo
     percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0,
   }));
 
+  // Timeline (last 50 events for chart)
   const timeline = events.slice(-50).map((e) => ({
     timestamp: e.timestamp,
     eventType: e.eventType,
     severity: e.severity,
   }));
 
+  // Calculate risk score
   const { score: riskScore, level: riskLevel } = calculateRiskScore(
     events.map((e) => ({
       eventType: e.eventType,
@@ -285,10 +394,12 @@ export const getStats = async (userExamId: number): Promise<ProctoringStatsRespo
     }))
   );
 
-  logger.info({ userExamId, riskScore, riskLevel }, 'Stats calculated');
+  logger.info({ userExamId, riskScore, riskLevel }, 'Statistics calculated successfully');
 
   return {
     userExamId,
+    examTitle: userExam.exam.title,
+    participantName: userExam.user.name,
     totalEvents,
     suspiciousCount,
     suspiciousPercentage,
@@ -300,12 +411,17 @@ export const getStats = async (userExamId: number): Promise<ProctoringStatsRespo
   };
 };
 
+/**
+ * Get all proctoring events (Admin only)
+ * Supports filtering by exam, user, event type, etc.
+ */
 export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   const { userExamId, examId, userId, eventType, severity, page, limit, sortBy, sortOrder } =
     filter;
 
-  logger.debug({ filter }, 'Fetching admin events');
+  logger.debug({ filter }, 'Fetching admin proctoring events');
 
+  // Build query filters
   const where: Prisma.ProctoringEventWhereInput = {
     ...(userExamId && { userExamId }),
     ...(eventType && { eventType }),
@@ -320,6 +436,7 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
     [sortBy]: sortOrder,
   };
 
+  // Execute queries with user exam details
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -363,48 +480,75 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   return createPaginatedResponse(mappedEvents, page, limit, total);
 };
 
-export const detectFace = async (input: DetectFaceInput): Promise<FaceDetectionResult> => {
+/**
+ * Process face detection from ML service
+ * This is the main integration point with computer vision
+ */
+export const detectFace = async (
+  input: DetectFaceInput,
+  userId: number
+): Promise<FaceDetectionResult> => {
   const { userExamId, imageBase64, timestamp } = input;
 
-  logger.info({ userExamId }, 'Processing face detection');
+  logger.info({ userExamId, userId }, 'Processing face detection request');
 
+  // Verify user exam exists and belongs to user
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
+    select: { userId: true, submittedAt: true },
   });
 
   if (!userExam) {
-    throw new Error('User exam not found');
+    throw new Error('User exam session not found');
+  }
+
+  if (userExam.userId !== userId) {
+    throw new Error('Unauthorized');
   }
 
   if (userExam.submittedAt) {
-    throw new Error('Cannot process for submitted exam');
+    throw new Error('Cannot process detection for submitted exam');
   }
 
+  // Run face detection analysis
   const detection = await analyzeFaceDetection(imageBase64);
 
-  const { detected, faceCount, confidence, boundingBoxes } = detection;
+  const { detected, faceCount, confidence, headPose, boundingBoxes } = detection;
 
+  // Determine event type and severity based on detection results
   let eventType: ProctoringEventType;
   let severity: 'LOW' | 'MEDIUM' | 'HIGH';
   const warnings: string[] = [];
 
   if (!detected || faceCount === 0) {
+    // No face detected - user not present
     eventType = ProctoringEventType.NO_FACE_DETECTED;
     severity = 'HIGH';
-    warnings.push('No face detected');
+    warnings.push('No face detected - user may have left seat');
   } else if (faceCount > 1) {
+    // Multiple faces - potential helper
     eventType = ProctoringEventType.MULTIPLE_FACES;
     severity = 'HIGH';
-    warnings.push(`Multiple faces (${faceCount})`);
+    warnings.push(`Multiple faces detected (${faceCount})`);
   } else if (confidence < 0.7) {
+    // Low confidence - possible looking away or obscured face
     eventType = ProctoringEventType.LOOKING_AWAY;
     severity = 'MEDIUM';
-    warnings.push('Low confidence');
+    warnings.push('Low confidence detection - face may be obscured');
+  } else if (headPose && (Math.abs(headPose.yaw) > 30 || Math.abs(headPose.pitch) > 25)) {
+    // Head pose indicates looking away
+    eventType = ProctoringEventType.LOOKING_AWAY;
+    severity = Math.abs(headPose.yaw) > 45 || Math.abs(headPose.pitch) > 35 ? 'HIGH' : 'MEDIUM';
+    warnings.push(
+      `Looking away detected (yaw: ${headPose.yaw.toFixed(1)}°, pitch: ${headPose.pitch.toFixed(1)}°)`
+    );
   } else {
+    // Normal - face detected and looking at screen
     eventType = ProctoringEventType.FACE_DETECTED;
     severity = 'LOW';
   }
 
+  // Log the event
   const event = await prisma.proctoringEvent.create({
     data: {
       userExamId,
@@ -413,18 +557,32 @@ export const detectFace = async (input: DetectFaceInput): Promise<FaceDetectionR
       timestamp: new Date(timestamp),
       metadata: {
         faceCount,
-        confidence,
-        boundingBoxes,
+        confidence: parseFloat(confidence.toFixed(3)),
+        headPose: headPose
+          ? {
+            yaw: parseFloat(headPose.yaw.toFixed(2)),
+            pitch: parseFloat(headPose.pitch.toFixed(2)),
+            roll: parseFloat(headPose.roll.toFixed(2)),
+          }
+          : null,
+        boundingBoxes: boundingBoxes.map((box) => ({
+          x: Math.round(box.x),
+          y: Math.round(box.y),
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+          confidence: parseFloat(box.confidence.toFixed(3)),
+        })),
       } as Prisma.JsonObject,
     },
   });
 
-  logger.info({ eventId: event.id, eventType }, 'Face detection logged');
+  logger.info({ eventId: event.id, eventType, severity }, 'Face detection event logged');
 
   return {
     detected,
     faceCount,
-    confidence,
+    confidence: parseFloat(confidence.toFixed(3)),
+    headPose,
     boundingBoxes,
     warnings,
     eventLogged: true,

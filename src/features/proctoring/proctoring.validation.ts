@@ -19,11 +19,12 @@ export const logEventSchema = z.object({
     metadata: z
       .record(z.any())
       .optional()
-      .describe('Additional event metadata'),
+      .describe('Additional event metadata (face count, confidence, etc.)'),
     severity: z
       .enum(['LOW', 'MEDIUM', 'HIGH'])
       .optional()
-      .default('LOW'),
+      .default('LOW')
+      .describe('Event severity level'),
   }),
 });
 
@@ -43,12 +44,12 @@ export const logEventsBatchSchema = z.object({
         })
       )
       .min(1, 'At least one event required')
-      .max(100, 'Max 100 events per batch'),
+      .max(50, 'Maximum 50 events per batch for performance'),
   }),
 });
 
 /**
- * Schema for getting events
+ * Schema for getting events for a specific user exam
  * GET /api/v1/proctoring/user-exams/:id/events
  */
 export const getEventsSchema = z.object({
@@ -78,7 +79,7 @@ export const getEventsSchema = z.object({
 });
 
 /**
- * Schema for getting stats
+ * Schema for getting proctoring statistics
  * GET /api/v1/proctoring/user-exams/:id/stats
  */
 export const getStatsSchema = z.object({
@@ -92,7 +93,7 @@ export const getStatsSchema = z.object({
 });
 
 /**
- * Schema for admin events
+ * Schema for admin to view all proctoring events
  * GET /api/v1/admin/proctoring/events
  */
 export const getAdminEventsSchema = z.object({
@@ -126,19 +127,36 @@ export const getAdminEventsSchema = z.object({
       .default('50')
       .transform(Number)
       .pipe(z.number().int().positive().max(100)),
-    sortBy: z.enum(['timestamp', 'severity']).optional().default('timestamp'),
+    sortBy: z.enum(['timestamp', 'severity', 'eventType']).optional().default('timestamp'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
 
 /**
- * Schema for ML face detection
- * POST /api/v1/proctoring/ml/detect-face
+ * Schema for face detection from ML service
+ * POST /api/v1/proctoring/detect-face
  */
 export const detectFaceSchema = z.object({
   body: z.object({
-    userExamId: z.number().int().positive(),
-    imageBase64: z.string().min(100),
+    userExamId: z
+      .number({ required_error: 'User exam ID is required' })
+      .int()
+      .positive(),
+    imageBase64: z
+      .string({ required_error: 'Image data is required' })
+      .min(100, 'Image data too short')
+      .refine(
+        (val) => {
+          // Validate base64 and size (max 5MB)
+          try {
+            const sizeInBytes = (val.length * 3) / 4;
+            return sizeInBytes <= 5 * 1024 * 1024; // 5MB limit
+          } catch {
+            return false;
+          }
+        },
+        { message: 'Image size must be less than 5MB' }
+      ),
     timestamp: z
       .string()
       .datetime()
@@ -159,6 +177,9 @@ export type DetectFaceInput = z.infer<typeof detectFaceSchema>['body'];
 
 // ==================== RESPONSE TYPES ====================
 
+/**
+ * Single proctoring event
+ */
 export interface ProctoringEvent {
   id: number;
   userExamId: number;
@@ -168,6 +189,9 @@ export interface ProctoringEvent {
   severity: string;
 }
 
+/**
+ * Proctoring event with user exam details (for admin)
+ */
 export interface ProctoringEventDetail extends ProctoringEvent {
   userExam: {
     id: number;
@@ -183,19 +207,28 @@ export interface ProctoringEventDetail extends ProctoringEvent {
   };
 }
 
+/**
+ * Response for logging single event
+ */
 export interface LogEventResponse {
   message: string;
   event: ProctoringEvent;
 }
 
+/**
+ * Response for batch logging
+ */
 export interface LogEventsBatchResponse {
   message: string;
   logged: number;
   events: ProctoringEvent[];
 }
 
+/**
+ * Paginated events list
+ */
 export interface EventsListResponse {
-  data: ProctoringEvent[];
+  data: ProctoringEvent[] | ProctoringEventDetail[];
   pagination: {
     page: number;
     limit: number;
@@ -206,20 +239,31 @@ export interface EventsListResponse {
   };
 }
 
+/**
+ * Event statistics by type
+ */
 export interface EventTypeStats {
   eventType: ProctoringEventType;
   count: number;
   percentage: number;
 }
 
+/**
+ * Event statistics by severity
+ */
 export interface SeverityStats {
   severity: string;
   count: number;
   percentage: number;
 }
 
+/**
+ * Proctoring statistics response
+ */
 export interface ProctoringStatsResponse {
   userExamId: number;
+  examTitle: string;
+  participantName: string;
   totalEvents: number;
   suspiciousCount: number;
   suspiciousPercentage: number;
@@ -234,10 +278,18 @@ export interface ProctoringStatsResponse {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
+/**
+ * Face detection result from ML service
+ */
 export interface FaceDetectionResult {
   detected: boolean;
   faceCount: number;
   confidence: number;
+  headPose?: {
+    yaw: number; // Left-right rotation
+    pitch: number; // Up-down rotation
+    roll: number; // Tilt rotation
+  };
   boundingBoxes: Array<{
     x: number;
     y: number;
