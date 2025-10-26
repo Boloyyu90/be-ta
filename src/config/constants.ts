@@ -31,16 +31,20 @@ export const ERROR_MESSAGES = {
   FORBIDDEN: 'Forbidden',
   VALIDATION_ERROR: 'Validation error',
 
-  // Exam errors (for future)
+  // Exam errors
   EXAM_NOT_FOUND: 'Exam not found',
   EXAM_ALREADY_STARTED: 'You have already started this exam',
   EXAM_NOT_STARTED: 'Exam has not started yet',
   EXAM_ENDED: 'Exam has already ended',
   EXAM_TIMEOUT: 'Exam time limit exceeded',
-  
+  EXAM_HAS_ACTIVE_SESSIONS: 'Cannot modify exam with active sessions',
+  EXAM_HAS_ATTEMPTS: 'Cannot delete exam with participant attempts',
+
   // Question errors
   QUESTION_NOT_FOUND: 'Question not found',
-  
+  QUESTIONS_NOT_FOUND: 'Some questions not found',
+  QUESTION_ALREADY_IN_EXAM: 'Question already in exam',
+
   // Proctoring errors
   INVALID_PROCTORING_EVENT: 'Invalid proctoring event',
 } as const;
@@ -65,11 +69,15 @@ export const SUCCESS_MESSAGES = {
   EXAM_DELETED: 'Exam deleted successfully',
   EXAM_STARTED: 'Exam started successfully',
   EXAM_FINISHED: 'Exam finished successfully',
+  EXAMS_RETRIEVED: 'Exams retrieved successfully',
+  EXAM_RETRIEVED: 'Exam retrieved successfully',
 
   // Question
   QUESTION_CREATED: 'Question created successfully',
   QUESTION_UPDATED: 'Question updated successfully',
   QUESTION_DELETED: 'Question deleted successfully',
+  QUESTIONS_ATTACHED: 'Questions attached to exam successfully',
+  QUESTIONS_DETACHED: 'Questions detached from exam successfully',
 
   // Answer
   ANSWER_SUBMITTED: 'Answer submitted successfully',
