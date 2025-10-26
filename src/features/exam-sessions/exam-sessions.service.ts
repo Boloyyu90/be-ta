@@ -54,11 +54,11 @@ export const getRemainingTime = (startedAt: Date, durationMinutes: number): numb
  * Calculate exam duration in seconds
  *
  * @param startedAt - When exam was started
- * @param finishedAt - When exam was finished
+ * @param submittedAt - When exam was submitted
  * @returns duration in seconds
  */
-export const calculateDuration = (startedAt: Date, finishedAt: Date): number => {
-  return Math.floor((finishedAt.getTime() - startedAt.getTime()) / 1000);
+export const calculateDuration = (startedAt: Date, submittedAt: Date): number => {
+  return Math.floor((submittedAt.getTime() - startedAt.getTime()) / 1000);
 };
 
 // ==================== PRISMA SELECT OBJECTS ====================
@@ -68,7 +68,7 @@ const USER_EXAM_SELECT = {
   examId: true,
   userId: true,
   startedAt: true,
-  finishedAt: true,
+  submittedAt: true,
   totalScore: true,
   status: true,
   createdAt: true,
@@ -163,7 +163,7 @@ export const startExam = async (userId: number, examId: number) => {
   });
 
   // If already finished, prevent restart
-  if (existingUserExam?.finishedAt) {
+  if (existingUserExam?.submittedAt) {
     logger.warn({ userId, examId, status: existingUserExam.status }, 'Exam already completed');
     throw new Error(ERROR_MESSAGES.EXAM_ALREADY_STARTED);
   }
@@ -255,7 +255,7 @@ export const startExam = async (userId: number, examId: number) => {
     examTitle: userExam.exam.title,
     durationMinutes: exam.durationMinutes,
     startedAt: userExam.startedAt!,
-    finishedAt: userExam.finishedAt,
+    submittedAt: userExam.submittedAt,
     status: userExam.status,
     remainingTimeMs,
     totalQuestions: questions.length,
@@ -309,7 +309,7 @@ export const submitAnswer = async (
   }
 
   // Check if exam is already finished
-  if (userExam.finishedAt) {
+  if (userExam.submittedAt) {
     throw new Error('Cannot submit answer - exam already finished');
   }
 
@@ -320,7 +320,7 @@ export const submitAnswer = async (
       where: { id: userExamId },
       data: {
         status: ExamStatus.TIMEOUT,
-        finishedAt: new Date(),
+        submittedAt: new Date(),
       },
     });
     throw new Error(ERROR_MESSAGES.EXAM_TIMEOUT);
@@ -430,7 +430,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
   }
 
   // Check if already submitted
-  if (userExam.finishedAt) {
+  if (userExam.submittedAt) {
     throw new Error('Exam already submitted');
   }
 
@@ -448,7 +448,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
       where: { id: userExamId },
       data: {
         status: ExamStatus.TIMEOUT,
-        finishedAt: now,
+        submittedAt: now,
       },
     });
 
@@ -502,7 +502,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
     where: { id: userExamId },
     data: {
       status: ExamStatus.FINISHED,
-      finishedAt: now,
+      submittedAt: now,
       totalScore,
     },
   });
@@ -521,7 +521,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
     },
     user: userExam.user,
     startedAt: userExam.startedAt!,
-    finishedAt: now,
+    submittedAt: now,
     totalScore,
     status: ExamStatus.FINISHED,
     duration,
@@ -608,10 +608,10 @@ export const getMyResults = async (userId: number, filter: GetMyResultsQuery) =>
     },
     user: ue.user,
     startedAt: ue.startedAt!,
-    finishedAt: ue.finishedAt,
+    submittedAt: ue.submittedAt,
     totalScore: ue.totalScore,
     status: ue.status,
-    duration: ue.startedAt && ue.finishedAt ? calculateDuration(ue.startedAt, ue.finishedAt) : null,
+    duration: ue.startedAt && ue.submittedAt ? calculateDuration(ue.startedAt, ue.submittedAt) : null,
     answeredQuestions: ue._count.answers,
     totalQuestions: ue.exam._count.examQuestions,
     scoresByType: [], // Simplified for list view
@@ -663,10 +663,10 @@ export const getResults = async (filter: GetResultsQuery) => {
     },
     user: ue.user,
     startedAt: ue.startedAt!,
-    finishedAt: ue.finishedAt,
+    submittedAt: ue.submittedAt,
     totalScore: ue.totalScore,
     status: ue.status,
-    duration: ue.startedAt && ue.finishedAt ? calculateDuration(ue.startedAt, ue.finishedAt) : null,
+    duration: ue.startedAt && ue.submittedAt ? calculateDuration(ue.startedAt, ue.submittedAt) : null,
     answeredQuestions: ue._count.answers,
     totalQuestions: ue.exam._count.examQuestions,
     scoresByType: [], // Simplified for list view
@@ -770,7 +770,7 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
   }
 
   // Can only review after submission
-  if (!userExam.finishedAt) {
+  if (!userExam.submittedAt) {
     throw new Error('Cannot review answers before submitting exam');
   }
 

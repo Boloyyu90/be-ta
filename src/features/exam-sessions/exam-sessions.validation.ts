@@ -124,7 +124,7 @@ export const getResultsSchema = z.object({
       .transform((val) => (val ? Number(val) : undefined))
       .pipe(z.number().int().positive().optional()),
     status: z.nativeEnum(ExamStatus).optional(),
-    sortBy: z.enum(['createdAt', 'finishedAt', 'totalScore']).optional().default('createdAt'),
+    sortBy: z.enum(['createdAt', 'submittedAt', 'totalScore']).optional().default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
@@ -211,7 +211,7 @@ export interface UserExamSession {
   examTitle: string;
   durationMinutes: number;
   startedAt: Date;
-  finishedAt: Date | null;
+  submittedAt: Date | null;
   status: ExamStatus;
   remainingTimeMs: number | null; // null if finished
   totalQuestions: number;
@@ -260,7 +260,7 @@ export interface ExamResult {
     email: string;
   };
   startedAt: Date;
-  finishedAt: Date | null;
+  submittedAt: Date | null;
   totalScore: number | null;
   status: ExamStatus;
   duration: number | null; // Duration in seconds
