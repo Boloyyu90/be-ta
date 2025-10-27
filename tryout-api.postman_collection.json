@@ -1,0 +1,801 @@
+{
+  "info": {
+    "name": "Tryout API - Complete Collection",
+    "description": "Complete API testing collection with auto-token management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Setup",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/../health",
+              "host": ["{{base_url}}"],
+              "path": ["..", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('admin_token', json.data.tokens.accessToken);",
+                  "    pm.environment.set('admin_refresh_token', json.data.tokens.refreshToken);",
+                  "    console.log('✅ Admin token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Admin123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Participant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('participant_token', json.data.tokens.accessToken);",
+                  "    pm.environment.set('participant_refresh_token', json.data.tokens.refreshToken);",
+                  "    console.log('✅ Participant token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"participant@example.com\",\n  \"password\": \"Admin123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Register New Participant",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"User123456\",\n  \"name\": \"New User\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('admin_token', json.data.tokens.accessToken);",
+                  "    pm.environment.set('admin_refresh_token', json.data.tokens.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{admin_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "Logout - Admin",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{admin_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Questions (Admin)",
+      "item": [
+        {
+          "name": "Create Question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('question_id', json.data.question.id);",
+                  "    console.log('✅ Question ID saved:', json.data.question.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Pancasila sebagai dasar negara Indonesia ditetapkan pada tanggal?\",\n  \"options\": {\n    \"A\": \"17 Agustus 1945\",\n    \"B\": \"18 Agustus 1945\",\n    \"C\": \"1 Juni 1945\",\n    \"D\": \"22 Juni 1945\",\n    \"E\": \"1 Oktober 1945\"\n  },\n  \"correctAnswer\": \"B\",\n  \"defaultScore\": 5,\n  \"questionType\": \"TWK\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/questions",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Get All Questions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/questions?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Question by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/questions/{{question_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions", "{{question_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Question",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"defaultScore\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/questions/{{question_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions", "{{question_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Question Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/questions/stats",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"content\": \"Ibukota Indonesia adalah?\",\n      \"options\": {\n        \"A\": \"Jakarta\",\n        \"B\": \"Bandung\",\n        \"C\": \"Surabaya\",\n        \"D\": \"Medan\",\n        \"E\": \"Bali\"\n      },\n      \"correctAnswer\": \"A\",\n      \"defaultScore\": 5,\n      \"questionType\": \"TWK\"\n    },\n    {\n      \"content\": \"2 + 2 = ?\",\n      \"options\": {\n        \"A\": \"2\",\n        \"B\": \"3\",\n        \"C\": \"4\",\n        \"D\": \"5\",\n        \"E\": \"6\"\n      },\n      \"correctAnswer\": \"C\",\n      \"defaultScore\": 5,\n      \"questionType\": \"TIU\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/questions/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "questions", "bulk"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Exams (Admin)",
+      "item": [
+        {
+          "name": "Create Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('exam_id', json.data.exam.id);",
+                  "    console.log('✅ Exam ID saved:', json.data.exam.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"CPNS Tryout Batch 1\",\n  \"description\": \"Simulasi tes CPNS dengan 100 soal pilihan ganda\",\n  \"durationMinutes\": 90,\n  \"startTime\": \"2025-11-01T09:00:00Z\",\n  \"endTime\": \"2025-11-01T18:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/exams",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams"]
+            }
+          }
+        },
+        {
+          "name": "Get All Exams (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/exams?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Exam by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/exams/{{exam_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams", "{{exam_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Attach Questions to Exam",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [1, 2, 3, 4, 5]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/exams/{{exam_id}}/questions",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams", "{{exam_id}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Questions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/exams/{{exam_id}}/questions",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams", "{{exam_id}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Update Exam",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"durationMinutes\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/exams/{{exam_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "exams", "{{exam_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Exam Sessions (Participant)",
+      "item": [
+        {
+          "name": "Get Available Exams",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/exams",
+              "host": ["{{base_url}}"],
+              "path": ["exams"]
+            }
+          }
+        },
+        {
+          "name": "Start Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('user_exam_id', json.data.userExam.id);",
+                  "    console.log('✅ User Exam ID saved:', json.data.userExam.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/exams/{{exam_id}}/start",
+              "host": ["{{base_url}}"],
+              "path": ["exams", "{{exam_id}}", "start"]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Questions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/user-exams/{{user_exam_id}}/questions",
+              "host": ["{{base_url}}"],
+              "path": ["user-exams", "{{user_exam_id}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Submit Answer (Autosave)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examQuestionId\": 1,\n  \"selectedOption\": \"A\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/user-exams/{{user_exam_id}}/answers",
+              "host": ["{{base_url}}"],
+              "path": ["user-exams", "{{user_exam_id}}", "answers"]
+            }
+          }
+        },
+        {
+          "name": "Submit Exam (Finish)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/user-exams/{{user_exam_id}}/submit",
+              "host": ["{{base_url}}"],
+              "path": ["user-exams", "{{user_exam_id}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Get My Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/results/me",
+              "host": ["{{base_url}}"],
+              "path": ["results", "me"]
+            }
+          }
+        },
+        {
+          "name": "Review Answers (After Submit)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/user-exams/{{user_exam_id}}/answers",
+              "host": ["{{base_url}}"],
+              "path": ["user-exams", "{{user_exam_id}}", "answers"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Proctoring",
+      "item": [
+        {
+          "name": "Log Single Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userExamId\": {{user_exam_id}},\n  \"eventType\": \"NO_FACE_DETECTED\",\n  \"severity\": \"HIGH\",\n  \"metadata\": {\n    \"timestamp\": \"2025-10-27T10:30:00Z\",\n    \"duration\": 5000\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proctoring/events",
+              "host": ["{{base_url}}"],
+              "path": ["proctoring", "events"]
+            }
+          }
+        },
+        {
+          "name": "Detect Face (Mock ML)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userExamId\": {{user_exam_id}},\n  \"imageBase64\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD...\",\n  \"timestamp\": \"2025-10-27T10:30:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/proctoring/detect-face",
+              "host": ["{{base_url}}"],
+              "path": ["proctoring", "detect-face"]
+            }
+          }
+        },
+        {
+          "name": "Get My Proctoring Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/proctoring/user-exams/{{user_exam_id}}/events",
+              "host": ["{{base_url}}"],
+              "path": ["proctoring", "user-exams", "{{user_exam_id}}", "events"]
+            }
+          }
+        },
+        {
+          "name": "Get My Proctoring Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/proctoring/user-exams/{{user_exam_id}}/stats",
+              "host": ["{{base_url}}"],
+              "path": ["proctoring", "user-exams", "{{user_exam_id}}", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get All Events (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/proctoring/events?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "proctoring", "events"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin - Results",
+      "item": [
+        {
+          "name": "Get All Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/results?page=1&limit=10&sortBy=totalScore&sortOrder=desc",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "results"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "totalScore"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
