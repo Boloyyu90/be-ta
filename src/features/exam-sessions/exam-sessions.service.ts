@@ -1,6 +1,6 @@
 import { Prisma, ExamStatus, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { ERROR_MESSAGES } from '@/config/constants';
+import { SUCCESS_MESSAGES,ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
 import type {
@@ -14,6 +14,13 @@ import type {
   ExamResult,
   AnswerReview,
 } from './exam-sessions.validation';
+
+import {
+  NotFoundError,
+  BadRequestError,
+  BusinessLogicError,
+  UnauthorizedError,
+} from '@/shared/errors/app-errors';
 
 // ==================== TIMER UTILITY ====================
 
@@ -134,19 +141,19 @@ export const startExam = async (userId: number, examId: number) => {
 
   if (!exam) {
     logger.warn({ examId }, 'Exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   // Check if exam has questions
   if (exam.examQuestions.length === 0) {
     logger.warn({ examId }, 'Exam has no questions');
-    throw new Error('This exam has no questions yet');
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_HAS_NO_QUESTIONS);
   }
 
   // Check if exam duration is set
   if (!exam.durationMinutes) {
     logger.warn({ examId }, 'Exam has no duration set');
-    throw new Error('This exam has no duration set');
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_HAS_NO_DURATION_SET);
   }
 
   // Check for existing user exam
@@ -165,7 +172,7 @@ export const startExam = async (userId: number, examId: number) => {
   // If already finished, prevent restart
   if (existingUserExam?.submittedAt) {
     logger.warn({ userId, examId, status: existingUserExam.status }, 'Exam already completed');
-    throw new Error(ERROR_MESSAGES.EXAM_ALREADY_STARTED);
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_ALREADY_STARTED);
   }
 
   let userExam;
@@ -222,7 +229,7 @@ export const startExam = async (userId: number, examId: number) => {
   }
 
   if (!userExam) {
-    throw new Error('Failed to create or retrieve exam session');
+    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION);
   }
 
   // Calculate remaining time
@@ -300,37 +307,33 @@ export const submitAnswer = async (
   });
 
   if (!userExam) {
-    throw new Error('Exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND);
   }
 
   // Authorization check
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized to submit answer for this exam session');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION);
   }
 
   // Check if exam is already finished
   if (userExam.submittedAt) {
-    throw new Error('Cannot submit answer - exam already finished');
+    throw new BusinessLogicError(ERROR_MESSAGES.UNABLE_SUBMIT_ANSWER_EXAM_FINISHED);
   }
 
   // Check if still within time limit
   if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
-    // Auto-timeout the exam
     await prisma.userExam.update({
       where: { id: userExamId },
-      data: {
-        status: ExamStatus.TIMEOUT,
-        submittedAt: new Date(),
-      },
+      data: { status: ExamStatus.TIMEOUT, submittedAt: new Date() },
     });
-    throw new Error(ERROR_MESSAGES.EXAM_TIMEOUT);
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_TIMEOUT);
   }
 
   // Verify exam question belongs to this exam
   const examQuestion = userExam.exam.examQuestions.find((eq) => eq.id === data.examQuestionId);
 
   if (!examQuestion) {
-    throw new Error('Invalid exam question ID for this exam');
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_EXAM_QUESTION_FOR_EXAM);
   }
 
   // Upsert answer (create or update)
@@ -366,7 +369,7 @@ export const submitAnswer = async (
   logger.info({ userExamId, examQuestionId: data.examQuestionId }, 'Answer submitted');
 
   return {
-    message: 'Answer saved successfully',
+    message: SUCCESS_MESSAGES.ANSWER_SUBMITTED,
     answer: {
       examQuestionId: answer.examQuestionId,
       selectedOption: answer.selectedOption,
@@ -421,17 +424,17 @@ export const submitExam = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new Error('Exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND);
   }
 
   // Authorization check
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized to submit this exam');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
   // Check if already submitted
   if (userExam.submittedAt) {
-    throw new Error('Exam already submitted');
+    throw new BusinessLogicError('Exam already submitted');
   }
 
   const now = new Date();
@@ -442,18 +445,13 @@ export const submitExam = async (userExamId: number, userId: number) => {
     userExam.exam.durationMinutes!
   );
 
-  if (!isWithinTime) {
-    // TIMEOUT - don't calculate score
+  if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
     await prisma.userExam.update({
       where: { id: userExamId },
-      data: {
-        status: ExamStatus.TIMEOUT,
-        submittedAt: now,
-      },
+      data: { status: ExamStatus.TIMEOUT, submittedAt: now },
     });
-
     logger.warn({ userExamId }, 'Exam submission failed - timeout');
-    throw new Error(ERROR_MESSAGES.EXAM_TIMEOUT);
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_TIMEOUT);
   }
 
   // Calculate scores
@@ -537,7 +535,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
   };
 
   return {
-    message: 'Exam submitted successfully',
+    message: SUCCESS_MESSAGES.EXAM_SUBMITTED,
     result,
   };
 };
@@ -558,14 +556,13 @@ export const getUserExam = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new Error('Exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND);
   }
 
   // Authorization check (users can only view their own)
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized to view this exam session');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EXAM_SESSION);
   }
-
   return userExam;
 };
 
@@ -712,11 +709,11 @@ export const getExamQuestions = async (
   });
 
   if (!userExam) {
-    throw new Error('Exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND);
   }
 
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
   // Map to participant format (no correct answers)
@@ -762,16 +759,16 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new Error('Exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND);
   }
 
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
   // Can only review after submission
   if (!userExam.submittedAt) {
-    throw new Error('Cannot review answers before submitting exam');
+    throw new BusinessLogicError(ERROR_MESSAGES.REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT);
   }
 
   // Prepare answer review
