@@ -3,6 +3,7 @@ import { prisma } from '@/config/database';
 import { ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
+import { NotFoundError, ConflictError, BusinessLogicError, ForbiddenError, BadRequestError } from '@/shared/errors/app-errors';
 import type {
   CreateExamInput,
   UpdateExamInput,
@@ -96,7 +97,7 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
 
   if (existingExam) {
     logger.warn({ userId, title }, 'Exam creation failed - duplicate title');
-    throw new Error(`You already have an exam titled "${title}"`);
+    throw new ConflictError(`${ERROR_MESSAGES.DUPLICATE_EXAM_TITLE}: "${title}"`);
   }
 
   // Create exam
@@ -195,7 +196,7 @@ export const getExamById = async (id: number, includeQuestions: boolean = false)
 
   if (!exam) {
     logger.warn({ examId: id }, 'Exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   logger.info({ examId: id }, 'Exam fetched successfully');
@@ -225,13 +226,13 @@ export const updateExam = async (id: number, userId: number, data: UpdateExamInp
 
   if (!existingExam) {
     logger.warn({ examId: id }, 'Exam update failed - exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   // Authorization check: only creator can update
   if (existingExam.createdBy !== userId) {
     logger.warn({ examId: id, userId }, 'Exam update failed - not creator');
-    throw new Error('You can only update exams you created');
+    throw new ForbiddenError(ERROR_MESSAGES.NOT_EXAM_CREATOR);
   }
 
   // Optional: Check if exam has active sessions
@@ -245,7 +246,7 @@ export const updateExam = async (id: number, userId: number, data: UpdateExamInp
 
   if (hasActiveSessions > 0 && data.durationMinutes) {
     logger.warn({ examId: id }, 'Cannot update duration - has active sessions');
-    throw new Error('Cannot update duration while there are active exam sessions');
+    throw new BusinessLogicError(ERROR_MESSAGES.CANNOT_UPDATE_ACTIVE_EXAM_DURATION);
   }
 
   // Update exam
@@ -293,19 +294,19 @@ export const deleteExam = async (id: number, userId: number) => {
 
   if (!existingExam) {
     logger.warn({ examId: id }, 'Exam deletion failed - exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   if (existingExam.createdBy !== userId) {
     logger.warn({ examId: id, userId }, 'Exam deletion failed - not creator');
-    throw new Error('You can only delete exams you created');
+    throw new ForbiddenError(ERROR_MESSAGES.CANNOT_DELETE_EXAM_NOT_CREATOR);
   }
 
   // Prevent deletion if exam has been taken
   if (existingExam._count.userExams > 0) {
     logger.warn({ examId: id, attempts: existingExam._count.userExams }, 'Cannot delete exam with attempts');
-    throw new Error(
-      `Cannot delete exam with ${existingExam._count.userExams} participant attempt(s). This is for data preservation.`
+    throw new BusinessLogicError(
+      `${ERROR_MESSAGES.CANNOT_DELETE_EXAM_WITH_ATTEMPTS} (${existingExam._count.userExams} attempt(s))`
     );
   }
 
@@ -341,7 +342,7 @@ export const attachQuestions = async (examId: number, input: AttachQuestionsInpu
 
   if (!exam) {
     logger.warn({ examId }, 'Attach questions failed - exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   // Check if all questions exist
@@ -355,7 +356,7 @@ export const attachQuestions = async (examId: number, input: AttachQuestionsInpu
     const foundIds = questions.map((q) => q.id);
     const missingIds = questionIds.filter((id) => !foundIds.includes(id));
     logger.warn({ examId, missingIds }, 'Some questions not found');
-    throw new Error(`Questions not found: ${missingIds.join(', ')}`);
+    throw new NotFoundError(`${ERROR_MESSAGES.QUESTIONS_NOT_FOUND}: ${missingIds.join(', ')}`);
   }
 
   // Get current max order number for this exam
@@ -427,7 +428,7 @@ export const detachQuestions = async (examId: number, input: DetachQuestionsInpu
 
   if (!exam) {
     logger.warn({ examId }, 'Detach questions failed - exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   // Delete exam questions
@@ -467,7 +468,7 @@ export const getExamQuestions = async (examId: number, filter: GetExamQuestionsQ
 
   if (!exam) {
     logger.warn({ examId }, 'Get exam questions failed - exam not found');
-    throw new Error(ERROR_MESSAGES.EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND);
   }
 
   // Build where clause

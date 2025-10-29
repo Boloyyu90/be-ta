@@ -12,7 +12,30 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  // Log error dengan detail lengkap
+  // Handle custom application errors (operational errors)
+  if (error instanceof AppError && error.isOperational) {
+    // Operational errors are expected and should be logged as warnings
+    logger.warn(
+      {
+        error: {
+          message: error.message,
+          statusCode: error.statusCode,
+          name: error.name,
+        },
+        request: {
+          method: req.method,
+          url: req.url,
+          params: req.params,
+          query: req.query,
+        },
+      },
+      'Operational error occurred'
+    );
+
+    return sendError(res, error.message, error.statusCode);
+  }
+
+  // All other errors are unexpected and should be logged with full details
   logger.error(
     {
       error: {
@@ -28,13 +51,8 @@ export const errorHandler = (
         query: req.query,
       },
     },
-    'Error occurred'
+    'Unexpected error occurred'
   );
-
-  // Handle custom application errors
-  if (error instanceof AppError) {
-    return sendError(res, error.message, error.statusCode);
-  }
 
   // Handle Prisma errors
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -76,4 +94,12 @@ export const errorHandler = (
       : 'Internal server error';
 
   sendError(res, message, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+};
+
+export const notFoundHandler = (req: Request, res: Response) => {
+  sendError(
+    res,
+    `Route ${req.method} ${req.path} not found`,
+    HTTP_STATUS.NOT_FOUND
+  );
 };

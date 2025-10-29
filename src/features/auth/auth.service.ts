@@ -4,6 +4,7 @@ import { hash, compare, sha256 } from '@/shared/utils/hash';
 import { generateTokens, verifyRefreshToken } from '@/shared/utils/jwt';
 import { ERROR_MESSAGES } from '@/config/constants';
 import { logger } from '@/shared/utils/logger';
+import { ConflictError, UnauthorizedError, NotFoundError } from '@/shared/errors/app-errors';
 import type { RegisterInput, LoginInput } from './auth.validation';
 
 // Reusable Prisma select objects (internal to service)
@@ -37,7 +38,7 @@ export const register = async (input: RegisterInput) => {
 
   if (existingUser) {
     logger.warn({ email }, 'Registration failed - email exists');
-    throw new Error(ERROR_MESSAGES.EMAIL_EXISTS);
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
   }
 
   // Hash password
@@ -81,7 +82,7 @@ export const login = async (input: LoginInput) => {
 
   if (!user) {
     logger.warn({ email }, 'Login failed - user not found');
-    throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
   // Verify password
@@ -89,7 +90,7 @@ export const login = async (input: LoginInput) => {
 
   if (!isPasswordValid) {
     logger.warn({ email }, 'Login failed - invalid password');
-    throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
   // Generate tokens
@@ -133,7 +134,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
 
   if (!tokenDoc) {
     logger.warn('Token refresh failed - invalid or expired token');
-    throw new Error(ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
   }
 
   // Generate new tokens
@@ -163,7 +164,7 @@ export const logout = async (refreshToken: string) => {
 
   if (!tokenDoc) {
     logger.warn('Logout failed - token not found');
-    throw new Error(ERROR_MESSAGES.TOKEN_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.TOKEN_NOT_FOUND);
   }
 
   await prisma.token.delete({

@@ -32,7 +32,6 @@ export const ERROR_MESSAGES = {
   VALIDATION_ERROR: 'Validation error',
 
   // Forbidden (403) – ownership/policy
-
   FORBIDDEN_EXAM_SESSION_VIEW: 'You are not allowed to view this exam session',
   FORBIDDEN_EXAM_SESSION_SUBMIT: 'You are not allowed to submit answers for this exam session',
   FORBIDDEN_EXAM_SESSION_SUBMIT_EXAM: 'You are not allowed to submit this exam',
@@ -49,6 +48,11 @@ export const ERROR_MESSAGES = {
   EXAM_HAS_ATTEMPTS: 'Cannot delete exam with participant attempts',
   EXAM_HAS_NO_QUESTIONS: 'This exam has no questions yet',
   EXAM_HAS_NO_DURATION_SET: 'This exam has no duration set',
+  DUPLICATE_EXAM_TITLE: 'You already have an exam with this title',
+  NOT_EXAM_CREATOR: 'You can only update exams you created',
+  CANNOT_DELETE_EXAM_NOT_CREATOR: 'You can only delete exams you created',
+  CANNOT_UPDATE_ACTIVE_EXAM_DURATION: 'Cannot update duration while there are active exam sessions',
+  CANNOT_DELETE_EXAM_WITH_ATTEMPTS: 'Cannot delete exam with participant attempts. This is for data preservation.',
 
   // Exam Sessions errors
   FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION: 'Failed to create or retrieve exam session',
@@ -64,11 +68,23 @@ export const ERROR_MESSAGES = {
   QUESTION_NOT_FOUND: 'Question not found',
   QUESTIONS_NOT_FOUND: 'Some questions not found',
   QUESTION_ALREADY_IN_EXAM: 'Question already in exam',
+  INVALID_OPTIONS_FORMAT: 'Invalid options format. Must have exactly A, B, C, D, E keys',
+  CORRECT_ANSWER_NOT_IN_OPTIONS: 'Correct answer does not exist in options',
+  DUPLICATE_QUESTION_CONTENT: 'A question with similar content already exists',
+  QUESTION_IN_ACTIVE_EXAM: 'Cannot update question that is currently being used in active exams',
+  QUESTION_IN_USE: 'Cannot delete question that is used in exams. Remove from exams first.',
+  ALL_QUESTIONS_IN_USE: 'All selected questions are currently used in exams and cannot be deleted',
 
   // Proctoring errors
   INVALID_PROCTORING_EVENT: 'Invalid proctoring event',
-
-
+  USER_EXAM_NOT_FOUND: 'User exam session not found',
+  CANNOT_LOG_EVENT_SUBMITTED_EXAM: 'Cannot log events for submitted exam',
+  CANNOT_PROCESS_DETECTION_SUBMITTED_EXAM: 'Cannot process detection for submitted exam',
+  UNAUTHORIZED_VIEW_EVENTS: 'Unauthorized to view these events',
+  UNAUTHORIZED_VIEW_STATS: 'Unauthorized to view these statistics',
+  FAILED_TO_ANALYZE_IMAGE: 'Failed to analyze image',
+  ONE_OR_MORE_USER_EXAM_NOT_FOUND: 'One or more user exam sessions not found',
+  CANNOT_LOG_EVENTS_SUBMITTED_EXAMS: 'Cannot log events for submitted exam(s)',
 } as const;
 
 export const SUCCESS_MESSAGES = {

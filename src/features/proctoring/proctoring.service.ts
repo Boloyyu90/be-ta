@@ -1,7 +1,9 @@
 import { Prisma, ProctoringEventType } from '@prisma/client';
 import { prisma } from '@/config/database';
+import { ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
+import { NotFoundError, BusinessLogicError, UnauthorizedError, BadRequestError } from '@/shared/errors/app-errors';
 import type {
   LogEventInput,
   LogEventsBatchInput,
@@ -136,7 +138,7 @@ const analyzeFaceDetection = async (
     return { detected, faceCount, confidence, headPose, boundingBoxes };
   } catch (error) {
     logger.error({ error }, 'Face detection failed');
-    throw new Error('Failed to analyze image');
+    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE);
   }
 };
 
@@ -161,12 +163,12 @@ export const logEvent = async (input: LogEventInput) => {
   });
 
   if (!userExam) {
-    throw new Error('User exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
   }
 
   // Prevent logging events for already submitted exams
   if (userExam.submittedAt) {
-    throw new Error('Cannot log events for submitted exam');
+    throw new BusinessLogicError(ERROR_MESSAGES.CANNOT_LOG_EVENT_SUBMITTED_EXAM);
   }
 
   // Create proctoring event
@@ -212,14 +214,14 @@ export const logEventsBatch = async (input: LogEventsBatchInput) => {
   });
 
   if (userExams.length !== userExamIds.length) {
-    throw new Error('One or more user exam sessions not found');
+    throw new NotFoundError(ERROR_MESSAGES.ONE_OR_MORE_USER_EXAM_NOT_FOUND);
   }
 
   // Check for submitted exams
   const submittedExams = userExams.filter((ue) => ue.submittedAt !== null);
   if (submittedExams.length > 0) {
-    throw new Error(
-      `Cannot log events for submitted exam(s): ${submittedExams.map((e) => e.id).join(', ')}`
+    throw new BusinessLogicError(
+      `${ERROR_MESSAGES.CANNOT_LOG_EVENTS_SUBMITTED_EXAMS}: ${submittedExams.map((e) => e.id).join(', ')}`
     );
   }
 
@@ -273,11 +275,11 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
   });
 
   if (!userExam) {
-    throw new Error('User exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
   }
 
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized to view these events');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EVENTS);
   }
 
   // Build query filters
@@ -332,11 +334,11 @@ export const getStats = async (
   });
 
   if (!userExam) {
-    throw new Error('User exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
   }
 
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized to view these statistics');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_STATS);
   }
 
   // Fetch all events for this exam session
@@ -499,15 +501,15 @@ export const detectFace = async (
   });
 
   if (!userExam) {
-    throw new Error('User exam session not found');
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
   }
 
   if (userExam.userId !== userId) {
-    throw new Error('Unauthorized');
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
   if (userExam.submittedAt) {
-    throw new Error('Cannot process detection for submitted exam');
+    throw new BusinessLogicError(ERROR_MESSAGES.CANNOT_PROCESS_DETECTION_SUBMITTED_EXAM);
   }
 
   // Run face detection analysis

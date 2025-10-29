@@ -1,8 +1,14 @@
 import { Prisma, ExamStatus, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { SUCCESS_MESSAGES,ERROR_MESSAGES } from '@/config/constants';
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
+import {
+  NotFoundError,
+  BadRequestError,
+  BusinessLogicError,
+  UnauthorizedError,
+} from '@/shared/errors/app-errors';
 import type {
   SubmitAnswerInput,
   GetMyResultsQuery,
@@ -14,13 +20,6 @@ import type {
   ExamResult,
   AnswerReview,
 } from './exam-sessions.validation';
-
-import {
-  NotFoundError,
-  BadRequestError,
-  BusinessLogicError,
-  UnauthorizedError,
-} from '@/shared/errors/app-errors';
 
 // ==================== TIMER UTILITY ====================
 
@@ -434,17 +433,12 @@ export const submitExam = async (userExamId: number, userId: number) => {
 
   // Check if already submitted
   if (userExam.submittedAt) {
-    throw new BusinessLogicError('Exam already submitted');
+    throw new BusinessLogicError(ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED);
   }
 
   const now = new Date();
 
   // Check time limit
-  const isWithinTime = withinTimeLimit(
-    userExam.startedAt!,
-    userExam.exam.durationMinutes!
-  );
-
   if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
     await prisma.userExam.update({
       where: { id: userExamId },
@@ -563,6 +557,7 @@ export const getUserExam = async (userExamId: number, userId: number) => {
   if (userExam.userId !== userId) {
     throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EXAM_SESSION);
   }
+
   return userExam;
 };
 

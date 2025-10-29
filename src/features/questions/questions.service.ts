@@ -3,6 +3,7 @@ import { prisma } from '@/config/database';
 import { ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
+import { NotFoundError, ConflictError, BusinessLogicError, BadRequestError } from '@/shared/errors/app-errors';
 import type {
   CreateQuestionInput,
   UpdateQuestionInput,
@@ -83,11 +84,11 @@ export const createQuestion = async (input: CreateQuestionInput) => {
 
   // Additional validation
   if (!validateOptions(options)) {
-    throw new Error('Invalid options format. Must have exactly A, B, C, D, E keys');
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT);
   }
 
   if (!validateCorrectAnswer(correctAnswer, options as QuestionOptions)) {
-    throw new Error(`Correct answer '${correctAnswer}' does not exist in options`);
+    throw new BadRequestError(`${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}: '${correctAnswer}'`);
   }
 
   // Optional: Check for duplicate content
@@ -102,7 +103,7 @@ export const createQuestion = async (input: CreateQuestionInput) => {
 
   if (existingQuestion) {
     logger.warn({ content: content.substring(0, 50) }, 'Question creation failed - duplicate content');
-    throw new Error('A question with similar content already exists');
+    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_QUESTION_CONTENT);
   }
 
   // Create question
@@ -185,7 +186,7 @@ export const getQuestionById = async (id: number) => {
 
   if (!question) {
     logger.warn({ questionId: id }, 'Question not found');
-    throw new Error(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
   }
 
   logger.info({ questionId: id }, 'Question fetched successfully');
@@ -215,7 +216,7 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
 
   if (!existingQuestion) {
     logger.warn({ questionId: id }, 'Question update failed - not found');
-    throw new Error(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
   }
 
   // Check if question is used in active exams
@@ -234,19 +235,19 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
 
   if (activeUsage > 0) {
     logger.warn({ questionId: id, activeUsage }, 'Cannot update question in active exams');
-    throw new Error('Cannot update question that is currently being used in active exams');
+    throw new BusinessLogicError(ERROR_MESSAGES.QUESTION_IN_ACTIVE_EXAM);
   }
 
   // Validate options if provided
   if (data.options && !validateOptions(data.options)) {
-    throw new Error('Invalid options format. Must have exactly A, B, C, D, E keys');
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT);
   }
 
   // Validate correctAnswer if provided
   if (data.correctAnswer) {
     const optionsToCheck = (data.options || existingQuestion.options) as QuestionOptions;
     if (!validateCorrectAnswer(data.correctAnswer, optionsToCheck)) {
-      throw new Error(`Correct answer '${data.correctAnswer}' does not exist in options`);
+      throw new BadRequestError(`${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}: '${data.correctAnswer}'`);
     }
   }
 
@@ -294,7 +295,7 @@ export const deleteQuestion = async (id: number) => {
 
   if (!existingQuestion) {
     logger.warn({ questionId: id }, 'Question deletion failed - not found');
-    throw new Error(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
   }
 
   // Check if question is used in any exam
@@ -303,8 +304,8 @@ export const deleteQuestion = async (id: number) => {
       { questionId: id, usageCount: existingQuestion._count.examQuestions },
       'Cannot delete question in use'
     );
-    throw new Error(
-      `Cannot delete question that is used in ${existingQuestion._count.examQuestions} exam(s). Remove from exams first.`
+    throw new BusinessLogicError(
+      `${ERROR_MESSAGES.QUESTION_IN_USE} (used in ${existingQuestion._count.examQuestions} exam(s))`
     );
   }
 
@@ -334,10 +335,10 @@ export const bulkCreateQuestions = async (input: BulkCreateQuestionsInput) => {
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     if (!validateOptions(q.options)) {
-      throw new Error(`Question ${i + 1}: Invalid options format`);
+      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.INVALID_OPTIONS_FORMAT}`);
     }
     if (!validateCorrectAnswer(q.correctAnswer, q.options as QuestionOptions)) {
-      throw new Error(`Question ${i + 1}: Correct answer not in options`);
+      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}`);
     }
   }
 
@@ -399,7 +400,7 @@ export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
 
   if (deletableIds.length === 0) {
     logger.warn({ inUseIds }, 'No questions can be deleted - all in use');
-    throw new Error('All selected questions are currently used in exams and cannot be deleted');
+    throw new BusinessLogicError(ERROR_MESSAGES.ALL_QUESTIONS_IN_USE);
   }
 
   // Delete questions

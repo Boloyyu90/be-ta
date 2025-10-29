@@ -4,6 +4,7 @@ import { hash } from '@/shared/utils/hash';
 import { ERROR_MESSAGES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { logger } from '@/shared/utils/logger';
+import { ConflictError, NotFoundError } from '@/shared/errors/app-errors';
 import type { CreateUserInput, UpdateUserInput, GetUsersQuery } from './users.validation';
 
 // Reusable Prisma select objects (internal to service)
@@ -42,7 +43,7 @@ export const createUser = async (input: CreateUserInput) => {
 
   if (existingUser) {
     logger.warn({ email }, 'User creation failed - email exists');
-    throw new Error(ERROR_MESSAGES.EMAIL_EXISTS);
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
   }
 
   // Hash password
@@ -116,7 +117,7 @@ export const getUserById = async (id: number) => {
 
   if (!user) {
     logger.warn({ userId: id }, 'User not found');
-    throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   logger.info({ userId: id }, 'User fetched successfully');
@@ -137,7 +138,7 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
 
   if (!existingUser) {
     logger.warn({ userId: id }, 'User update failed - user not found');
-    throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   // If email is being updated, check for duplicates
@@ -148,7 +149,7 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
 
     if (emailExists) {
       logger.warn({ email: data.email }, 'User update failed - email exists');
-      throw new Error(ERROR_MESSAGES.EMAIL_EXISTS);
+      throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
     }
   }
 
@@ -183,7 +184,7 @@ export const deleteUser = async (id: number) => {
 
   if (!existingUser) {
     logger.warn({ userId: id }, 'User deletion failed - user not found');
-    throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   // Delete user (cascade will handle related records)
