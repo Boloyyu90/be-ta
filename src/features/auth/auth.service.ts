@@ -2,8 +2,7 @@ import { UserRole } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { hash, compare, sha256 } from '@/shared/utils/hash';
 import { generateTokens, verifyRefreshToken } from '@/shared/utils/jwt';
-import { ERROR_MESSAGES } from '@/config/constants';
-import { logger } from '@/shared/utils/logger';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { ConflictError, UnauthorizedError, NotFoundError } from '@/shared/errors/app-errors';
 import type { RegisterInput, LoginInput } from './auth.validation';
 
@@ -29,16 +28,16 @@ const USER_WITH_PASSWORD_SELECT = {
 export const register = async (input: RegisterInput) => {
   const { email, password, name } = input;
 
-  logger.info({ email }, 'User registration attempt');
-
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
 
   if (existingUser) {
-    logger.warn({ email }, 'Registration failed - email exists');
-    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
+      email,
+      errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
+    });
   }
 
   // Hash password
@@ -58,8 +57,6 @@ export const register = async (input: RegisterInput) => {
   // Generate tokens
   const tokens = await generateTokens(user.id, user.role);
 
-  logger.info({ userId: user.id, email: user.email }, 'User registered successfully');
-
   return {
     user,
     tokens,
@@ -72,8 +69,6 @@ export const register = async (input: RegisterInput) => {
 export const login = async (input: LoginInput) => {
   const { email, password } = input;
 
-  logger.info({ email }, 'User login attempt');
-
   // Find user with password
   const user = await prisma.user.findUnique({
     where: { email },
@@ -81,16 +76,20 @@ export const login = async (input: LoginInput) => {
   });
 
   if (!user) {
-    logger.warn({ email }, 'Login failed - user not found');
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS, {
+      email,
+      errorCode: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+    });
   }
 
   // Verify password
   const isPasswordValid = await compare(password, user.password);
 
   if (!isPasswordValid) {
-    logger.warn({ email }, 'Login failed - invalid password');
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS, {
+      email,
+      errorCode: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+    });
   }
 
   // Generate tokens
@@ -98,8 +97,6 @@ export const login = async (input: LoginInput) => {
 
   // Remove password from response
   const { password: _, ...userWithoutPassword } = user;
-
-  logger.info({ userId: user.id, email: user.email }, 'User logged in successfully');
 
   return {
     user: userWithoutPassword,
@@ -111,8 +108,6 @@ export const login = async (input: LoginInput) => {
  * Refresh access token
  */
 export const refreshAccessToken = async (refreshToken: string) => {
-  logger.debug('Token refresh attempt');
-
   // Verify refresh token
   const payload = verifyRefreshToken(refreshToken);
 
@@ -120,7 +115,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
   const tokenDoc = await prisma.token.findUnique({
     where: {
       tokenHash: sha256(refreshToken),
-      expires: { gte: new Date() }, // Only get non-expired tokens
+      expires: { gte: new Date() },
     },
     include: {
       user: {
@@ -133,8 +128,9 @@ export const refreshAccessToken = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    logger.warn('Token refresh failed - invalid or expired token');
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
+    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_REFRESH_TOKEN, {
+      errorCode: ERROR_CODES.AUTH_INVALID_TOKEN,
+    });
   }
 
   // Generate new tokens
@@ -145,8 +141,6 @@ export const refreshAccessToken = async (refreshToken: string) => {
     where: { id: tokenDoc.id },
   });
 
-  logger.info({ userId: tokenDoc.user.id }, 'Token refreshed successfully');
-
   return tokens;
 };
 
@@ -154,8 +148,6 @@ export const refreshAccessToken = async (refreshToken: string) => {
  * Logout user (invalidate refresh token)
  */
 export const logout = async (refreshToken: string) => {
-  logger.debug('User logout attempt');
-
   const tokenDoc = await prisma.token.findUnique({
     where: {
       tokenHash: sha256(refreshToken),
@@ -163,15 +155,14 @@ export const logout = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    logger.warn('Logout failed - token not found');
-    throw new NotFoundError(ERROR_MESSAGES.TOKEN_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.TOKEN_NOT_FOUND, {
+      errorCode: ERROR_CODES.AUTH_INVALID_TOKEN,
+    });
   }
 
   await prisma.token.delete({
     where: { id: tokenDoc.id },
   });
-
-  logger.info({ userId: tokenDoc.userId }, 'User logged out successfully');
 
   return { message: 'Logged out successfully' };
 };

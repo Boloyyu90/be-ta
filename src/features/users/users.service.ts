@@ -1,9 +1,8 @@
 import { Prisma, UserRole } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { hash } from '@/shared/utils/hash';
-import { ERROR_MESSAGES } from '@/config/constants';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
-import { logger } from '@/shared/utils/logger';
 import { ConflictError, NotFoundError } from '@/shared/errors/app-errors';
 import type { CreateUserInput, UpdateUserInput, GetUsersQuery } from './users.validation';
 
@@ -34,16 +33,16 @@ const USER_DETAIL_SELECT = {
 export const createUser = async (input: CreateUserInput) => {
   const { email, password, name, role } = input;
 
-  logger.info({ email }, 'Creating new user');
-
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
     where: { email },
   });
 
   if (existingUser) {
-    logger.warn({ email }, 'User creation failed - email exists');
-    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
+      email,
+      errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
+    });
   }
 
   // Hash password
@@ -60,8 +59,6 @@ export const createUser = async (input: CreateUserInput) => {
     select: USER_PUBLIC_SELECT,
   });
 
-  logger.info({ userId: user.id, email: user.email }, 'User created successfully');
-
   return user;
 };
 
@@ -70,8 +67,6 @@ export const createUser = async (input: CreateUserInput) => {
  */
 export const getUsers = async (filter: GetUsersQuery) => {
   const { page, limit, role, search } = filter;
-
-  logger.debug({ filter }, 'Fetching users list');
 
   // Build where clause
   const where: Prisma.UserWhereInput = {
@@ -99,8 +94,6 @@ export const getUsers = async (filter: GetUsersQuery) => {
     prisma.user.count({ where }),
   ]);
 
-  logger.info({ total, page, limit }, 'Users fetched successfully');
-
   return createPaginatedResponse(users, page, limit, total);
 };
 
@@ -108,19 +101,17 @@ export const getUsers = async (filter: GetUsersQuery) => {
  * Get single user by ID
  */
 export const getUserById = async (id: number) => {
-  logger.debug({ userId: id }, 'Fetching user by ID');
-
   const user = await prisma.user.findUnique({
     where: { id },
     select: USER_DETAIL_SELECT,
   });
 
   if (!user) {
-    logger.warn({ userId: id }, 'User not found');
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId: id,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
   }
-
-  logger.info({ userId: id }, 'User fetched successfully');
 
   return user;
 };
@@ -129,16 +120,16 @@ export const getUserById = async (id: number) => {
  * Update user by ID
  */
 export const updateUser = async (id: number, data: UpdateUserInput) => {
-  logger.info({ userId: id, updates: Object.keys(data) }, 'Updating user');
-
   // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id },
   });
 
   if (!existingUser) {
-    logger.warn({ userId: id }, 'User update failed - user not found');
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId: id,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
   }
 
   // If email is being updated, check for duplicates
@@ -148,8 +139,11 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
     });
 
     if (emailExists) {
-      logger.warn({ email: data.email }, 'User update failed - email exists');
-      throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS);
+      throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
+        email: data.email,
+        userId: id,
+        errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
+      });
     }
   }
 
@@ -166,8 +160,6 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
     select: USER_PUBLIC_SELECT,
   });
 
-  logger.info({ userId: id }, 'User updated successfully');
-
   return user;
 };
 
@@ -175,24 +167,22 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
  * Delete user by ID
  */
 export const deleteUser = async (id: number) => {
-  logger.info({ userId: id }, 'Deleting user');
-
   // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id },
   });
 
   if (!existingUser) {
-    logger.warn({ userId: id }, 'User deletion failed - user not found');
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId: id,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
   }
 
   // Delete user (cascade will handle related records)
   await prisma.user.delete({
     where: { id },
   });
-
-  logger.info({ userId: id }, 'User deleted successfully');
 
   return { message: 'User deleted successfully' };
 };

@@ -1,8 +1,7 @@
 import { Prisma, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { ERROR_MESSAGES } from '@/config/constants';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
-import { logger } from '@/shared/utils/logger';
 import { NotFoundError, ConflictError, BusinessLogicError, BadRequestError } from '@/shared/errors/app-errors';
 import type {
   CreateQuestionInput,
@@ -46,7 +45,6 @@ const QUESTION_WITHOUT_ANSWER_SELECT = {
 
 /**
  * Validate that options object has correct structure
- * This is additional validation beyond Zod
  */
 const validateOptions = (options: any): options is QuestionOptions => {
   if (typeof options !== 'object' || options === null) return false;
@@ -68,30 +66,25 @@ const validateCorrectAnswer = (correctAnswer: string, options: QuestionOptions):
 
 /**
  * Create a new question
- *
- * Business rules:
- * - Content must be unique (soft constraint, not enforced by DB)
- * - Options must have exactly A-E
- * - Correct answer must be one of the options
- *
- * @param input - Question data
- * @returns Created question
  */
 export const createQuestion = async (input: CreateQuestionInput) => {
   const { content, options, correctAnswer, defaultScore, questionType } = input;
 
-  logger.info({ questionType, score: defaultScore }, 'Creating new question');
-
   // Additional validation
   if (!validateOptions(options)) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT);
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
+      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+    });
   }
 
   if (!validateCorrectAnswer(correctAnswer, options as QuestionOptions)) {
-    throw new BadRequestError(`${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}: '${correctAnswer}'`);
+    throw new BadRequestError(ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS, {
+      correctAnswer,
+      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+    });
   }
 
-  // Optional: Check for duplicate content
+  // Check for duplicate content
   const existingQuestion = await prisma.questionBank.findFirst({
     where: {
       content: {
@@ -102,8 +95,10 @@ export const createQuestion = async (input: CreateQuestionInput) => {
   });
 
   if (existingQuestion) {
-    logger.warn({ content: content.substring(0, 50) }, 'Question creation failed - duplicate content');
-    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_QUESTION_CONTENT);
+    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_QUESTION_CONTENT, {
+      content: content.substring(0, 100),
+      existingQuestionId: existingQuestion.id,
+    });
   }
 
   // Create question
@@ -118,21 +113,14 @@ export const createQuestion = async (input: CreateQuestionInput) => {
     select: QUESTION_DETAIL_SELECT,
   });
 
-  logger.info({ questionId: question.id, type: questionType }, 'Question created successfully');
-
   return question;
 };
 
 /**
  * Get list of questions with filters and pagination
- *
- * @param filter - Query parameters
- * @returns Paginated list of questions
  */
 export const getQuestions = async (filter: GetQuestionsQuery) => {
   const { page, limit, type, search, sortBy, sortOrder } = filter;
-
-  logger.debug({ filter }, 'Fetching questions list');
 
   // Build where clause
   const where: Prisma.QuestionBankWhereInput = {
@@ -145,15 +133,11 @@ export const getQuestions = async (filter: GetQuestionsQuery) => {
     }),
   };
 
-  // Calculate pagination
   const skip = (page - 1) * limit;
-
-  // Determine sort field
   const orderBy: Prisma.QuestionBankOrderByWithRelationInput = {
     [sortBy]: sortOrder,
   };
 
-  // Execute queries in parallel
   const [questions, total] = await Promise.all([
     prisma.questionBank.findMany({
       where,
@@ -165,58 +149,42 @@ export const getQuestions = async (filter: GetQuestionsQuery) => {
     prisma.questionBank.count({ where }),
   ]);
 
-  logger.info({ total, page, limit }, 'Questions fetched successfully');
-
   return createPaginatedResponse(questions, page, limit, total);
 };
 
 /**
  * Get single question by ID
- *
- * @param id - Question ID
- * @returns Question details with usage count
  */
 export const getQuestionById = async (id: number) => {
-  logger.debug({ questionId: id }, 'Fetching question by ID');
-
   const question = await prisma.questionBank.findUnique({
     where: { id },
     select: QUESTION_DETAIL_SELECT,
   });
 
   if (!question) {
-    logger.warn({ questionId: id }, 'Question not found');
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+      questionId: id,
+      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
+    });
   }
-
-  logger.info({ questionId: id }, 'Question fetched successfully');
 
   return question;
 };
 
 /**
  * Update question by ID
- *
- * Business rules:
- * - Cannot update if question is currently used in active exams
- * - If updating options, must still have A-E
- * - If updating correctAnswer, must exist in options
- *
- * @param id - Question ID
- * @param data - Fields to update
- * @returns Updated question
  */
 export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
-  logger.info({ questionId: id, updates: Object.keys(data) }, 'Updating question');
-
   // Check if question exists
   const existingQuestion = await prisma.questionBank.findUnique({
     where: { id },
   });
 
   if (!existingQuestion) {
-    logger.warn({ questionId: id }, 'Question update failed - not found');
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+      questionId: id,
+      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
+    });
   }
 
   // Check if question is used in active exams
@@ -234,20 +202,33 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
   });
 
   if (activeUsage > 0) {
-    logger.warn({ questionId: id, activeUsage }, 'Cannot update question in active exams');
-    throw new BusinessLogicError(ERROR_MESSAGES.QUESTION_IN_ACTIVE_EXAM);
+    throw new BusinessLogicError(
+      ERROR_MESSAGES.QUESTION_IN_ACTIVE_EXAM,
+      ERROR_CODES.QUESTION_IN_USE,
+      {
+        questionId: id,
+        activeExamSessions: activeUsage,
+      }
+    );
   }
 
   // Validate options if provided
   if (data.options && !validateOptions(data.options)) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT);
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
+      questionId: id,
+      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+    });
   }
 
   // Validate correctAnswer if provided
   if (data.correctAnswer) {
     const optionsToCheck = (data.options || existingQuestion.options) as QuestionOptions;
     if (!validateCorrectAnswer(data.correctAnswer, optionsToCheck)) {
-      throw new BadRequestError(`${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}: '${data.correctAnswer}'`);
+      throw new BadRequestError(ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS, {
+        questionId: id,
+        correctAnswer: data.correctAnswer,
+        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+      });
     }
   }
 
@@ -263,24 +244,13 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
     select: QUESTION_DETAIL_SELECT,
   });
 
-  logger.info({ questionId: id }, 'Question updated successfully');
-
   return question;
 };
 
 /**
  * Delete question by ID
- *
- * Business rules:
- * - Cannot delete if question is used in any exam (use RESTRICT in schema)
- * - This is enforced by database foreign key constraint
- *
- * @param id - Question ID
- * @returns Success message
  */
 export const deleteQuestion = async (id: number) => {
-  logger.info({ questionId: id }, 'Deleting question');
-
   // Check if question exists
   const existingQuestion = await prisma.questionBank.findUnique({
     where: { id },
@@ -294,18 +264,21 @@ export const deleteQuestion = async (id: number) => {
   });
 
   if (!existingQuestion) {
-    logger.warn({ questionId: id }, 'Question deletion failed - not found');
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+      questionId: id,
+      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
+    });
   }
 
   // Check if question is used in any exam
   if (existingQuestion._count.examQuestions > 0) {
-    logger.warn(
-      { questionId: id, usageCount: existingQuestion._count.examQuestions },
-      'Cannot delete question in use'
-    );
     throw new BusinessLogicError(
-      `${ERROR_MESSAGES.QUESTION_IN_USE} (used in ${existingQuestion._count.examQuestions} exam(s))`
+      ERROR_MESSAGES.QUESTION_IN_USE,
+      ERROR_CODES.QUESTION_IN_USE,
+      {
+        questionId: id,
+        usageCount: existingQuestion._count.examQuestions,
+      }
     );
   }
 
@@ -314,31 +287,29 @@ export const deleteQuestion = async (id: number) => {
     where: { id },
   });
 
-  logger.info({ questionId: id }, 'Question deleted successfully');
-
   return { message: 'Question deleted successfully' };
 };
 
 /**
  * Bulk create questions
- * Useful for importing questions from file
- *
- * @param input - Array of questions
- * @returns Created questions
  */
 export const bulkCreateQuestions = async (input: BulkCreateQuestionsInput) => {
   const { questions } = input;
-
-  logger.info({ count: questions.length }, 'Bulk creating questions');
 
   // Validate all questions
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     if (!validateOptions(q.options)) {
-      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.INVALID_OPTIONS_FORMAT}`);
+      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.INVALID_OPTIONS_FORMAT}`, {
+        questionIndex: i,
+        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+      });
     }
     if (!validateCorrectAnswer(q.correctAnswer, q.options as QuestionOptions)) {
-      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}`);
+      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}`, {
+        questionIndex: i,
+        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+      });
     }
   }
 
@@ -360,8 +331,6 @@ export const bulkCreateQuestions = async (input: BulkCreateQuestionsInput) => {
     take: created.count,
   });
 
-  logger.info({ created: created.count }, 'Questions bulk created successfully');
-
   return {
     message: `Successfully created ${created.count} question(s)`,
     created: created.count,
@@ -371,18 +340,9 @@ export const bulkCreateQuestions = async (input: BulkCreateQuestionsInput) => {
 
 /**
  * Bulk delete questions
- *
- * Business rules:
- * - Only deletes questions that are not used in any exam
- * - Returns count of deleted questions
- *
- * @param input - Array of question IDs
- * @returns Delete count
  */
 export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
   const { questionIds } = input;
-
-  logger.info({ count: questionIds.length }, 'Bulk deleting questions');
 
   // Check which questions are in use
   const questionsInUse = await prisma.examQuestion.findMany({
@@ -399,8 +359,14 @@ export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
   const deletableIds = questionIds.filter((id) => !inUseIds.includes(id));
 
   if (deletableIds.length === 0) {
-    logger.warn({ inUseIds }, 'No questions can be deleted - all in use');
-    throw new BusinessLogicError(ERROR_MESSAGES.ALL_QUESTIONS_IN_USE);
+    throw new BusinessLogicError(
+      ERROR_MESSAGES.ALL_QUESTIONS_IN_USE,
+      ERROR_CODES.QUESTION_IN_USE,
+      {
+        requestedIds: questionIds,
+        inUseIds,
+      }
+    );
   }
 
   // Delete questions
@@ -409,8 +375,6 @@ export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
       id: { in: deletableIds },
     },
   });
-
-  logger.info({ deleted: result.count, skipped: inUseIds.length }, 'Questions bulk deleted');
 
   const message =
     inUseIds.length > 0
@@ -427,13 +391,8 @@ export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
 
 /**
  * Get question statistics
- * Useful for admin dashboard
- *
- * @returns Statistics about questions
  */
 export const getQuestionStats = async () => {
-  logger.debug('Fetching question statistics');
-
   // Get total count
   const total = await prisma.questionBank.count();
 
@@ -484,8 +443,6 @@ export const getQuestionStats = async () => {
     };
   });
 
-  logger.info({ total }, 'Question statistics fetched');
-
   return {
     total,
     byType: byType.map((bt) => ({
@@ -500,14 +457,8 @@ export const getQuestionStats = async () => {
 
 /**
  * Get questions for participant (without correct answer)
- * This will be used when participant starts an exam
- *
- * @param questionIds - Array of question IDs
- * @returns Questions without correct answers
  */
 export const getQuestionsForParticipant = async (questionIds: number[]) => {
-  logger.debug({ count: questionIds.length }, 'Fetching questions for participant');
-
   const questions = await prisma.questionBank.findMany({
     where: {
       id: { in: questionIds },

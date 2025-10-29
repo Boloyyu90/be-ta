@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AnyZodObject, ZodError } from 'zod';
 import { sendError } from '@/shared/utils/response';
-import { HTTP_STATUS } from '@/config/constants';
+import { HTTP_STATUS, ERROR_CODES } from '@/config/constants';
 
 export const validate = (schema: AnyZodObject) => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -13,8 +13,7 @@ export const validate = (schema: AnyZodObject) => {
         params: req.params,
       });
 
-      // ✅ FIX: Assign parsed values back to req
-      // This ensures transformed values (lowercase, trim, etc.) are used
+      // Assign parsed values back to req
       req.body = parsed.body;
       req.query = parsed.query;
       req.params = parsed.params;
@@ -27,7 +26,14 @@ export const validate = (schema: AnyZodObject) => {
           message: e.message,
         }));
 
-        sendError(res, 'Validation error', HTTP_STATUS.BAD_REQUEST, errors);
+        // Use standardized error format
+        sendError(
+          res,
+          'Validation error',
+          HTTP_STATUS.BAD_REQUEST,
+          errors,
+          ERROR_CODES.VALIDATION_ERROR
+        );
       } else {
         next(error);
       }

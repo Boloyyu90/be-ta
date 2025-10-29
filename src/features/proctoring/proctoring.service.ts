@@ -1,8 +1,7 @@
 import { Prisma, ProctoringEventType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { ERROR_MESSAGES } from '@/config/constants';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
-import { logger } from '@/shared/utils/logger';
 import { NotFoundError, BusinessLogicError, UnauthorizedError, BadRequestError } from '@/shared/errors/app-errors';
 import type {
   LogEventInput,
@@ -19,20 +18,17 @@ import type {
 
 /**
  * Calculate risk score based on proctoring events
- * Algorithm considers frequency and severity of violations
  */
 const calculateRiskScore = (
   events: Array<{ eventType: ProctoringEventType; severity: string }>
 ): { score: number; level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' } => {
-  // Base weights for each event type (0-100 scale)
   const weights: Record<ProctoringEventType, number> = {
-    FACE_DETECTED: 0, // Positive event, no penalty
-    NO_FACE_DETECTED: 20, // High concern - user absent
-    MULTIPLE_FACES: 25, // Very high concern - potential helper
-    LOOKING_AWAY: 5, // Minor concern - could be thinking
+    FACE_DETECTED: 0,
+    NO_FACE_DETECTED: 20,
+    MULTIPLE_FACES: 25,
+    LOOKING_AWAY: 5,
   };
 
-  // Severity multipliers
   const severityMultiplier: Record<string, number> = {
     LOW: 1.0,
     MEDIUM: 1.5,
@@ -41,9 +37,7 @@ const calculateRiskScore = (
 
   let totalScore = 0;
 
-  // Calculate weighted score
   for (const event of events) {
-    // Skip positive events
     if (event.eventType === ProctoringEventType.FACE_DETECTED) {
       continue;
     }
@@ -53,10 +47,8 @@ const calculateRiskScore = (
     totalScore += baseWeight * multiplier;
   }
 
-  // Normalize to 0-100 scale
   const normalizedScore = Math.min(100, totalScore);
 
-  // Determine risk level based on thresholds
   let level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   if (normalizedScore < 20) level = 'LOW';
   else if (normalizedScore < 40) level = 'MEDIUM';
@@ -69,11 +61,6 @@ const calculateRiskScore = (
 /**
  * Mock face detection analysis
  * TODO: Replace with actual YOLO/ML service integration
- *
- * This mock implementation simulates realistic detection scenarios:
- * - 85% chance of detecting face when present
- * - 5% chance of detecting multiple faces
- * - 10% chance of detecting looking away behavior
  */
 const analyzeFaceDetection = async (
   imageBase64: string
@@ -84,36 +71,23 @@ const analyzeFaceDetection = async (
   headPose?: { yaw: number; pitch: number; roll: number };
   boundingBoxes: Array<{ x: number; y: number; width: number; height: number; confidence: number }>;
 }> => {
-  logger.info('Running face detection analysis (MOCK)');
-
-  // Simulate processing delay (real ML inference takes 300-800ms)
+  // Simulate processing delay
   await new Promise((resolve) => setTimeout(resolve, 300));
 
   try {
-    // Mock detection logic with realistic probabilities
     const random = Math.random();
-
-    // 85% chance face detected
     const detected = random > 0.15;
-
-    // 5% chance of multiple faces
     const faceCount = random > 0.95 ? 2 : detected ? 1 : 0;
-
-    // Confidence between 0.75 and 0.98
     const confidence = detected ? 0.75 + Math.random() * 0.23 : 0;
 
-    // Mock head pose estimation (yaw: left-right, pitch: up-down, roll: tilt)
-    // Normal range: yaw ±20°, pitch ±15°, roll ±10°
-    // Looking away: yaw > 30° or pitch > 25°
     const headPose = detected
       ? {
-        yaw: -30 + Math.random() * 60, // -30° to 30°
-        pitch: -20 + Math.random() * 40, // -20° to 20°
-        roll: -10 + Math.random() * 20, // -10° to 10°
+        yaw: -30 + Math.random() * 60,
+        pitch: -20 + Math.random() * 40,
+        roll: -10 + Math.random() * 20,
       }
       : undefined;
 
-    // Mock bounding boxes
     const boundingBoxes =
       faceCount > 0
         ? Array.from({ length: faceCount }, (_, i) => ({
@@ -125,20 +99,11 @@ const analyzeFaceDetection = async (
         }))
         : [];
 
-    logger.info(
-      {
-        detected,
-        faceCount,
-        confidence: confidence.toFixed(2),
-        headPose,
-      },
-      'Face detection completed (MOCK)'
-    );
-
     return { detected, faceCount, confidence, headPose, boundingBoxes };
   } catch (error) {
-    logger.error({ error }, 'Face detection failed');
-    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE);
+    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE, {
+      errorCode: ERROR_CODES.PROCTORING_DETECTION_FAILED,
+    });
   }
 };
 
@@ -149,8 +114,6 @@ const analyzeFaceDetection = async (
  */
 export const logEvent = async (input: LogEventInput) => {
   const { userExamId, eventType, metadata, severity } = input;
-
-  logger.debug({ userExamId, eventType, severity }, 'Logging proctoring event');
 
   // Validate user exam exists and is active
   const userExam = await prisma.userExam.findUnique({
@@ -163,12 +126,22 @@ export const logEvent = async (input: LogEventInput) => {
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+      userExamId,
+      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+    });
   }
 
   // Prevent logging events for already submitted exams
   if (userExam.submittedAt) {
-    throw new BusinessLogicError(ERROR_MESSAGES.CANNOT_LOG_EVENT_SUBMITTED_EXAM);
+    throw new BusinessLogicError(
+      ERROR_MESSAGES.CANNOT_LOG_EVENT_SUBMITTED_EXAM,
+      ERROR_CODES.SESSION_ALREADY_SUBMITTED,
+      {
+        userExamId,
+        submittedAt: userExam.submittedAt,
+      }
+    );
   }
 
   // Create proctoring event
@@ -181,8 +154,6 @@ export const logEvent = async (input: LogEventInput) => {
       timestamp: new Date(),
     },
   });
-
-  logger.info({ eventId: event.id, eventType, severity }, 'Proctoring event logged successfully');
 
   return {
     message: 'Event logged successfully',
@@ -199,12 +170,9 @@ export const logEvent = async (input: LogEventInput) => {
 
 /**
  * Log multiple proctoring events in batch
- * Useful for frontend buffering and sending events in batches
  */
 export const logEventsBatch = async (input: LogEventsBatchInput) => {
   const { events } = input;
-
-  logger.info({ count: events.length }, 'Logging batch proctoring events');
 
   // Validate all user exams exist
   const userExamIds = [...new Set(events.map((e) => e.userExamId))];
@@ -214,14 +182,24 @@ export const logEventsBatch = async (input: LogEventsBatchInput) => {
   });
 
   if (userExams.length !== userExamIds.length) {
-    throw new NotFoundError(ERROR_MESSAGES.ONE_OR_MORE_USER_EXAM_NOT_FOUND);
+    const foundIds = userExams.map((ue) => ue.id);
+    const missingIds = userExamIds.filter((id) => !foundIds.includes(id));
+    throw new NotFoundError(ERROR_MESSAGES.ONE_OR_MORE_USER_EXAM_NOT_FOUND, {
+      requestedIds: userExamIds,
+      missingIds,
+      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+    });
   }
 
   // Check for submitted exams
   const submittedExams = userExams.filter((ue) => ue.submittedAt !== null);
   if (submittedExams.length > 0) {
     throw new BusinessLogicError(
-      `${ERROR_MESSAGES.CANNOT_LOG_EVENTS_SUBMITTED_EXAMS}: ${submittedExams.map((e) => e.id).join(', ')}`
+      ERROR_MESSAGES.CANNOT_LOG_EVENTS_SUBMITTED_EXAMS,
+      ERROR_CODES.SESSION_ALREADY_SUBMITTED,
+      {
+        submittedExamIds: submittedExams.map((e) => e.id),
+      }
     );
   }
 
@@ -236,14 +214,12 @@ export const logEventsBatch = async (input: LogEventsBatchInput) => {
     })),
   });
 
-  // Fetch created events to return with IDs
+  // Fetch created events
   const createdEvents = await prisma.proctoringEvent.findMany({
     where: { userExamId: { in: userExamIds } },
     orderBy: { timestamp: 'desc' },
     take: events.length,
   });
-
-  logger.info({ logged: createdEvents.length }, 'Batch events logged successfully');
 
   return {
     message: `Successfully logged ${createdEvents.length} event(s)`,
@@ -261,12 +237,9 @@ export const logEventsBatch = async (input: LogEventsBatchInput) => {
 
 /**
  * Get proctoring events for a specific user exam
- * Used by participants to review their own events
  */
 export const getEvents = async (userExamId: number, userId: number, filter: GetEventsQuery) => {
   const { eventType, severity, page, limit } = filter;
-
-  logger.debug({ userExamId, userId, filter }, 'Fetching proctoring events');
 
   // Verify ownership
   const userExam = await prisma.userExam.findUnique({
@@ -275,11 +248,20 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+      userExamId,
+      userId,
+      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+    });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EVENTS);
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EVENTS, {
+      userExamId,
+      userId,
+      ownerId: userExam.userId,
+      errorCode: ERROR_CODES.PROCTORING_UNAUTHORIZED,
+    });
   }
 
   // Build query filters
@@ -291,7 +273,6 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
 
   const skip = (page - 1) * limit;
 
-  // Execute queries
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -316,15 +297,12 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
 
 /**
  * Get proctoring statistics for a user exam
- * Provides comprehensive analytics about proctoring activity
  */
 export const getStats = async (
   userExamId: number,
   userId: number
 ): Promise<ProctoringStatsResponse> => {
-  logger.debug({ userExamId, userId }, 'Calculating proctoring statistics');
-
-  // Verify ownership and get exam details
+  // Verify ownership
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     include: {
@@ -334,14 +312,23 @@ export const getStats = async (
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+      userExamId,
+      userId,
+      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+    });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_STATS);
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_STATS, {
+      userExamId,
+      userId,
+      ownerId: userExam.userId,
+      errorCode: ERROR_CODES.PROCTORING_UNAUTHORIZED,
+    });
   }
 
-  // Fetch all events for this exam session
+  // Fetch all events
   const events = await prisma.proctoringEvent.findMany({
     where: { userExamId },
     orderBy: { timestamp: 'asc' },
@@ -349,7 +336,6 @@ export const getStats = async (
 
   const totalEvents = events.length;
 
-  // Count suspicious events (exclude FACE_DETECTED which is positive)
   const suspiciousEvents = events.filter(
     (e) => e.eventType !== ProctoringEventType.FACE_DETECTED
   );
@@ -381,7 +367,7 @@ export const getStats = async (
     percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0,
   }));
 
-  // Timeline (last 50 events for chart)
+  // Timeline
   const timeline = events.slice(-50).map((e) => ({
     timestamp: e.timestamp,
     eventType: e.eventType,
@@ -395,8 +381,6 @@ export const getStats = async (
       severity: e.severity,
     }))
   );
-
-  logger.info({ userExamId, riskScore, riskLevel }, 'Statistics calculated successfully');
 
   return {
     userExamId,
@@ -415,15 +399,11 @@ export const getStats = async (
 
 /**
  * Get all proctoring events (Admin only)
- * Supports filtering by exam, user, event type, etc.
  */
 export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   const { userExamId, examId, userId, eventType, severity, page, limit, sortBy, sortOrder } =
     filter;
 
-  logger.debug({ filter }, 'Fetching admin proctoring events');
-
-  // Build query filters
   const where: Prisma.ProctoringEventWhereInput = {
     ...(userExamId && { userExamId }),
     ...(eventType && { eventType }),
@@ -438,7 +418,6 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
     [sortBy]: sortOrder,
   };
 
-  // Execute queries with user exam details
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -484,15 +463,12 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
 
 /**
  * Process face detection from ML service
- * This is the main integration point with computer vision
  */
 export const detectFace = async (
   input: DetectFaceInput,
   userId: number
 ): Promise<FaceDetectionResult> => {
   const { userExamId, imageBase64, timestamp } = input;
-
-  logger.info({ userExamId, userId }, 'Processing face detection request');
 
   // Verify user exam exists and belongs to user
   const userExam = await prisma.userExam.findUnique({
@@ -501,15 +477,32 @@ export const detectFace = async (
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND);
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+      userExamId,
+      userId,
+      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+    });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED);
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
+      userExamId,
+      userId,
+      ownerId: userExam.userId,
+      errorCode: ERROR_CODES.UNAUTHORIZED,
+    });
   }
 
   if (userExam.submittedAt) {
-    throw new BusinessLogicError(ERROR_MESSAGES.CANNOT_PROCESS_DETECTION_SUBMITTED_EXAM);
+    throw new BusinessLogicError(
+      ERROR_MESSAGES.CANNOT_PROCESS_DETECTION_SUBMITTED_EXAM,
+      ERROR_CODES.SESSION_ALREADY_SUBMITTED,
+      {
+        userExamId,
+        userId,
+        submittedAt: userExam.submittedAt,
+      }
+    );
   }
 
   // Run face detection analysis
@@ -517,35 +510,30 @@ export const detectFace = async (
 
   const { detected, faceCount, confidence, headPose, boundingBoxes } = detection;
 
-  // Determine event type and severity based on detection results
+  // Determine event type and severity
   let eventType: ProctoringEventType;
   let severity: 'LOW' | 'MEDIUM' | 'HIGH';
   const warnings: string[] = [];
 
   if (!detected || faceCount === 0) {
-    // No face detected - user not present
     eventType = ProctoringEventType.NO_FACE_DETECTED;
     severity = 'HIGH';
     warnings.push('No face detected - user may have left seat');
   } else if (faceCount > 1) {
-    // Multiple faces - potential helper
     eventType = ProctoringEventType.MULTIPLE_FACES;
     severity = 'HIGH';
     warnings.push(`Multiple faces detected (${faceCount})`);
   } else if (confidence < 0.7) {
-    // Low confidence - possible looking away or obscured face
     eventType = ProctoringEventType.LOOKING_AWAY;
     severity = 'MEDIUM';
     warnings.push('Low confidence detection - face may be obscured');
   } else if (headPose && (Math.abs(headPose.yaw) > 30 || Math.abs(headPose.pitch) > 25)) {
-    // Head pose indicates looking away
     eventType = ProctoringEventType.LOOKING_AWAY;
     severity = Math.abs(headPose.yaw) > 45 || Math.abs(headPose.pitch) > 35 ? 'HIGH' : 'MEDIUM';
     warnings.push(
       `Looking away detected (yaw: ${headPose.yaw.toFixed(1)}°, pitch: ${headPose.pitch.toFixed(1)}°)`
     );
   } else {
-    // Normal - face detected and looking at screen
     eventType = ProctoringEventType.FACE_DETECTED;
     severity = 'LOW';
   }
@@ -577,8 +565,6 @@ export const detectFace = async (
       } as Prisma.JsonObject,
     },
   });
-
-  logger.info({ eventId: event.id, eventType, severity }, 'Face detection event logged');
 
   return {
     detected,
