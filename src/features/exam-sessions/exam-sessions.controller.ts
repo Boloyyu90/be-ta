@@ -13,6 +13,7 @@ import type {
   GetExamQuestionsParams,
   GetExamQuestionsQuery,
   GetExamAnswersParams,
+  GetUserExamsQuery,
 } from './exam-sessions.validation';
 
 /**
@@ -102,6 +103,50 @@ export const getUserExam = async (
     const userExam = await examSessionsService.getUserExam(userExamId, userId);
 
     sendSuccess(res, { userExam }, 'User exam retrieved successfully', HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get user's exam sessions controller
+ * GET /api/v1/user-exams
+ *
+ * @access Private (All authenticated users - own sessions only)
+ */
+export const getUserExams = async (
+  req: Request<{}, {}, {}, GetUserExamsQuery>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+
+    const result = await examSessionsService.getUserExams(userId, req.query);
+
+    sendSuccess(res, result, 'User exam sessions retrieved successfully', HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get my results summary controller
+ * GET /api/v1/results/me/summary
+ *
+ * @access Private (All authenticated users)
+ */
+export const getMyResultsSummary = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+
+    const summary = await examSessionsService.getMyResultsSummary(userId);
+
+    sendSuccess(res, summary, 'Results summary retrieved successfully', HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }

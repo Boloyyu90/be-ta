@@ -18,6 +18,7 @@ import type {
   UserExamSession,
   ExamResult,
   AnswerReview,
+  GetUserExamsQuery,
 } from './exam-sessions.validation';
 
 // ==================== TIMER UTILITY ====================
@@ -601,6 +602,76 @@ export const getUserExam = async (userExamId: number, userId: number) => {
 };
 
 /**
+ * Get list of user's exam sessions
+ */
+export const getUserExams = async (userId: number, filter: GetUserExamsQuery) => {
+  const { page, limit, status, sortBy, sortOrder } = filter;
+
+  const where: Prisma.UserExamWhereInput = {
+    userId,
+    ...(status && { status }),
+  };
+
+  const skip = (page - 1) * limit;
+
+  const orderBy: Prisma.UserExamOrderByWithRelationInput = {
+    [sortBy]: sortOrder,
+  };
+
+  const [userExams, total] = await Promise.all([
+    prisma.userExam.findMany({
+      where,
+      select: {
+        id: true,
+        examId: true,
+        startedAt: true,
+        submittedAt: true,
+        totalScore: true,
+        status: true,
+        createdAt: true,
+        exam: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            durationMinutes: true,
+          },
+        },
+      },
+      skip,
+      take: limit,
+      orderBy,
+    }),
+    prisma.userExam.count({ where }),
+  ]);
+
+  // Calculate remaining time for in-progress exams
+  const sessions = userExams.map((ue) => {
+    const remainingTimeMs =
+      ue.status === ExamStatus.IN_PROGRESS && ue.startedAt && ue.exam.durationMinutes
+        ? getRemainingTime(ue.startedAt, ue.exam.durationMinutes)
+        : null;
+
+    return {
+      id: ue.id,
+      exam: {
+        id: ue.exam.id,
+        title: ue.exam.title,
+        description: ue.exam.description,
+      },
+      status: ue.status,
+      startedAt: ue.startedAt,
+      submittedAt: ue.submittedAt,
+      totalScore: ue.totalScore,
+      remainingTimeMs,
+      durationMinutes: ue.exam.durationMinutes,
+    };
+  });
+
+  return createPaginatedResponse(sessions, page, limit, total);
+};
+
+/**
  * Get user's exam results (their own results only)
  */
 export const getMyResults = async (userId: number, filter: GetMyResultsQuery) => {
@@ -643,6 +714,95 @@ export const getMyResults = async (userId: number, filter: GetMyResultsQuery) =>
   }));
 
   return createPaginatedResponse(results, page, limit, total);
+};
+
+/**
+ * Get summary statistics for user's exam results
+ */
+export const getMyResultsSummary = async (userId: number) => {
+  // Get all finished exams
+  const finishedExams = await prisma.userExam.findMany({
+    where: {
+      userId,
+      status: ExamStatus.FINISHED,
+    },
+    select: {
+      totalScore: true,
+      exam: {
+        select: {
+          examQuestions: {
+            select: {
+              question: {
+                select: {
+                  defaultScore: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const taken = finishedExams.length;
+
+  if (taken === 0) {
+    return {
+      taken: 0,
+      avgScore: 0,
+      passed: 0,
+      passRate: 0,
+      highestScore: 0,
+      lowestScore: 0,
+    };
+  }
+
+  // Calculate statistics
+  let totalScore = 0;
+  let totalMaxScore = 0;
+  let passed = 0;
+  let highestScore = 0;
+  let lowestScore = 100;
+
+  for (const exam of finishedExams) {
+    const score = exam.totalScore || 0;
+
+    // Calculate max possible score for this exam
+    const maxScore = exam.exam.examQuestions.reduce(
+      (sum, eq) => sum + eq.question.defaultScore,
+      0
+    );
+
+    const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+
+    totalScore += score;
+    totalMaxScore += maxScore;
+
+    // Assume passing grade is 65%
+    if (percentage >= 65) {
+      passed++;
+    }
+
+    // Track highest and lowest percentage
+    if (percentage > highestScore) {
+      highestScore = percentage;
+    }
+    if (percentage < lowestScore) {
+      lowestScore = percentage;
+    }
+  }
+
+  const avgScore = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
+  const passRate = taken > 0 ? (passed / taken) * 100 : 0;
+
+  return {
+    taken,
+    avgScore: Math.round(avgScore * 10) / 10, // Round to 1 decimal
+    passed,
+    passRate: Math.round(passRate * 10) / 10,
+    highestScore: Math.round(highestScore * 10) / 10,
+    lowestScore: taken > 0 ? Math.round(lowestScore * 10) / 10 : 0,
+  };
 };
 
 /**

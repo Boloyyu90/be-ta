@@ -23,6 +23,18 @@ examSessionsRouter.post(
 );
 
 /**
+ * @route   GET /api/v1/user-exams
+ * @desc    Get list of user's exam sessions
+ * @access  Private (All authenticated users)
+ */
+examSessionsRouter.get(
+  '/user-exams',
+  authenticate,
+  validate(examSessionsValidation.getUserExamsSchema),
+  asyncHandler(examSessionsController.getUserExams)
+);
+
+/**
  * @route   GET /api/v1/user-exams/:id
  * @desc    Get user exam session details
  * @access  Private (Owner only)
@@ -80,6 +92,18 @@ examSessionsRouter.get(
   authenticate,
   validate(examSessionsValidation.getExamAnswersSchema),
   asyncHandler(examSessionsController.getExamAnswers)
+);
+
+/**
+ * @route   GET /api/v1/results/me/summary
+ * @desc    Get summary statistics of my results
+ * @access  Private (All authenticated users)
+ */
+examSessionsRouter.get(
+  '/results/me/summary',
+  authenticate,
+  validate(examSessionsValidation.getMyResultsSummarySchema),
+  asyncHandler(examSessionsController.getMyResultsSummary)
 );
 
 /**

@@ -35,6 +35,18 @@ usersRouter.get(
 );
 
 /**
+ * @route   GET /api/v1/users/me
+ * @desc    Get current user profile
+ * @access  Private (All authenticated users)
+ */
+usersRouter.get(
+  '/me',
+  authenticate,
+  validate(usersValidation.getMeSchema),
+  asyncHandler(usersController.getMe)
+);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Get single user by ID
  * @access  Private (Admin only)

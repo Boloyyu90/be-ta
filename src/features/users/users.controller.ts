@@ -67,6 +67,24 @@ export const getUserById = async (
 };
 
 /**
+ * Get current user profile controller
+ * GET /api/v1/users/me
+ */
+export const getMe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const user = await usersService.getMe(userId);
+
+    sendSuccess(res, { user }, 'User profile retrieved successfully', HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+/**
  * Update user controller
  * PATCH /api/v1/users/:id
  */

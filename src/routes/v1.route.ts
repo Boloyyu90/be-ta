@@ -6,6 +6,7 @@ import { usersRouter } from '@/features/users/users.route';
 import { examsRouter } from '@/features/exams/exams.route';
 import { questionsRouter } from '@/features/questions/questions.route';
 import { examSessionsRouter } from '@/features/exam-sessions/exam-sessions.route';
+import { dashboardRouter } from '@/features/dashboard/dashboard.route';
 import { proctoringRouter } from '@/features/proctoring/proctoring.route';
 
 export const v1Router = Router();
@@ -19,6 +20,7 @@ v1Router.use('/users', usersRouter);
 v1Router.use('/', examsRouter);
 v1Router.use('/', questionsRouter);
 v1Router.use('/', examSessionsRouter);
+v1Router.use('/dashboard', dashboardRouter);
 
 // Mount proctoring routes
 // Note: proctoringRouter contains both /proctoring and /admin/proctoring paths

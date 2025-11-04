@@ -53,6 +53,14 @@ export const getUsersSchema = z.object({
   }),
 });
 
+/**
+ * Schema for getting current user profile
+ * GET /api/v1/users/me
+ */
+export const getMeSchema = z.object({
+  // No params, query, or body needed - user comes from req.user
+});
+
 export const getUserSchema = z.object({
   params: z.object({
     id: z
@@ -115,6 +123,7 @@ export const deleteUserSchema = z.object({
 export type CreateUserInput = z.infer<typeof createUserSchema>['body'];
 export type GetUsersQuery = z.infer<typeof getUsersSchema>['query'];
 export type GetUserParams = z.infer<typeof getUserSchema>['params'];
+export type GetMeInput = z.infer<typeof getMeSchema>;
 export type UpdateUserParams = z.infer<typeof updateUserSchema>['params'];
 export type UpdateUserInput = z.infer<typeof updateUserSchema>['body'];
 export type DeleteUserParams = z.infer<typeof deleteUserSchema>['params'];
@@ -151,6 +160,10 @@ export interface UsersListResponse {
 }
 
 export interface UserResponse {
+  user: UserPublicData;
+}
+
+export interface MeResponse {
   user: UserPublicData;
 }
 

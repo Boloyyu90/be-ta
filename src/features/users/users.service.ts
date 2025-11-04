@@ -117,6 +117,25 @@ export const getUserById = async (id: number) => {
 };
 
 /**
+ * Get current authenticated user profile
+ */
+export const getMe = async (userId: number) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: USER_PUBLIC_SELECT,
+  });
+
+  if (!user) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  return user;
+};
+
+/**
  * Update user by ID
  */
 export const updateUser = async (id: number, data: UpdateUserInput) => {

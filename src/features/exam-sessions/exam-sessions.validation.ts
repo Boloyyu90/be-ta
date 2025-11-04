@@ -95,6 +95,40 @@ export const getMyResultsSchema = z.object({
   }),
 });
 
+/* Schema for getting results summary
+* GET /api/v1/results/me/summary
+*/
+export const getMyResultsSummarySchema = z.object({
+  // No query params needed
+});
+
+/**
+ * Schema for listing user's exam sessions
+ * GET /api/v1/user-exams
+ */
+export const getUserExamsSchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .default('1')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1)),
+    limit: z
+      .string()
+      .optional()
+      .default('10')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1).max(100)),
+    status: z.nativeEnum(ExamStatus).optional(),
+    sortBy: z
+      .enum(['createdAt', 'startedAt', 'submittedAt'])
+      .optional()
+      .default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  }),
+});
+
 /**
  * Schema for admin viewing all results
  * GET /api/v1/admin/results
@@ -168,6 +202,8 @@ export type SubmitAnswerInput = z.infer<typeof submitAnswerSchema>['body'];
 export type SubmitExamParams = z.infer<typeof submitExamSchema>['params'];
 export type GetUserExamParams = z.infer<typeof getUserExamSchema>['params'];
 export type GetMyResultsQuery = z.infer<typeof getMyResultsSchema>['query'];
+export type GetMyResultsSummaryInput = z.infer<typeof getMyResultsSummarySchema>;
+export type GetUserExamsQuery = z.infer<typeof getUserExamsSchema>['query'];
 export type GetResultsQuery = z.infer<typeof getResultsSchema>['query'];
 export type GetExamQuestionsParams = z.infer<typeof getExamQuestionsSchema>['params'];
 export type GetExamQuestionsQuery = z.infer<typeof getExamQuestionsSchema>['query'];
@@ -301,6 +337,42 @@ export interface AnswerReview {
   correctAnswer: string;
   isCorrect: boolean | null;
   score: number;
+}
+
+export interface UserExamListItem {
+  id: number;
+  exam: {
+    id: number;
+    title: string;
+    description: string | null;
+  };
+  status: ExamStatus;
+  startedAt: Date | null;
+  submittedAt: Date | null;
+  totalScore: number | null;
+  remainingTimeMs: number | null;
+  durationMinutes: number | null;
+}
+
+export interface ResultsSummaryResponse {
+  taken: number;
+  avgScore: number;
+  passed: number;
+  passRate: number;
+  highestScore: number;
+  lowestScore: number;
+}
+
+export interface UserExamsListResponse {
+  data: UserExamListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
 }
 
 /**
