@@ -1,6 +1,6 @@
 import { Prisma, ExamStatus, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { SUCCESS_MESSAGES, ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import {
   NotFoundError,
@@ -105,6 +105,12 @@ interface QuestionTypeStats {
 
 /**
  * Start an exam session
+ *
+ * @param userId - User ID starting the exam
+ * @param examId - Exam ID to start
+ * @returns Exam session data with questions and answers
+ * @throws {NotFoundError} If exam not found
+ * @throws {BusinessLogicError} If exam has no questions or duration not set
  */
 export const startExam = async (userId: number, examId: number) => {
   // Check if exam exists
@@ -235,6 +241,7 @@ export const startExam = async (userId: number, examId: number) => {
     throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, {
       examId,
       userId,
+      errorCode: ERROR_CODES.EXAM_SESSION_CREATE_FAILED,
     });
   }
 
@@ -284,6 +291,15 @@ export const startExam = async (userId: number, examId: number) => {
 
 /**
  * Submit or update an answer
+ *
+ * @param userExamId - User exam session ID
+ * @param userId - Current user ID
+ * @param data - Answer data to submit
+ * @returns Answer data with progress information
+ * @throws {NotFoundError} If exam session not found
+ * @throws {UnauthorizedError} If user doesn't own the session
+ * @throws {BusinessLogicError} If exam already submitted or timed out
+ * @throws {BadRequestError} If exam question doesn't belong to exam
  */
 export const submitAnswer = async (
   userExamId: number,
@@ -397,7 +413,6 @@ export const submitAnswer = async (
   const totalQuestions = userExam.exam.examQuestions.length;
 
   return {
-    message: SUCCESS_MESSAGES.ANSWER_SUBMITTED,
     answer: {
       examQuestionId: answer.examQuestionId,
       selectedOption: answer.selectedOption,
@@ -413,6 +428,13 @@ export const submitAnswer = async (
 
 /**
  * Submit exam and calculate score
+ *
+ * @param userExamId - User exam session ID
+ * @param userId - Current user ID
+ * @returns Exam result with scores by type
+ * @throws {NotFoundError} If exam session not found
+ * @throws {UnauthorizedError} If user doesn't own the session
+ * @throws {BusinessLogicError} If exam already submitted or timed out
  */
 export const submitExam = async (userExamId: number, userId: number) => {
   // Get user exam with all related data
@@ -565,14 +587,17 @@ export const submitExam = async (userExamId: number, userId: number) => {
     })),
   };
 
-  return {
-    message: SUCCESS_MESSAGES.EXAM_SUBMITTED,
-    result,
-  };
+  return result;
 };
 
 /**
  * Get user exam session details
+ *
+ * @param userExamId - User exam session ID
+ * @param userId - Current user ID
+ * @returns User exam session details
+ * @throws {NotFoundError} If exam session not found
+ * @throws {UnauthorizedError} If user doesn't own the session
  */
 export const getUserExam = async (userExamId: number, userId: number) => {
   const userExam = await prisma.userExam.findUnique({
@@ -603,6 +628,10 @@ export const getUserExam = async (userExamId: number, userId: number) => {
 
 /**
  * Get list of user's exam sessions
+ *
+ * @param userId - Current user ID
+ * @param filter - Query filters (pagination, status, sorting)
+ * @returns Paginated list of user exam sessions
  */
 export const getUserExams = async (userId: number, filter: GetUserExamsQuery) => {
   const { page, limit, status, sortBy, sortOrder } = filter;
@@ -673,6 +702,10 @@ export const getUserExams = async (userId: number, filter: GetUserExamsQuery) =>
 
 /**
  * Get user's exam results (their own results only)
+ *
+ * @param userId - Current user ID
+ * @param filter - Query filters (pagination, status)
+ * @returns Paginated list of exam results
  */
 export const getMyResults = async (userId: number, filter: GetMyResultsQuery) => {
   const { page, limit, status } = filter;
@@ -718,6 +751,9 @@ export const getMyResults = async (userId: number, filter: GetMyResultsQuery) =>
 
 /**
  * Get summary statistics for user's exam results
+ *
+ * @param userId - Current user ID
+ * @returns Summary statistics (taken, average, passed, etc.)
  */
 export const getMyResultsSummary = async (userId: number) => {
   // Get all finished exams
@@ -797,7 +833,7 @@ export const getMyResultsSummary = async (userId: number) => {
 
   return {
     taken,
-    avgScore: Math.round(avgScore * 10) / 10, // Round to 1 decimal
+    avgScore: Math.round(avgScore * 10) / 10,
     passed,
     passRate: Math.round(passRate * 10) / 10,
     highestScore: Math.round(highestScore * 10) / 10,
@@ -807,6 +843,9 @@ export const getMyResultsSummary = async (userId: number) => {
 
 /**
  * Get all exam results (admin only)
+ *
+ * @param filter - Query filters (pagination, examId, userId, status, sorting)
+ * @returns Paginated list of all exam results
  */
 export const getResults = async (filter: GetResultsQuery) => {
   const { page, limit, examId, userId, status, sortBy, sortOrder } = filter;
@@ -857,6 +896,13 @@ export const getResults = async (filter: GetResultsQuery) => {
 
 /**
  * Get exam questions for active session
+ *
+ * @param userExamId - User exam session ID
+ * @param userId - Current user ID
+ * @param filter - Question filters (type)
+ * @returns List of exam questions (without correct answers)
+ * @throws {NotFoundError} If exam session not found
+ * @throws {UnauthorizedError} If user doesn't own the session
  */
 export const getExamQuestions = async (
   userExamId: number,
@@ -916,6 +962,13 @@ export const getExamQuestions = async (
 
 /**
  * Get exam answers with review (after submit only)
+ *
+ * @param userExamId - User exam session ID
+ * @param userId - Current user ID
+ * @returns List of answers with correct answers and review data
+ * @throws {NotFoundError} If exam session not found
+ * @throws {UnauthorizedError} If user doesn't own the session
+ * @throws {BusinessLogicError} If exam not yet submitted
  */
 export const getExamAnswers = async (userExamId: number, userId: number) => {
   const userExam = await prisma.userExam.findUnique({

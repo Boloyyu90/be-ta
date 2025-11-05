@@ -37,8 +37,8 @@ export const ERROR_MESSAGES = {
 
   // ==================== USER ERRORS ====================
   USER_NOT_FOUND: 'User not found',
-  USER_HAS_EXAM_ATTEMPTS: 'Cannot delete user with exam attempts',
-  USER_HAS_CREATED_EXAMS: 'Cannot delete user who created exams',
+  USER_HAS_EXAM_ATTEMPTS: 'Cannot delete user with exam attempts. This is for data preservation.',
+  USER_HAS_CREATED_EXAMS: 'Cannot delete user who created exams. Transfer ownership first.',
 
   // ==================== EXAM ERRORS ====================
   EXAM_NOT_FOUND: 'Exam not found',
@@ -115,8 +115,8 @@ export const ERROR_CODES = {
   EXAM_SESSION_INVALID_QUESTION: 'EXAM_SESSION_005',
   EXAM_SESSION_UNAUTHORIZED: 'EXAM_SESSION_006',
   EXAM_SESSION_CREATE_FAILED: 'EXAM_SESSION_007',
-  EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008', // Used in proctoring
-  EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009', // Used in proctoring
+  EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008',
+  EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009',
 
   // ==================== QUESTION (QUESTION_xxx) ====================
   QUESTION_NOT_FOUND: 'QUESTION_001',
@@ -134,8 +134,6 @@ export const ERROR_CODES = {
 /**
  * Centralized success messages for API responses
  * Organized by module/domain
- *
- * ✅ Updated: Added missing constants for complete standardization
  */
 export const SUCCESS_MESSAGES = {
   // ==================== AUTH ====================
@@ -175,6 +173,8 @@ export const SUCCESS_MESSAGES = {
   EXAM_ANSWERS_RETRIEVED: 'Exam answers retrieved successfully',
   RESULTS_SUMMARY_RETRIEVED: 'Results summary retrieved successfully',
   RESULTS_RETRIEVED: 'Results retrieved successfully',
+  ANSWER_SUBMITTED: 'Answer submitted successfully',
+  ANSWER_SAVED: 'Answer saved successfully',
 
   // ==================== QUESTION ====================
   QUESTION_CREATED: 'Question created successfully',
@@ -186,10 +186,6 @@ export const SUCCESS_MESSAGES = {
   QUESTIONS_DETACHED: 'Questions detached from exam successfully',
   QUESTIONS_REORDERED: 'Questions reordered successfully',
   QUESTIONS_BULK_CREATED: 'Questions created successfully',
-
-  // ==================== ANSWER ====================
-  ANSWER_SUBMITTED: 'Answer submitted successfully',
-  ANSWER_SAVED: 'Answer saved successfully',
 
   // ==================== PROCTORING ====================
   PROCTORING_EVENT_LOGGED: 'Proctoring event logged successfully',

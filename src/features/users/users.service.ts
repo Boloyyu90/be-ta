@@ -261,8 +261,9 @@ export const updateMe = async (userId: number, data: UpdateMeInput) => {
  * Delete user by ID
  *
  * @param id - User ID to delete
+ * @returns Success indicator
  * @throws {NotFoundError} If user not found
- * @throws {BadRequestError} If trying to delete user with exam attempts
+ * @throws {BadRequestError} If user has exam attempts or created exams
  */
 export const deleteUser = async (id: number) => {
   // Check if user exists
@@ -285,14 +286,14 @@ export const deleteUser = async (id: number) => {
     });
   }
 
-  // Prevent deletion if user has exam attempts (data preservation)
+  // Prevent deletion if user has exam attempts
   if (existingUser._count.userExams > 0) {
     throw new BadRequestError(
-      'Cannot delete user with exam attempts. This is for data preservation.',
+      ERROR_MESSAGES.USER_HAS_EXAM_ATTEMPTS,
       {
         userId: id,
         examAttempts: existingUser._count.userExams,
-        errorCode: 'USER_HAS_EXAM_ATTEMPTS',
+        errorCode: ERROR_CODES.USER_HAS_EXAM_ATTEMPTS,
       }
     );
   }
@@ -300,21 +301,21 @@ export const deleteUser = async (id: number) => {
   // Prevent deletion if user created exams
   if (existingUser._count.createdExams > 0) {
     throw new BadRequestError(
-      'Cannot delete user who created exams. Transfer ownership first.',
+      ERROR_MESSAGES.USER_HAS_CREATED_EXAMS,
       {
         userId: id,
         createdExams: existingUser._count.createdExams,
-        errorCode: 'USER_HAS_CREATED_EXAMS',
+        errorCode: ERROR_CODES.USER_HAS_CREATED_EXAMS,
       }
     );
   }
 
-  // Delete user (cascade will handle related records)
+  // Delete user
   await prisma.user.delete({
     where: { id },
   });
 
-  return { success: true, message: 'User deleted successfully' };
+  return { success: true };
 };
 
 /**
@@ -426,7 +427,7 @@ export const getUserStats = async (id: number) => {
     take: 5,
   });
 
-  // Count proctoring violations (if user is participant)
+  // Count proctoring violations
   const proctoringViolations = await prisma.proctoringEvent.count({
     where: {
       userExam: {

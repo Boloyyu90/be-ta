@@ -58,7 +58,6 @@ export const getExams = async (
 
   const result = await examsService.getExams(req.query, isAdmin, userId);
 
-  // ✅ FIXED: Use constants instead of hardcoded strings
   const message = isAdmin
     ? SUCCESS_MESSAGES.EXAMS_RETRIEVED
     : SUCCESS_MESSAGES.AVAILABLE_EXAMS_RETRIEVED;
@@ -83,7 +82,6 @@ export const getExamById = async (
 
   const exam = await examsService.getExamById(id, isAdmin);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { exam },
@@ -156,7 +154,6 @@ export const cloneExam = async (
 
   const exam = await examsService.cloneExam(id, userId);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { exam },
@@ -184,7 +181,7 @@ export const attachQuestions = async (
   sendSuccess(
     res,
     result,
-    result.message,
+    SUCCESS_MESSAGES.QUESTIONS_ATTACHED,
     HTTP_STATUS.OK
   );
 };
@@ -208,7 +205,7 @@ export const detachQuestions = async (
   sendSuccess(
     res,
     result,
-    result.message,
+    SUCCESS_MESSAGES.QUESTIONS_DETACHED,
     HTTP_STATUS.OK
   );
 };
@@ -230,7 +227,6 @@ export const reorderQuestions = async (
 
   const result = await examsService.reorderQuestions(id, userId, questionIds);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     result,
@@ -255,7 +251,6 @@ export const getExamQuestions = async (
 
   const questions = await examsService.getExamQuestions(id, userId, req.query);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { questions, total: questions.length },

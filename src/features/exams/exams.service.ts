@@ -337,6 +337,7 @@ export const updateExam = async (id: number, userId: number, data: UpdateExamInp
  *
  * @param id - Exam ID
  * @param userId - Current user ID
+ * @returns Success indicator
  * @throws {NotFoundError} If exam not found
  * @throws {ForbiddenError} If user is not creator
  * @throws {BusinessLogicError} If exam has attempts
@@ -365,7 +366,7 @@ export const deleteExam = async (id: number, userId: number) => {
     where: { id },
   });
 
-  return { success: true, message: 'Exam deleted successfully' };
+  return { success: true };
 };
 
 /**
@@ -399,7 +400,7 @@ export const cloneExam = async (id: number, userId: number) => {
     data: {
       title: `${originalExam.title} (Copy)`,
       description: originalExam.description,
-      startTime: null, // Reset times for cloned exam
+      startTime: null,
       endTime: null,
       durationMinutes: originalExam.durationMinutes,
       createdBy: userId,
@@ -422,7 +423,7 @@ export const cloneExam = async (id: number, userId: number) => {
  * @param examId - Exam ID
  * @param userId - Current user ID
  * @param input - Question IDs to attach
- * @returns Attach result
+ * @returns Attach result with counts
  * @throws {NotFoundError} If exam or questions not found
  * @throws {ForbiddenError} If user is not creator
  */
@@ -472,7 +473,6 @@ export const attachQuestions = async (examId: number, userId: number, input: Att
 
   if (newQuestionIds.length === 0) {
     return {
-      message: 'All questions were already attached to this exam',
       attached: 0,
       alreadyAttached: existingQuestionIds.length,
     };
@@ -490,7 +490,6 @@ export const attachQuestions = async (examId: number, userId: number, input: Att
   });
 
   return {
-    message: `Successfully attached ${newQuestionIds.length} question(s) to exam`,
     attached: newQuestionIds.length,
     alreadyAttached: existingQuestionIds.length,
   };
@@ -502,7 +501,7 @@ export const attachQuestions = async (examId: number, userId: number, input: Att
  * @param examId - Exam ID
  * @param userId - Current user ID
  * @param input - Question IDs to detach
- * @returns Detach result
+ * @returns Detach result with count
  * @throws {NotFoundError} If exam not found
  * @throws {ForbiddenError} If user is not creator
  */
@@ -521,7 +520,6 @@ export const detachQuestions = async (examId: number, userId: number, input: Det
   });
 
   return {
-    message: `Successfully detached ${result.count} question(s) from exam`,
     detached: result.count,
   };
 };
@@ -532,7 +530,7 @@ export const detachQuestions = async (examId: number, userId: number, input: Det
  * @param examId - Exam ID
  * @param userId - Current user ID
  * @param questionIds - Question IDs in new order
- * @returns Reorder result
+ * @returns Reorder result with count
  * @throws {NotFoundError} If exam not found
  * @throws {ForbiddenError} If user is not creator
  */
@@ -557,7 +555,6 @@ export const reorderQuestions = async (examId: number, userId: number, questionI
 
   return {
     success: true,
-    message: 'Questions reordered successfully',
     count: questionIds.length,
   };
 };
@@ -698,7 +695,7 @@ export const getExamStats = async (examId: number, userId: number) => {
       const percentage = (score / maxScore) * 100;
       if (percentage > highestPercentage) highestPercentage = percentage;
       if (percentage < lowestPercentage) lowestPercentage = percentage;
-      if (percentage >= 65) passedCount++; // 65% passing grade
+      if (percentage >= 65) passedCount++;
     }
   }
 
