@@ -1,10 +1,23 @@
 import { Prisma, ProctoringEventType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
+import { env } from '@/config/env';
+import {
+  ERROR_MESSAGES,
+  ERROR_CODES,
+  ML_ERROR_MESSAGES,
+  ML_ERROR_CODES,
+  ML_CONFIG,
+} from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
+import { withTimeout, TimeoutError } from '@/shared/utils/timeout';
+import { logger } from '@/shared/utils/logger';
 import { NotFoundError, UnauthorizedError, BadRequestError } from '@/shared/errors/app-errors';
-import { getFaceAnalyzer } from './ml/analyzer.factory'; // ✅ NEW IMPORT
-import type { LogEventInput, GetEventsQuery, GetAdminEventsQuery } from './proctoring.validation';
+import { getFaceAnalyzer, MockFaceAnalyzer } from './ml/analyzer.factory';
+import type {
+  LogEventInput,
+  GetEventsQuery,
+  GetAdminEventsQuery
+} from './proctoring.validation';
 
 // ==================== PRISMA SELECT OBJECTS ====================
 
@@ -14,6 +27,7 @@ const PROCTORING_EVENT_SELECT = {
   eventType: true,
   metadata: true,
   timestamp: true,
+  severity: true, // ✅ Added
 } as const;
 
 const PROCTORING_EVENT_WITH_EXAM_SELECT = {
@@ -41,8 +55,6 @@ const PROCTORING_EVENT_WITH_EXAM_SELECT = {
   },
 } as const;
 
-// ✅ REMOVED: analyzeFaceDetectionMock function (moved to mock-analyzer.service.ts)
-
 // ==================== SERVICE FUNCTIONS ====================
 
 /**
@@ -63,10 +75,14 @@ export const logEvent = async (input: LogEventInput) => {
     });
   }
 
+  // ✅ Determine severity based on event type
+  const severity = determineSeverity(eventType);
+
   const event = await prisma.proctoringEvent.create({
     data: {
       userExamId,
       eventType,
+      severity,
       ...(metadata && { metadata: metadata as Prisma.InputJsonValue }),
       timestamp: new Date(),
     },
@@ -171,12 +187,17 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
 /**
  * Analyze face detection from webcam image
  *
+ * ✅ NEW: Enhanced with timeout, fallback, and graceful degradation
+ *
  * @param userExamId - User exam ID
  * @param userId - Current user ID
  * @param imageBase64 - Base64 encoded image
  * @returns Analysis result
  */
 export const analyzeFace = async (userExamId: number, userId: number, imageBase64: string) => {
+  const startTime = Date.now();
+
+  // Verify user exam exists and belongs to user
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     select: { userId: true, status: true },
@@ -197,26 +218,106 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
     });
   }
 
-  // ✅ NEW: Use factory to get analyzer (mock or YOLO)
-  const faceAnalyzer = getFaceAnalyzer();
+  // ✅ Get analyzer with fallback capability
+  const analyzer = getFaceAnalyzer();
+  let analysis;
+  let usedFallback = false;
 
   try {
-    const analysis = await faceAnalyzer.analyze(imageBase64);
+    // ✅ Apply timeout to prevent hanging
+    analysis = await withTimeout(
+      analyzer.analyze(imageBase64),
+      env.ML_ANALYSIS_TIMEOUT_MS
+    );
 
-    let eventType: ProctoringEventType | null = null;
+    logger.debug(
+      {
+        userExamId,
+        status: analysis.status,
+        violations: analysis.violations,
+        confidence: analysis.confidence,
+        processingTimeMs: Date.now() - startTime,
+      },
+      '✅ Face analysis completed'
+    );
 
-    if (!analysis.faceDetected) {
-      eventType = ProctoringEventType.NO_FACE_DETECTED;
-    } else if (analysis.faceCount > 1) {
-      eventType = ProctoringEventType.MULTIPLE_FACES;
-    } else if (analysis.lookingAway) {
-      eventType = ProctoringEventType.LOOKING_AWAY;
+  } catch (error) {
+    // ✅ Handle timeout gracefully
+    if (error instanceof TimeoutError) {
+      logger.warn(
+        {
+          userExamId,
+          timeoutMs: env.ML_ANALYSIS_TIMEOUT_MS,
+          elapsedMs: Date.now() - startTime,
+        },
+        '⏱️ Face analysis timeout, attempting fallback'
+      );
+
+      // Use fallback if enabled
+      if (env.ML_FALLBACK_TO_MOCK) {
+        usedFallback = true;
+        const fallbackAnalyzer = new MockFaceAnalyzer('success');
+        analysis = await fallbackAnalyzer.analyze(imageBase64);
+      } else {
+        // Return neutral result - don't block exam
+        analysis = {
+          status: 'timeout' as const,
+          violations: [],
+          confidence: 0,
+          message: 'Analysis timeout - exam continues',
+          metadata: {
+            processingTimeMs: Date.now() - startTime,
+            error: 'timeout',
+          },
+        };
+      }
+    } else {
+      // ✅ Handle other errors gracefully
+      logger.error(
+        {
+          error,
+          userExamId,
+          elapsedMs: Date.now() - startTime,
+        },
+        '❌ Face analysis error'
+      );
+
+      // Use fallback if enabled
+      if (env.ML_FALLBACK_TO_MOCK) {
+        usedFallback = true;
+        const fallbackAnalyzer = new MockFaceAnalyzer('success');
+        analysis = await fallbackAnalyzer.analyze(imageBase64);
+      } else {
+        // Return error result - don't block exam
+        analysis = {
+          status: 'error' as const,
+          violations: [],
+          confidence: 0,
+          message: 'Analysis failed - exam continues',
+          metadata: {
+            processingTimeMs: Date.now() - startTime,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        };
+      }
     }
+  }
 
-    // Log event if violation detected
+  const hasViolations = analysis.violations.some(
+    (v: string) => v !== 'FACE_DETECTED'  // ✅ Add type annotation
+  );
+
+  if (hasViolations) {
+    const eventType = mapViolationToEventType(analysis.violations[0]);
+
     if (eventType) {
+      const severity = determineSeverity(eventType);  // ✅ NOW SAFE
+
       const eventMetadata = {
-        ...analysis,
+        confidence: analysis.confidence,
+        violations: analysis.violations,
+        usedFallback,
+        processingTimeMs: analysis.metadata?.processingTimeMs || 0,
         autoGenerated: true,
       } as Prisma.InputJsonValue;
 
@@ -224,21 +325,64 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
         data: {
           userExamId,
           eventType,
+          severity,
           metadata: eventMetadata,
           timestamp: new Date(),
         },
       });
-    }
 
-    return {
-      analysis,
-      eventLogged: eventType !== null,
-      eventType,
-    };
-  } catch (error) {
-    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      errorCode: ERROR_CODES.PROCTORING_ANALYSIS_FAILED,
-    });
+      logger.info(
+        {
+          userExamId,
+          eventType,
+          severity,
+          violations: analysis.violations,
+        },
+        '📝 Proctoring violation logged'
+      );
+    }
+  }
+
+  return {
+    analysis,
+    eventLogged: hasViolations,
+    eventType: hasViolations ? mapViolationToEventType(analysis.violations[0]) : null,
+    usedFallback,
+  };
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Map violation type to proctoring event type
+ */
+const mapViolationToEventType = (violation: string): ProctoringEventType | null => {
+  switch (violation) {
+    case 'NO_FACE_DETECTED':
+      return ProctoringEventType.NO_FACE_DETECTED;
+    case 'MULTIPLE_FACES':
+      return ProctoringEventType.MULTIPLE_FACES;
+    case 'LOOKING_AWAY':
+      return ProctoringEventType.LOOKING_AWAY;
+    default:
+      return null;
+  }
+};
+
+/**
+ * Determine severity based on event type
+ */
+const determineSeverity = (eventType: ProctoringEventType): string => {
+  switch (eventType) {
+    case ProctoringEventType.NO_FACE_DETECTED:
+      return 'HIGH';
+    case ProctoringEventType.MULTIPLE_FACES:
+      return 'HIGH';
+    case ProctoringEventType.LOOKING_AWAY:
+      return 'MEDIUM';
+    case ProctoringEventType.FACE_DETECTED:
+      return 'LOW';
+    default:
+      return 'LOW';
   }
 };

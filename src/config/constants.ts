@@ -197,6 +197,57 @@ export const SUCCESS_MESSAGES = {
   STATISTICS_RETRIEVED: 'Statistics retrieved successfully',
 } as const;
 
+
+// ==================== ML/PROCTORING CONSTANTS ====================
+
+/**
+ * ML model configuration and thresholds
+ */
+export const ML_CONFIG = {
+  // Detection thresholds
+  MIN_FACE_CONFIDENCE: 0.5,
+  MAX_FACES_ALLOWED: 1,
+
+  // Performance limits
+  DEFAULT_TIMEOUT_MS: 5000,
+  MAX_RETRY_ATTEMPTS: 2,
+
+  // Warmup settings
+  WARMUP_IMAGE_SIZE: 640, // pixels
+  WARMUP_RETRIES: 3,
+} as const;
+
+/**
+ * Proctoring violation severity levels
+ */
+export const PROCTORING_SEVERITY = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+// ==================== ML ERROR MESSAGES ====================
+
+export const ML_ERROR_MESSAGES = {
+  MODEL_NOT_FOUND: 'ML model file not found',
+  MODEL_LOAD_FAILED: 'Failed to load ML model',
+  ANALYSIS_TIMEOUT: 'Face analysis timed out',
+  ANALYSIS_FAILED: 'Face analysis failed',
+  WARMUP_FAILED: 'ML model warmup failed',
+  INVALID_IMAGE: 'Invalid or corrupted image data',
+} as const;
+
+// ==================== ML ERROR CODES ====================
+
+export const ML_ERROR_CODES = {
+  MODEL_NOT_FOUND: 'ML_001',
+  MODEL_LOAD_FAILED: 'ML_002',
+  ANALYSIS_TIMEOUT: 'ML_003',
+  ANALYSIS_FAILED: 'ML_004',
+  WARMUP_FAILED: 'ML_005',
+  INVALID_IMAGE: 'ML_006',
+} as const;
+
 // ==================== TYPE EXPORTS ====================
 
 /**
@@ -206,3 +257,4 @@ export type HttpStatus = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
 export type ErrorMessage = (typeof ERROR_MESSAGES)[keyof typeof ERROR_MESSAGES];
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 export type SuccessMessage = (typeof SUCCESS_MESSAGES)[keyof typeof SUCCESS_MESSAGES];
+export type ProctoringEventSeverity = typeof PROCTORING_SEVERITY[keyof typeof PROCTORING_SEVERITY];
