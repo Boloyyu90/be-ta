@@ -16,7 +16,7 @@ authRouter.post(
   '/register',
   authLimiter,
   validate(authValidation.registerSchema),
-  asyncHandler(authController.register),
+  asyncHandler(authController.register)
 );
 
 /**
@@ -28,7 +28,7 @@ authRouter.post(
   '/login',
   authLimiter,
   validate(authValidation.loginSchema),
-  asyncHandler(authController.login),
+  asyncHandler(authController.login)
 );
 
 /**
@@ -39,16 +39,16 @@ authRouter.post(
 authRouter.post(
   '/refresh',
   validate(authValidation.refreshTokenSchema),
-  asyncHandler(authController.refreshToken),
+  asyncHandler(authController.refreshToken)
 );
 
 /**
  * @route   POST /api/v1/auth/logout
- * @desc    Logout user
+ * @desc    Logout user (invalidate refresh token)
  * @access  Public
  */
 authRouter.post(
   '/logout',
   validate(authValidation.logoutSchema),
-  asyncHandler(authController.logout),
+  asyncHandler(authController.logout)
 );

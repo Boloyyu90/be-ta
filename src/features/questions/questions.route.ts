@@ -8,47 +8,7 @@ import * as questionsValidation from './questions.validation';
 
 export const questionsRouter = Router();
 
-// ==================== SPECIAL ROUTES (Must be before :id routes) ====================
-
-/**
- * @route   GET /api/v1/admin/questions/stats
- * @desc    Get question statistics
- * @access  Private (Admin only)
- */
-questionsRouter.get(
-  '/admin/questions/stats',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  asyncHandler(questionsController.getQuestionStats)
-);
-
-/**
- * @route   POST /api/v1/admin/questions/bulk
- * @desc    Bulk create questions
- * @access  Private (Admin only)
- */
-questionsRouter.post(
-  '/admin/questions/bulk',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(questionsValidation.bulkCreateQuestionsSchema),
-  asyncHandler(questionsController.bulkCreateQuestions)
-);
-
-/**
- * @route   POST /api/v1/admin/questions/bulk-delete
- * @desc    Bulk delete questions
- * @access  Private (Admin only)
- */
-questionsRouter.post(
-  '/admin/questions/bulk-delete',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(questionsValidation.bulkDeleteQuestionsSchema),
-  asyncHandler(questionsController.bulkDeleteQuestions)
-);
-
-// ==================== STANDARD CRUD ROUTES ====================
+// ==================== ADMIN ROUTES ====================
 
 /**
  * @route   POST /api/v1/admin/questions
@@ -56,7 +16,7 @@ questionsRouter.post(
  * @access  Private (Admin only)
  */
 questionsRouter.post(
-  '/admin/questions',
+  '/',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(questionsValidation.createQuestionSchema),
@@ -64,12 +24,25 @@ questionsRouter.post(
 );
 
 /**
+ * @route   POST /api/v1/admin/questions/bulk
+ * @desc    Bulk create questions from array
+ * @access  Private (Admin only)
+ */
+questionsRouter.post(
+  '/bulk',
+  authenticate,
+  authorize(UserRole.ADMIN),
+  validate(questionsValidation.bulkCreateQuestionsSchema),
+  asyncHandler(questionsController.bulkCreateQuestions)
+);
+
+/**
  * @route   GET /api/v1/admin/questions
- * @desc    Get all questions with filters
+ * @desc    Get questions list with filters
  * @access  Private (Admin only)
  */
 questionsRouter.get(
-  '/admin/questions',
+  '/',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(questionsValidation.getQuestionsSchema),
@@ -78,11 +51,11 @@ questionsRouter.get(
 
 /**
  * @route   GET /api/v1/admin/questions/:id
- * @desc    Get single question details
+ * @desc    Get single question by ID
  * @access  Private (Admin only)
  */
 questionsRouter.get(
-  '/admin/questions/:id',
+  '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(questionsValidation.getQuestionSchema),
@@ -91,11 +64,11 @@ questionsRouter.get(
 
 /**
  * @route   PATCH /api/v1/admin/questions/:id
- * @desc    Update question
+ * @desc    Update question by ID
  * @access  Private (Admin only)
  */
 questionsRouter.patch(
-  '/admin/questions/:id',
+  '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(questionsValidation.updateQuestionSchema),
@@ -104,11 +77,11 @@ questionsRouter.patch(
 
 /**
  * @route   DELETE /api/v1/admin/questions/:id
- * @desc    Delete question
+ * @desc    Delete question by ID
  * @access  Private (Admin only)
  */
 questionsRouter.delete(
-  '/admin/questions/:id',
+  '/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(questionsValidation.deleteQuestionSchema),

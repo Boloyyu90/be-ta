@@ -14,17 +14,11 @@ export const v1Router = Router();
 // Mount feature routes
 v1Router.use('/auth', authRouter);
 v1Router.use('/users', usersRouter);
-
-// Mount exam routes
-// Note: examsRouter already contains both /admin/exams and /exams paths
-v1Router.use('/', examsRouter);
-v1Router.use('/', questionsRouter);
-v1Router.use('/', examSessionsRouter);
+v1Router.use('/exams', examsRouter);
+v1Router.use('/questions', questionsRouter);
+v1Router.use('/exam-sessions', examSessionsRouter);
+v1Router.use('/proctoring', proctoringRouter);
 v1Router.use('/dashboard', dashboardRouter);
-
-// Mount proctoring routes
-// Note: proctoringRouter contains both /proctoring and /admin/proctoring paths
-v1Router.use('/', proctoringRouter);
 
 // Route list endpoint (for debugging/documentation)
 if (process.env.NODE_ENV === 'development') {

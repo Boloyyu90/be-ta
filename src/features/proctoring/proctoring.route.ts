@@ -12,69 +12,45 @@ export const proctoringRouter = Router();
 
 /**
  * @route   POST /api/v1/proctoring/events
- * @desc    Log a single proctoring event
- * @access  Private (All authenticated users)
+ * @desc    Log a proctoring event during exam
+ * @access  Private (Authenticated users)
  */
 proctoringRouter.post(
-  '/proctoring/events',
+  '/events',
   authenticate,
   validate(proctoringValidation.logEventSchema),
   asyncHandler(proctoringController.logEvent)
 );
 
 /**
- * @route   POST /api/v1/proctoring/events/batch
- * @desc    Log multiple proctoring events in batch
- * @access  Private (All authenticated users)
- */
-proctoringRouter.post(
-  '/proctoring/events/batch',
-  authenticate,
-  validate(proctoringValidation.logEventsBatchSchema),
-  asyncHandler(proctoringController.logEventsBatch)
-);
-
-/**
- * @route   POST /api/v1/proctoring/detect-face
- * @desc    Submit image for face detection (ML integration)
- * @access  Private (All authenticated users)
- */
-proctoringRouter.post(
-  '/proctoring/detect-face',
-  authenticate,
-  validate(proctoringValidation.detectFaceSchema),
-  asyncHandler(proctoringController.detectFace)
-);
-
-/**
- * @route   GET /api/v1/proctoring/user-exams/:id/events
+ * @route   GET /api/v1/proctoring/user-exams/:userExamId/events
  * @desc    Get proctoring events for a user exam
- * @access  Private (Owner only)
+ * @access  Private (Exam participant)
  */
 proctoringRouter.get(
-  '/proctoring/user-exams/:id/events',
+  '/user-exams/:userExamId/events',
   authenticate,
   validate(proctoringValidation.getEventsSchema),
   asyncHandler(proctoringController.getEvents)
 );
 
 /**
- * @route   GET /api/v1/proctoring/user-exams/:id/stats
- * @desc    Get proctoring statistics for a user exam
- * @access  Private (Owner only)
+ * @route   POST /api/v1/proctoring/user-exams/:userExamId/analyze-face
+ * @desc    Analyze face detection from webcam image
+ * @access  Private (Exam participant)
  */
-proctoringRouter.get(
-  '/proctoring/user-exams/:id/stats',
+proctoringRouter.post(
+  '/user-exams/:userExamId/analyze-face',
   authenticate,
-  validate(proctoringValidation.getStatsSchema),
-  asyncHandler(proctoringController.getStats)
+  validate(proctoringValidation.analyzeFaceSchema),
+  asyncHandler(proctoringController.analyzeFace)
 );
 
 // ==================== ADMIN ROUTES ====================
 
 /**
  * @route   GET /api/v1/admin/proctoring/events
- * @desc    Get all proctoring events with filters (admin dashboard)
+ * @desc    Get all proctoring events (admin view)
  * @access  Private (Admin only)
  */
 proctoringRouter.get(

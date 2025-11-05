@@ -2,6 +2,8 @@ export const APP_NAME = 'be-ta';
 export const API_VERSION = 'v1';
 export const SALT_ROUNDS = 10;
 
+// ==================== HTTP STATUS CODES ====================
+
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
@@ -14,87 +16,89 @@ export const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500,
 } as const;
 
+// ==================== ERROR MESSAGES ====================
+
 /**
- * Centralized error messages untuk konsistensi di seluruh aplikasi
- * Note: Message yang di-comment adalah untuk future features atau deprecated
+ * Centralized error messages for consistency across the application
+ * Organized by module/domain for easy maintenance
  */
 export const ERROR_MESSAGES = {
-  // ==================== AUTH ERRORS ====================
-  INVALID_CREDENTIALS: 'Invalid email or password',
-  EMAIL_EXISTS: 'Email already exists',
-  INVALID_REFRESH_TOKEN: 'Invalid refresh token',
-  TOKEN_NOT_FOUND: 'Token not found',
-  // EMAIL_VERIFICATION_REQUIRED: 'Please verify your email before logging in', // Future: v2.0
-  // REFRESH_TOKEN_EXPIRED: 'Refresh token expired', // Handled by JWT library
-
-  // ==================== USER ERRORS ====================
-  USER_NOT_FOUND: 'User not found',
-
   // ==================== GENERAL ERRORS ====================
   UNAUTHORIZED: 'Unauthorized',
   FORBIDDEN: 'Forbidden',
   VALIDATION_ERROR: 'Validation error',
 
+  // ==================== AUTH ERRORS ====================
+  INVALID_CREDENTIALS: 'Invalid email or password',
+  EMAIL_EXISTS: 'Email already exists',
+  INVALID_REFRESH_TOKEN: 'Invalid refresh token',
+  TOKEN_NOT_FOUND: 'Token not found',
+  TOKEN_EXPIRED: 'Token has expired',
+
+  // ==================== USER ERRORS ====================
+  USER_NOT_FOUND: 'User not found',
+  USER_HAS_EXAM_ATTEMPTS: 'Cannot delete user with exam attempts',
+  USER_HAS_CREATED_EXAMS: 'Cannot delete user who created exams',
+
   // ==================== EXAM ERRORS ====================
   EXAM_NOT_FOUND: 'Exam not found',
-  EXAM_HAS_NO_QUESTIONS: 'This exam has no questions yet',
-  EXAM_HAS_NO_DURATION_SET: 'This exam has no duration set',
-  DUPLICATE_EXAM_TITLE: 'You already have an exam with this title',
-  NOT_EXAM_CREATOR: 'You can only update exams you created',
-  CANNOT_DELETE_EXAM_NOT_CREATOR: 'You can only delete exams you created',
-  CANNOT_UPDATE_ACTIVE_EXAM_DURATION: 'Cannot update duration while there are active exam sessions',
-  CANNOT_DELETE_EXAM_WITH_ATTEMPTS: 'Cannot delete exam with participant attempts. This is for data preservation.',
+  EXAM_HAS_NO_QUESTIONS: 'Exam has no questions',
+  EXAM_HAS_NO_DURATION_SET: 'Exam duration not set',
+  DUPLICATE_EXAM_TITLE: 'An exam with this title already exists',
+  NOT_EXAM_CREATOR: 'Only the exam creator can perform this action',
+  CANNOT_DELETE_EXAM_WITH_ATTEMPTS: 'Cannot delete exam with participant attempts',
+  CANNOT_UPDATE_ACTIVE_EXAM_DURATION: 'Cannot update duration while exam sessions are active',
 
-  // ==================== EXAM SESSIONS ERRORS ====================
-  FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION: 'Failed to create or retrieve exam session',
+  // ==================== EXAM SESSION ERRORS ====================
   EXAM_SESSION_NOT_FOUND: 'Exam session not found',
   EXAM_ALREADY_STARTED: 'You have already started this exam',
   EXAM_TIMEOUT: 'Exam time limit exceeded',
-  UNAUTHORIZED_EXAM_SESSION: 'Unauthorized to submit answer for this exam session',
+  EXAM_ALREADY_SUBMITTED: 'Exam already submitted',
+  UNAUTHORIZED_EXAM_SESSION: 'Unauthorized to access this exam session',
   UNAUTHORIZED_VIEW_EXAM_SESSION: 'Unauthorized to view this exam session',
   UNABLE_SUBMIT_ANSWER_EXAM_FINISHED: 'Cannot submit answer - exam already finished',
-  EXAM_ALREADY_SUBMITTED: 'Exam already submitted',
   INVALID_EXAM_QUESTION_FOR_EXAM: 'Invalid exam question ID for this exam',
   REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT: 'Cannot review answers before submitting exam',
-  // Removed: FORBIDDEN_EXAM_SESSION_* - Generic authorization now used
+  FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION: 'Failed to create or retrieve exam session',
 
   // ==================== QUESTION ERRORS ====================
   QUESTION_NOT_FOUND: 'Question not found',
-  QUESTIONS_NOT_FOUND: 'Some questions not found',
-  INVALID_OPTIONS_FORMAT: 'Invalid options format. Must have exactly A, B, C, D, E keys',
-  CORRECT_ANSWER_NOT_IN_OPTIONS: 'Correct answer does not exist in options',
-  DUPLICATE_QUESTION_CONTENT: 'A question with similar content already exists',
-  QUESTION_IN_ACTIVE_EXAM: 'Cannot update question that is currently being used in active exams',
-  QUESTION_IN_USE: 'Cannot delete question that is used in exams. Remove from exams first.',
-  ALL_QUESTIONS_IN_USE: 'All selected questions are currently used in exams and cannot be deleted',
-  // QUESTION_ALREADY_IN_EXAM: 'Question already in exam', // Not implemented - handled by unique constraint
+  QUESTIONS_NOT_FOUND: 'One or more questions not found',
+  INVALID_OPTIONS_FORMAT: 'Invalid options format. Must have exactly 5 keys: A, B, C, D, E',
+  INVALID_CORRECT_ANSWER: 'Invalid correct answer. Must be one of the option keys: A, B, C, D, E',
+  CANNOT_DELETE_QUESTION_IN_USE: 'Cannot delete question that is used in exams',
+  QUESTION_IN_USE: 'Question is currently used in one or more exams',
 
   // ==================== PROCTORING ERRORS ====================
   USER_EXAM_NOT_FOUND: 'User exam session not found',
-  CANNOT_LOG_EVENT_SUBMITTED_EXAM: 'Cannot log events for submitted exam',
-  CANNOT_PROCESS_DETECTION_SUBMITTED_EXAM: 'Cannot process detection for submitted exam',
-  UNAUTHORIZED_VIEW_EVENTS: 'Unauthorized to view these events',
-  UNAUTHORIZED_VIEW_STATS: 'Unauthorized to view these statistics',
+  UNAUTHORIZED_VIEW_EVENTS: 'Unauthorized to view proctoring events',
   FAILED_TO_ANALYZE_IMAGE: 'Failed to analyze image',
-  ONE_OR_MORE_USER_EXAM_NOT_FOUND: 'One or more user exam sessions not found',
-  CANNOT_LOG_EVENTS_SUBMITTED_EXAMS: 'Cannot log events for submitted exam(s)',
-  // INVALID_PROCTORING_EVENT: 'Invalid proctoring event', // Validation handled by Zod
 } as const;
 
+// ==================== ERROR CODES ====================
+
 /**
- * Error codes untuk programmatic error handling di client
+ * Error codes for programmatic error handling on the client
+ * Format: [MODULE]_[NUMBER]
  */
 export const ERROR_CODES = {
-  // Auth
+  // ==================== GENERAL ====================
+  VALIDATION_ERROR: 'VALIDATION_001',
+  UNAUTHORIZED: 'UNAUTHORIZED_001',
+  FORBIDDEN: 'FORBIDDEN_001',
+
+  // ==================== AUTH (AUTH_xxx) ====================
   AUTH_INVALID_CREDENTIALS: 'AUTH_001',
   AUTH_EMAIL_EXISTS: 'AUTH_002',
   AUTH_INVALID_TOKEN: 'AUTH_003',
   AUTH_TOKEN_EXPIRED: 'AUTH_004',
 
-  // User
+  // ==================== USER (USER_xxx) ====================
   USER_NOT_FOUND: 'USER_001',
+  USER_HAS_EXAM_ATTEMPTS: 'USER_002',
+  USER_HAS_CREATED_EXAMS: 'USER_003',
 
-  // Exam
+  // ==================== EXAM (EXAM_xxx) ====================
   EXAM_NOT_FOUND: 'EXAM_001',
   EXAM_NO_QUESTIONS: 'EXAM_002',
   EXAM_NO_DURATION: 'EXAM_003',
@@ -103,63 +107,97 @@ export const ERROR_CODES = {
   EXAM_CANNOT_DELETE: 'EXAM_006',
   EXAM_CANNOT_UPDATE: 'EXAM_007',
 
-  // Exam Session
-  SESSION_NOT_FOUND: 'SESSION_001',
-  SESSION_ALREADY_STARTED: 'SESSION_002',
-  SESSION_TIMEOUT: 'SESSION_003',
-  SESSION_ALREADY_SUBMITTED: 'SESSION_004',
-  SESSION_INVALID_QUESTION: 'SESSION_005',
+  // ==================== EXAM SESSION (EXAM_SESSION_xxx) ====================
+  EXAM_SESSION_NOT_FOUND: 'EXAM_SESSION_001',
+  EXAM_SESSION_ALREADY_STARTED: 'EXAM_SESSION_002',
+  EXAM_SESSION_TIMEOUT: 'EXAM_SESSION_003',
+  EXAM_SESSION_ALREADY_SUBMITTED: 'EXAM_SESSION_004',
+  EXAM_SESSION_INVALID_QUESTION: 'EXAM_SESSION_005',
+  EXAM_SESSION_UNAUTHORIZED: 'EXAM_SESSION_006',
+  EXAM_SESSION_CREATE_FAILED: 'EXAM_SESSION_007',
+  EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008', // Used in proctoring
+  EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009', // Used in proctoring
 
-  // Question
+  // ==================== QUESTION (QUESTION_xxx) ====================
   QUESTION_NOT_FOUND: 'QUESTION_001',
-  QUESTION_INVALID_FORMAT: 'QUESTION_002',
-  QUESTION_IN_USE: 'QUESTION_003',
+  QUESTION_INVALID_OPTIONS: 'QUESTION_002',
+  QUESTION_INVALID_ANSWER: 'QUESTION_003',
+  QUESTION_IN_USE: 'QUESTION_004',
 
-  // Proctoring
-  PROCTORING_UNAUTHORIZED: 'PROCTORING_001',
+  // ==================== PROCTORING (PROCTORING_xxx) ====================
+  PROCTORING_ANALYSIS_FAILED: 'PROCTORING_001',
   PROCTORING_DETECTION_FAILED: 'PROCTORING_002',
-
-  // General
-  VALIDATION_ERROR: 'VALIDATION_001',
-  UNAUTHORIZED: 'UNAUTHORIZED_001',
-  FORBIDDEN: 'FORBIDDEN_001',
 } as const;
 
+// ==================== SUCCESS MESSAGES ====================
+
+/**
+ * Centralized success messages for API responses
+ * Organized by module/domain
+ */
 export const SUCCESS_MESSAGES = {
-  // Auth
+  // ==================== AUTH ====================
   REGISTRATION_SUCCESS: 'Registration successful',
   LOGIN_SUCCESS: 'Login successful',
   LOGOUT_SUCCESS: 'Logged out successfully',
   TOKEN_REFRESHED: 'Token refreshed successfully',
 
-  // User
+  // ==================== USER ====================
   USER_CREATED: 'User created successfully',
   USER_UPDATED: 'User updated successfully',
   USER_DELETED: 'User deleted successfully',
-  USERS_RETRIEVED: 'Users retrieved successfully',
   USER_RETRIEVED: 'User retrieved successfully',
+  USERS_RETRIEVED: 'Users retrieved successfully',
+  PROFILE_UPDATED: 'Profile updated successfully',
+  PROFILE_RETRIEVED: 'Profile retrieved successfully',
 
-  // Exam
+  // ==================== EXAM ====================
   EXAM_CREATED: 'Exam created successfully',
   EXAM_UPDATED: 'Exam updated successfully',
   EXAM_DELETED: 'Exam deleted successfully',
-  EXAM_STARTED: 'Exam started successfully',
-  EXAM_FINISHED: 'Exam finished successfully',
-  EXAMS_RETRIEVED: 'Exams retrieved successfully',
   EXAM_RETRIEVED: 'Exam retrieved successfully',
-  EXAM_SUBMITTED: 'Exam submitted successfully',
+  EXAMS_RETRIEVED: 'Exams retrieved successfully',
+  EXAM_CLONED: 'Exam cloned successfully',
+  EXAM_PUBLISHED: 'Exam published successfully',
+  EXAM_UNPUBLISHED: 'Exam unpublished successfully',
 
-  // Question
+  // ==================== EXAM SESSION ====================
+  EXAM_STARTED: 'Exam started successfully',
+  EXAM_SUBMITTED: 'Exam submitted successfully',
+  EXAM_FINISHED: 'Exam finished successfully',
+  EXAM_SESSION_RETRIEVED: 'Exam session retrieved successfully',
+
+  // ==================== QUESTION ====================
   QUESTION_CREATED: 'Question created successfully',
   QUESTION_UPDATED: 'Question updated successfully',
   QUESTION_DELETED: 'Question deleted successfully',
+  QUESTION_RETRIEVED: 'Question retrieved successfully',
+  QUESTIONS_RETRIEVED: 'Questions retrieved successfully',
   QUESTIONS_ATTACHED: 'Questions attached to exam successfully',
   QUESTIONS_DETACHED: 'Questions detached from exam successfully',
+  QUESTIONS_REORDERED: 'Questions reordered successfully',
+  QUESTIONS_BULK_CREATED: 'Questions created successfully',
 
-  // Answer
+  // ==================== ANSWER ====================
   ANSWER_SUBMITTED: 'Answer submitted successfully',
   ANSWER_SAVED: 'Answer saved successfully',
 
-  // Proctoring
-  PROCTORING_EVENT_RECORDED: 'Proctoring event recorded successfully',
+  // ==================== PROCTORING ====================
+  PROCTORING_EVENT_LOGGED: 'Proctoring event logged successfully',
+  PROCTORING_EVENTS_RETRIEVED: 'Proctoring events retrieved successfully',
+  PROCTORING_ANALYSIS_COMPLETED: 'Face analysis completed successfully',
+
+  // ==================== DASHBOARD ====================
+  DASHBOARD_RETRIEVED: 'Dashboard data retrieved successfully',
+  STATISTICS_RETRIEVED: 'Statistics retrieved successfully',
 } as const;
+
+// ==================== TYPE EXPORTS ====================
+
+/**
+ * Type-safe access to constants
+ */
+export type HttpStatus = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
+export type ErrorMessage = (typeof ERROR_MESSAGES)[keyof typeof ERROR_MESSAGES];
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+export type SuccessMessage = (typeof SUCCESS_MESSAGES)[keyof typeof SUCCESS_MESSAGES];

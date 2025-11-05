@@ -6,7 +6,12 @@ import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { ConflictError, UnauthorizedError, NotFoundError } from '@/shared/errors/app-errors';
 import type { RegisterInput, LoginInput } from './auth.validation';
 
-// Reusable Prisma select objects (internal to service)
+// ==================== PRISMA SELECT OBJECTS ====================
+
+/**
+ * Public user data without password
+ * Used for API responses
+ */
 const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
@@ -17,13 +22,23 @@ const USER_PUBLIC_SELECT = {
   updatedAt: true,
 } as const;
 
+/**
+ * User data with password
+ * Used for authentication
+ */
 const USER_WITH_PASSWORD_SELECT = {
   ...USER_PUBLIC_SELECT,
   password: true,
 } as const;
 
+// ==================== SERVICE FUNCTIONS ====================
+
 /**
  * Register a new user
+ *
+ * @param input - Registration data (email, password, name)
+ * @returns User data and authentication tokens
+ * @throws {ConflictError} If email already exists
  */
 export const register = async (input: RegisterInput) => {
   const { email, password, name } = input;
@@ -64,7 +79,11 @@ export const register = async (input: RegisterInput) => {
 };
 
 /**
- * Login user
+ * Login user with email and password
+ *
+ * @param input - Login credentials (email, password)
+ * @returns User data and authentication tokens
+ * @throws {UnauthorizedError} If credentials are invalid
  */
 export const login = async (input: LoginInput) => {
   const { email, password } = input;
@@ -105,7 +124,11 @@ export const login = async (input: LoginInput) => {
 };
 
 /**
- * Refresh access token
+ * Refresh access token using refresh token
+ *
+ * @param refreshToken - Valid refresh token
+ * @returns New access and refresh tokens
+ * @throws {UnauthorizedError} If refresh token is invalid or expired
  */
 export const refreshAccessToken = async (refreshToken: string) => {
   // Verify refresh token
@@ -145,7 +168,10 @@ export const refreshAccessToken = async (refreshToken: string) => {
 };
 
 /**
- * Logout user (invalidate refresh token)
+ * Logout user by invalidating refresh token
+ *
+ * @param refreshToken - Refresh token to invalidate
+ * @throws {NotFoundError} If token not found
  */
 export const logout = async (refreshToken: string) => {
   const tokenDoc = await prisma.token.findUnique({
@@ -164,5 +190,32 @@ export const logout = async (refreshToken: string) => {
     where: { id: tokenDoc.id },
   });
 
-  return { message: 'Logged out successfully' };
+  return { success: true };
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Find user by email (internal use)
+ * Used for checking user existence
+ */
+export const findUserByEmail = async (email: string) => {
+  return prisma.user.findUnique({
+    where: { email },
+    select: USER_PUBLIC_SELECT,
+  });
+};
+
+/**
+ * Delete all expired tokens (cleanup task)
+ * Should be called by cron job or scheduled task
+ */
+export const cleanupExpiredTokens = async () => {
+  const result = await prisma.token.deleteMany({
+    where: {
+      expires: { lt: new Date() },
+    },
+  });
+
+  return { deleted: result.count };
 };

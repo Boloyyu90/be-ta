@@ -6,11 +6,10 @@ import type {
   CreateQuestionInput,
   UpdateQuestionParams,
   UpdateQuestionInput,
+  GetQuestionsQuery,
   GetQuestionParams,
   DeleteQuestionParams,
-  GetQuestionsQuery,
   BulkCreateQuestionsInput,
-  BulkDeleteQuestionsInput,
 } from './questions.validation';
 
 /**
@@ -24,13 +23,14 @@ export const createQuestion = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const question = await questionsService.createQuestion(req.body);
+  const question = await questionsService.createQuestion(req.body);
 
-    sendSuccess(res, { question }, SUCCESS_MESSAGES.QUESTION_CREATED, HTTP_STATUS.CREATED);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { question },
+    SUCCESS_MESSAGES.QUESTION_CREATED,
+    HTTP_STATUS.CREATED
+  );
 };
 
 /**
@@ -44,13 +44,14 @@ export const getQuestions = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const result = await questionsService.getQuestions(req.query);
+  const result = await questionsService.getQuestions(req.query);
 
-    sendSuccess(res, result, 'Questions retrieved successfully', HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    SUCCESS_MESSAGES.QUESTIONS_RETRIEVED,
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -64,15 +65,15 @@ export const getQuestionById = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const question = await questionsService.getQuestionById(id);
 
-    const question = await questionsService.getQuestionById(id);
-
-    sendSuccess(res, { question }, 'Question retrieved successfully', HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { question },
+    'Question retrieved successfully',
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -86,15 +87,15 @@ export const updateQuestion = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const question = await questionsService.updateQuestion(id, req.body);
 
-    const question = await questionsService.updateQuestion(id, req.body);
-
-    sendSuccess(res, { question }, SUCCESS_MESSAGES.QUESTION_UPDATED, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { question },
+    SUCCESS_MESSAGES.QUESTION_UPDATED,
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -108,15 +109,15 @@ export const deleteQuestion = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const result = await questionsService.deleteQuestion(id);
 
-    const result = await questionsService.deleteQuestion(id);
-
-    sendSuccess(res, result, SUCCESS_MESSAGES.QUESTION_DELETED, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    SUCCESS_MESSAGES.QUESTION_DELETED,
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -130,51 +131,12 @@ export const bulkCreateQuestions = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const result = await questionsService.bulkCreateQuestions(req.body);
+  const result = await questionsService.bulkCreateQuestions(req.body);
 
-    sendSuccess(res, result, result.message, HTTP_STATUS.CREATED);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Bulk delete questions controller
- * POST /api/v1/admin/questions/bulk-delete
- *
- * @access Private (Admin only)
- */
-export const bulkDeleteQuestions = async (
-  req: Request<{}, {}, BulkDeleteQuestionsInput>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const result = await questionsService.bulkDeleteQuestions(req.body);
-
-    sendSuccess(res, result, result.message, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get question statistics controller
- * GET /api/v1/admin/questions/stats
- *
- * @access Private (Admin only)
- */
-export const getQuestionStats = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const stats = await questionsService.getQuestionStats();
-
-    sendSuccess(res, stats, 'Question statistics retrieved successfully', HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    `Successfully created ${result.created} questions`,
+    HTTP_STATUS.CREATED
+  );
 };

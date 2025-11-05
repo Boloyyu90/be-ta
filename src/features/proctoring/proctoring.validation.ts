@@ -1,200 +1,155 @@
 import { z } from 'zod';
 import { ProctoringEventType } from '@prisma/client';
 
+// ==================== VALIDATION HELPERS ====================
+
+/**
+ * User exam ID parameter validation
+ */
+const userExamIdParamSchema = z
+  .string({ required_error: 'User exam ID is required' })
+  .regex(/^\d+$/, 'User exam ID must be a number')
+  .transform(Number)
+  .pipe(z.number().int().positive());
+
+/**
+ * ISO datetime string validation
+ */
+const isoDateSchema = z
+  .string()
+  .datetime('Invalid datetime format. Use ISO 8601 format');
+
 // ==================== REQUEST SCHEMAS ====================
 
 /**
- * Schema for logging a single proctoring event
+ * Schema for logging proctoring event
  * POST /api/v1/proctoring/events
+ *
+ * @access Authenticated users
  */
 export const logEventSchema = z.object({
   body: z.object({
     userExamId: z
       .number({ required_error: 'User exam ID is required' })
-      .int('User exam ID must be an integer')
-      .positive('User exam ID must be positive'),
+      .int()
+      .positive(),
     eventType: z.nativeEnum(ProctoringEventType, {
       errorMap: () => ({ message: 'Invalid event type' }),
     }),
-    metadata: z
-      .record(z.any())
-      .optional()
-      .describe('Additional event metadata (face count, confidence, etc.)'),
-    severity: z
-      .enum(['LOW', 'MEDIUM', 'HIGH'])
-      .optional()
-      .default('LOW')
-      .describe('Event severity level'),
+    eventData: z.record(z.any()).optional(),
   }),
 });
 
 /**
- * Schema for logging multiple events (batch)
- * POST /api/v1/proctoring/events/batch
- */
-export const logEventsBatchSchema = z.object({
-  body: z.object({
-    events: z
-      .array(
-        z.object({
-          userExamId: z.number().int().positive(),
-          eventType: z.nativeEnum(ProctoringEventType),
-          metadata: z.record(z.any()).optional(),
-          severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional().default('LOW'),
-        })
-      )
-      .min(1, 'At least one event required')
-      .max(50, 'Maximum 50 events per batch for performance'),
-  }),
-});
-
-/**
- * Schema for getting events for a specific user exam
- * GET /api/v1/proctoring/user-exams/:id/events
+ * Schema for getting proctoring events
+ * GET /api/v1/proctoring/user-exams/:userExamId/events
+ *
+ * @access Exam participant
  */
 export const getEventsSchema = z.object({
   params: z.object({
-    id: z
-      .string()
-      .regex(/^\d+$/)
-      .transform(Number)
-      .pipe(z.number().int().positive()),
+    userExamId: userExamIdParamSchema,
   }),
   query: z.object({
-    eventType: z.nativeEnum(ProctoringEventType).optional(),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     page: z
       .string()
       .optional()
       .default('1')
       .transform(Number)
-      .pipe(z.number().int().positive()),
+      .pipe(z.number().int().positive().min(1)),
     limit: z
       .string()
       .optional()
-      .default('50')
+      .default('20')
       .transform(Number)
-      .pipe(z.number().int().positive().max(100)),
-  }),
-});
-
-/**
- * Schema for getting proctoring statistics
- * GET /api/v1/proctoring/user-exams/:id/stats
- */
-export const getStatsSchema = z.object({
-  params: z.object({
-    id: z
-      .string()
-      .regex(/^\d+$/)
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-});
-
-/**
- * Schema for admin to view all proctoring events
- * GET /api/v1/admin/proctoring/events
- */
-export const getAdminEventsSchema = z.object({
-  query: z.object({
-    userExamId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
-    examId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
-    userId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
+      .pipe(z.number().int().positive().min(1).max(100)),
     eventType: z.nativeEnum(ProctoringEventType).optional(),
-    severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
-    page: z
-      .string()
-      .optional()
-      .default('1')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-    limit: z
-      .string()
-      .optional()
-      .default('50')
-      .transform(Number)
-      .pipe(z.number().int().positive().max(100)),
-    sortBy: z.enum(['timestamp', 'severity', 'eventType']).optional().default('timestamp'),
+    startDate: isoDateSchema.optional(),
+    endDate: isoDateSchema.optional(),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
 
 /**
- * Schema for face detection from ML service
- * POST /api/v1/proctoring/detect-face
+ * Schema for getting admin proctoring events
+ * GET /api/v1/admin/proctoring/events
+ *
+ * @access Admin only
  */
-export const detectFaceSchema = z.object({
-  body: z.object({
+export const getAdminEventsSchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .default('1')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1)),
+    limit: z
+      .string()
+      .optional()
+      .default('20')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1).max(100)),
+    eventType: z.nativeEnum(ProctoringEventType).optional(),
     userExamId: z
-      .number({ required_error: 'User exam ID is required' })
-      .int()
-      .positive(),
+      .string()
+      .optional()
+      .transform((val) => (val ? Number(val) : undefined))
+      .pipe(z.number().int().positive().optional()),
+    startDate: isoDateSchema.optional(),
+    endDate: isoDateSchema.optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  }),
+});
+
+/**
+ * Schema for analyzing face detection
+ * POST /api/v1/proctoring/user-exams/:userExamId/analyze-face
+ *
+ * @access Exam participant
+ */
+export const analyzeFaceSchema = z.object({
+  params: z.object({
+    userExamId: userExamIdParamSchema,
+  }),
+  body: z.object({
     imageBase64: z
       .string({ required_error: 'Image data is required' })
-      .min(100, 'Image data too short')
-      .refine(
-        (val) => {
-          // Validate base64 and size (max 5MB)
-          try {
-            const sizeInBytes = (val.length * 3) / 4;
-            return sizeInBytes <= 5 * 1024 * 1024; // 5MB limit
-          } catch {
-            return false;
-          }
-        },
-        { message: 'Image size must be less than 5MB' }
-      ),
-    timestamp: z
-      .string()
-      .datetime()
-      .optional()
-      .default(() => new Date().toISOString()),
+      .min(100, 'Image data too short'),
   }),
 });
 
 // ==================== REQUEST TYPES ====================
 
 export type LogEventInput = z.infer<typeof logEventSchema>['body'];
-export type LogEventsBatchInput = z.infer<typeof logEventsBatchSchema>['body'];
 export type GetEventsParams = z.infer<typeof getEventsSchema>['params'];
 export type GetEventsQuery = z.infer<typeof getEventsSchema>['query'];
-export type GetStatsParams = z.infer<typeof getStatsSchema>['params'];
 export type GetAdminEventsQuery = z.infer<typeof getAdminEventsSchema>['query'];
-export type DetectFaceInput = z.infer<typeof detectFaceSchema>['body'];
+export type AnalyzeFaceParams = z.infer<typeof analyzeFaceSchema>['params'];
+export type AnalyzeFaceInput = z.infer<typeof analyzeFaceSchema>['body'];
 
 // ==================== RESPONSE TYPES ====================
 
 /**
- * Single proctoring event
+ * Proctoring event data
  */
-export interface ProctoringEvent {
+export interface ProctoringEventData {
   id: number;
   userExamId: number;
   eventType: ProctoringEventType;
+  eventData: Record<string, any> | null;
   timestamp: Date;
-  metadata: Record<string, any> | null;
-  severity: string;
 }
 
 /**
- * Proctoring event with user exam details (for admin)
+ * Proctoring event with user exam info (admin view)
  */
-export interface ProctoringEventDetail extends ProctoringEvent {
+export interface ProctoringEventDetailData extends ProctoringEventData {
   userExam: {
     id: number;
+    userId: number;
+    examId: number;
+    status: string;
     user: {
       id: number;
       name: string;
@@ -208,27 +163,25 @@ export interface ProctoringEventDetail extends ProctoringEvent {
 }
 
 /**
- * Response for logging single event
+ * Face analysis result
  */
-export interface LogEventResponse {
-  message: string;
-  event: ProctoringEvent;
+export interface FaceAnalysisResult {
+  analysis: {
+    faceDetected: boolean;
+    faceCount: number;
+    confidence: number;
+    lookingAway: boolean;
+    message: string;
+  };
+  eventLogged: boolean;
+  eventType: ProctoringEventType | null;
 }
 
 /**
- * Response for batch logging
- */
-export interface LogEventsBatchResponse {
-  message: string;
-  logged: number;
-  events: ProctoringEvent[];
-}
-
-/**
- * Paginated events list
+ * Paginated events response
  */
 export interface EventsListResponse {
-  data: ProctoringEvent[] | ProctoringEventDetail[];
+  data: ProctoringEventData[];
   pagination: {
     page: number;
     limit: number;
@@ -240,64 +193,8 @@ export interface EventsListResponse {
 }
 
 /**
- * Event statistics by type
+ * Event logged response
  */
-export interface EventTypeStats {
-  eventType: ProctoringEventType;
-  count: number;
-  percentage: number;
-}
-
-/**
- * Event statistics by severity
- */
-export interface SeverityStats {
-  severity: string;
-  count: number;
-  percentage: number;
-}
-
-/**
- * Proctoring statistics response
- */
-export interface ProctoringStatsResponse {
-  userExamId: number;
-  examTitle: string;
-  participantName: string;
-  totalEvents: number;
-  suspiciousCount: number;
-  suspiciousPercentage: number;
-  eventsByType: EventTypeStats[];
-  eventsBySeverity: SeverityStats[];
-  timeline: Array<{
-    timestamp: Date;
-    eventType: ProctoringEventType;
-    severity: string;
-  }>;
-  riskScore: number;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-}
-
-/**
- * Face detection result from ML service
- */
-export interface FaceDetectionResult {
-  detected: boolean;
-  faceCount: number;
-  confidence: number;
-  headPose?: {
-    yaw: number; // Left-right rotation
-    pitch: number; // Up-down rotation
-    roll: number; // Tilt rotation
-  };
-  boundingBoxes: Array<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    confidence: number;
-  }>;
-  warnings: string[];
-  eventLogged: boolean;
-  event?: ProctoringEvent;
+export interface EventLoggedResponse {
+  event: ProctoringEventData;
 }

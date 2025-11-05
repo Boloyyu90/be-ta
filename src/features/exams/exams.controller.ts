@@ -15,6 +15,7 @@ import type {
   DetachQuestionsInput,
   GetExamQuestionsParams,
   GetExamQuestionsQuery,
+  CloneExamParams,
 } from './exams.validation';
 
 /**
@@ -28,16 +29,15 @@ export const createExam = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    // req.user is set by authenticate middleware
-    const userId = req.user!.id;
+  const userId = req.user!.id;
+  const exam = await examsService.createExam(userId, req.body);
 
-    const exam = await examsService.createExam(userId, req.body);
-
-    sendSuccess(res, { exam }, SUCCESS_MESSAGES.EXAM_CREATED, HTTP_STATUS.CREATED);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { exam },
+    SUCCESS_MESSAGES.EXAM_CREATED,
+    HTTP_STATUS.CREATED
+  );
 };
 
 /**
@@ -52,42 +52,42 @@ export const getExams = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const isAdmin = req.user!.role === 'ADMIN';
+  const userId = req.user!.id;
+  const userRole = req.user!.role;
+  const isAdmin = userRole === 'ADMIN';
 
-    const result = await examsService.getExams(req.query, isAdmin);
+  const result = await examsService.getExams(req.query, isAdmin, userId);
 
-    sendSuccess(
-      res,
-      result,
-      isAdmin ? 'Exams retrieved successfully' : 'Available exams retrieved successfully',
-      HTTP_STATUS.OK
-    );
-  } catch (error) {
-    next(error);
-  }
+  const message = isAdmin
+    ? 'Exams retrieved successfully'
+    : 'Available exams retrieved successfully';
+
+  sendSuccess(res, result, message, HTTP_STATUS.OK);
 };
 
 /**
  * Get single exam controller
- * GET /api/v1/admin/exams/:id
+ * GET /api/v1/admin/exams/:id (admin - full details)
+ * GET /api/v1/exams/:id (participant - basic info)
  *
- * @access Private (Admin only)
+ * @access Private (All authenticated users)
  */
 export const getExamById = async (
   req: Request<GetExamParams>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const isAdmin = req.user!.role === 'ADMIN';
 
-    const exam = await examsService.getExamById(id, false);
+  const exam = await examsService.getExamById(id, isAdmin);
 
-    sendSuccess(res, { exam }, 'Exam retrieved successfully', HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { exam },
+    'Exam retrieved successfully',
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -101,16 +101,17 @@ export const updateExam = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
+  const { id } = req.params;
+  const userId = req.user!.id;
 
-    const exam = await examsService.updateExam(id, userId, req.body);
+  const exam = await examsService.updateExam(id, userId, req.body);
 
-    sendSuccess(res, { exam }, SUCCESS_MESSAGES.EXAM_UPDATED, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { exam },
+    SUCCESS_MESSAGES.EXAM_UPDATED,
+    HTTP_STATUS.OK
+  );
 };
 
 /**
@@ -124,85 +125,182 @@ export const deleteExam = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
+  const { id } = req.params;
+  const userId = req.user!.id;
 
-    const result = await examsService.deleteExam(id, userId);
+  const result = await examsService.deleteExam(id, userId);
 
-    sendSuccess(res, result, SUCCESS_MESSAGES.EXAM_DELETED, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    SUCCESS_MESSAGES.EXAM_DELETED,
+    HTTP_STATUS.OK
+  );
+};
+
+/**
+ * Clone/duplicate exam controller
+ * POST /api/v1/admin/exams/:id/clone
+ *
+ * @access Private (Admin only)
+ */
+export const cloneExam = async (
+  req: Request<CloneExamParams>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+
+  const exam = await examsService.cloneExam(id, userId);
+
+  sendSuccess(
+    res,
+    { exam },
+    'Exam cloned successfully',
+    HTTP_STATUS.CREATED
+  );
 };
 
 /**
  * Attach questions to exam controller
  * POST /api/v1/admin/exams/:id/questions
  *
- * @access Private (Admin only)
+ * @access Private (Admin only - creator)
  */
 export const attachQuestions = async (
   req: Request<AttachQuestionsParams, {}, AttachQuestionsInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const userId = req.user!.id;
 
-    const result = await examsService.attachQuestions(id, req.body);
+  const result = await examsService.attachQuestions(id, userId, req.body);
 
-    sendSuccess(res, result, result.message, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    result.message,
+    HTTP_STATUS.OK
+  );
 };
 
 /**
  * Detach questions from exam controller
  * DELETE /api/v1/admin/exams/:id/questions
  *
- * @access Private (Admin only)
+ * @access Private (Admin only - creator)
  */
 export const detachQuestions = async (
   req: Request<DetachQuestionsParams, {}, DetachQuestionsInput>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const userId = req.user!.id;
 
-    const result = await examsService.detachQuestions(id, req.body);
+  const result = await examsService.detachQuestions(id, userId, req.body);
 
-    sendSuccess(res, result, result.message, HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    result,
+    result.message,
+    HTTP_STATUS.OK
+  );
+};
+
+/**
+ * Reorder exam questions controller
+ * PATCH /api/v1/admin/exams/:id/questions/reorder
+ *
+ * @access Private (Admin only - creator)
+ */
+export const reorderQuestions = async (
+  req: Request<AttachQuestionsParams, {}, { questionIds: number[] }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+  const { questionIds } = req.body;
+
+  const result = await examsService.reorderQuestions(id, userId, questionIds);
+
+  sendSuccess(
+    res,
+    result,
+    'Questions reordered successfully',
+    HTTP_STATUS.OK
+  );
 };
 
 /**
  * Get exam questions controller
  * GET /api/v1/admin/exams/:id/questions
  *
- * @access Private (Admin only)
+ * @access Private (Admin only - creator)
  */
 export const getExamQuestions = async (
   req: Request<GetExamQuestionsParams, {}, {}, GetExamQuestionsQuery>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  const userId = req.user!.id;
 
-    const questions = await examsService.getExamQuestions(id, req.query);
+  const questions = await examsService.getExamQuestions(id, userId, req.query);
 
-    sendSuccess(
-      res,
-      { questions, total: questions.length },
-      'Exam questions retrieved successfully',
-      HTTP_STATUS.OK
-    );
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    { questions, total: questions.length },
+    'Exam questions retrieved successfully',
+    HTTP_STATUS.OK
+  );
+};
+
+/**
+ * Get exam statistics controller
+ * GET /api/v1/admin/exams/:id/stats
+ *
+ * @access Private (Admin only - creator)
+ */
+export const getExamStats = async (
+  req: Request<GetExamParams>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+
+  const stats = await examsService.getExamStats(id, userId);
+
+  sendSuccess(
+    res,
+    stats,
+    'Exam statistics retrieved successfully',
+    HTTP_STATUS.OK
+  );
+};
+
+/**
+ * Publish/unpublish exam controller
+ * PATCH /api/v1/admin/exams/:id/publish
+ *
+ * @access Private (Admin only - creator)
+ */
+export const togglePublish = async (
+  req: Request<GetExamParams, {}, { publish: boolean }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+  const { publish } = req.body;
+
+  const result = await examsService.togglePublish(id, userId, publish);
+
+  const message = publish ? 'Exam published successfully' : 'Exam unpublished successfully';
+
+  sendSuccess(res, result, message, HTTP_STATUS.OK);
 };

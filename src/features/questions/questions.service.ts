@@ -2,102 +2,97 @@ import { Prisma, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
-import { NotFoundError, ConflictError, BusinessLogicError, BadRequestError } from '@/shared/errors/app-errors';
+import { NotFoundError, BadRequestError, BusinessLogicError } from '@/shared/errors/app-errors';
 import type {
   CreateQuestionInput,
   UpdateQuestionInput,
   GetQuestionsQuery,
   BulkCreateQuestionsInput,
-  BulkDeleteQuestionsInput,
-  QuestionOptions,
 } from './questions.validation';
+
+// ==================== TYPES ====================
+
+type QuestionOptions = {
+  A: string;
+  B: string;
+  C: string;
+  D: string;
+  E: string;
+};
 
 // ==================== PRISMA SELECT OBJECTS ====================
 
-const QUESTION_PUBLIC_SELECT = {
+/**
+ * Standard question select object
+ */
+const QUESTION_SELECT = {
   id: true,
   content: true,
   options: true,
   correctAnswer: true,
-  defaultScore: true,
   questionType: true,
+  defaultScore: true,
   createdAt: true,
+  updatedAt: true,
 } as const;
 
-const QUESTION_DETAIL_SELECT = {
-  ...QUESTION_PUBLIC_SELECT,
-  _count: {
-    select: {
-      examQuestions: true,
-    },
-  },
-} as const;
-
-const QUESTION_WITHOUT_ANSWER_SELECT = {
-  id: true,
-  content: true,
-  options: true,
-  defaultScore: true,
-  questionType: true,
-} as const;
-
-// ==================== HELPER FUNCTIONS ====================
+// ==================== VALIDATION HELPERS ====================
 
 /**
- * Validate that options object has correct structure
+ * Validate question options format
+ * Must have exactly 5 keys: A, B, C, D, E with non-empty string values
  */
 const validateOptions = (options: any): options is QuestionOptions => {
   if (typeof options !== 'object' || options === null) return false;
+
   const keys = Object.keys(options);
   if (keys.length !== 5) return false;
+
   return ['A', 'B', 'C', 'D', 'E'].every((key) => {
     return keys.includes(key) && typeof options[key] === 'string' && options[key].length > 0;
   });
 };
 
 /**
- * Validate that correct answer exists in options
+ * Validate correct answer matches one of the option keys
  */
 const validateCorrectAnswer = (correctAnswer: string, options: QuestionOptions): boolean => {
-  return correctAnswer in options;
-};
+  const validKeys = ['A', 'B', 'C', 'D', 'E'] as const;
 
+  // Check 1: Is correctAnswer a valid key?
+  if (!validKeys.includes(correctAnswer as any)) return false;
+
+  // Check 2: Does that key exist in options? (redundant karena type QuestionOptions sudah strict)
+  // Ini sebenarnya tidak perlu karena QuestionOptions PASTI punya A-E
+  return true;
+};
 // ==================== SERVICE FUNCTIONS ====================
 
 /**
  * Create a new question
+ *
+ * @param input - Question creation data
+ * @returns Created question data
+ * @throws {BadRequestError} If options format is invalid
  */
 export const createQuestion = async (input: CreateQuestionInput) => {
-  const { content, options, correctAnswer, defaultScore, questionType } = input;
+  const { content, options, correctAnswer, questionType, defaultScore } = input;
 
-  // Additional validation
+  // Validate options format
   if (!validateOptions(options)) {
     throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
-      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+      providedKeys: Object.keys(options),
+      expectedKeys: ['A', 'B', 'C', 'D', 'E'],
+      errorCode: ERROR_CODES.QUESTION_INVALID_OPTIONS,
     });
   }
 
-  if (!validateCorrectAnswer(correctAnswer, options as QuestionOptions)) {
-    throw new BadRequestError(ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS, {
+  // Validate correct answer
+  if (!validateCorrectAnswer(correctAnswer, options)) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, {
       correctAnswer,
-      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
-    });
-  }
-
-  // Check for duplicate content
-  const existingQuestion = await prisma.questionBank.findFirst({
-    where: {
-      content: {
-        equals: content,
-        mode: 'insensitive',
-      },
-    },
-  });
-
-  if (existingQuestion) {
-    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_QUESTION_CONTENT, {
-      content: content.substring(0, 100),
-      existingQuestionId: existingQuestion.id,
+      availableOptions: Object.keys(options),
+      errorCode: ERROR_CODES.QUESTION_INVALID_ANSWER,
     });
   }
 
@@ -107,17 +102,20 @@ export const createQuestion = async (input: CreateQuestionInput) => {
       content,
       options: options as Prisma.JsonObject,
       correctAnswer,
-      defaultScore,
       questionType,
+      defaultScore: defaultScore || 1,
     },
-    select: QUESTION_DETAIL_SELECT,
+    select: QUESTION_SELECT,
   });
 
   return question;
 };
 
 /**
- * Get list of questions with filters and pagination
+ * Get questions list with filters and pagination
+ *
+ * @param filter - Query filters
+ * @returns Paginated list of questions
  */
 export const getQuestions = async (filter: GetQuestionsQuery) => {
   const { page, limit, type, search, sortBy, sortOrder } = filter;
@@ -138,10 +136,11 @@ export const getQuestions = async (filter: GetQuestionsQuery) => {
     [sortBy]: sortOrder,
   };
 
+  // Execute queries in parallel
   const [questions, total] = await Promise.all([
     prisma.questionBank.findMany({
       where,
-      select: QUESTION_PUBLIC_SELECT,
+      select: QUESTION_SELECT,
       skip,
       take: limit,
       orderBy,
@@ -154,11 +153,15 @@ export const getQuestions = async (filter: GetQuestionsQuery) => {
 
 /**
  * Get single question by ID
+ *
+ * @param id - Question ID
+ * @returns Question data
+ * @throws {NotFoundError} If question not found
  */
 export const getQuestionById = async (id: number) => {
   const question = await prisma.questionBank.findUnique({
     where: { id },
-    select: QUESTION_DETAIL_SELECT,
+    select: QUESTION_SELECT,
   });
 
   if (!question) {
@@ -173,11 +176,18 @@ export const getQuestionById = async (id: number) => {
 
 /**
  * Update question by ID
+ *
+ * @param id - Question ID
+ * @param data - Update data
+ * @returns Updated question data
+ * @throws {NotFoundError} If question not found
+ * @throws {BadRequestError} If options or correct answer invalid
  */
 export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
   // Check if question exists
   const existingQuestion = await prisma.questionBank.findUnique({
     where: { id },
+    select: { id: true, options: true, correctAnswer: true },
   });
 
   if (!existingQuestion) {
@@ -187,47 +197,23 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
     });
   }
 
-  // Check if question is used in active exams
-  const activeUsage = await prisma.examQuestion.count({
-    where: {
-      questionId: id,
-      exam: {
-        userExams: {
-          some: {
-            status: 'IN_PROGRESS',
-          },
-        },
-      },
-    },
-  });
-
-  if (activeUsage > 0) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.QUESTION_IN_ACTIVE_EXAM,
-      ERROR_CODES.QUESTION_IN_USE,
-      {
-        questionId: id,
-        activeExamSessions: activeUsage,
-      }
-    );
-  }
-
   // Validate options if provided
   if (data.options && !validateOptions(data.options)) {
     throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
-      questionId: id,
-      errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+      providedKeys: Object.keys(data.options),
+      expectedKeys: ['A', 'B', 'C', 'D', 'E'],
+      errorCode: ERROR_CODES.QUESTION_INVALID_OPTIONS,
     });
   }
 
-  // Validate correctAnswer if provided
+  // Validate correct answer against new or existing options
   if (data.correctAnswer) {
     const optionsToCheck = (data.options || existingQuestion.options) as QuestionOptions;
     if (!validateCorrectAnswer(data.correctAnswer, optionsToCheck)) {
-      throw new BadRequestError(ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS, {
-        questionId: id,
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, {
         correctAnswer: data.correctAnswer,
-        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
+        availableOptions: Object.keys(optionsToCheck),
+        errorCode: ERROR_CODES.QUESTION_INVALID_ANSWER,
       });
     }
   }
@@ -241,7 +227,7 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
   const question = await prisma.questionBank.update({
     where: { id },
     data: updateData,
-    select: QUESTION_DETAIL_SELECT,
+    select: QUESTION_SELECT,
   });
 
   return question;
@@ -249,10 +235,15 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
 
 /**
  * Delete question by ID
+ * Cannot delete if question is used in any exam
+ *
+ * @param id - Question ID
+ * @throws {NotFoundError} If question not found
+ * @throws {BusinessLogicError} If question is used in exams
  */
 export const deleteQuestion = async (id: number) => {
   // Check if question exists
-  const existingQuestion = await prisma.questionBank.findUnique({
+  const question = await prisma.questionBank.findUnique({
     where: { id },
     include: {
       _count: {
@@ -263,7 +254,7 @@ export const deleteQuestion = async (id: number) => {
     },
   });
 
-  if (!existingQuestion) {
+  if (!question) {
     throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
       questionId: id,
       errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
@@ -271,13 +262,13 @@ export const deleteQuestion = async (id: number) => {
   }
 
   // Check if question is used in any exam
-  if (existingQuestion._count.examQuestions > 0) {
+  if (question._count.examQuestions > 0) {
     throw new BusinessLogicError(
-      ERROR_MESSAGES.QUESTION_IN_USE,
+      ERROR_MESSAGES.CANNOT_DELETE_QUESTION_IN_USE,
       ERROR_CODES.QUESTION_IN_USE,
       {
         questionId: id,
-        usageCount: existingQuestion._count.examQuestions,
+        usedInExams: question._count.examQuestions,
       }
     );
   }
@@ -287,184 +278,69 @@ export const deleteQuestion = async (id: number) => {
     where: { id },
   });
 
-  return { message: 'Question deleted successfully' };
+  return { success: true, message: 'Question deleted successfully' };
 };
 
 /**
- * Bulk create questions
+ * Bulk create questions from array
+ * Validates all questions before creating any
+ *
+ * @param input - Bulk creation data
+ * @returns Creation result with counts
+ * @throws {BadRequestError} If any question has invalid format
  */
 export const bulkCreateQuestions = async (input: BulkCreateQuestionsInput) => {
   const { questions } = input;
 
-  // Validate all questions
+  // Validate all questions first
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
+
+    // Validate options
     if (!validateOptions(q.options)) {
-      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.INVALID_OPTIONS_FORMAT}`, {
-        questionIndex: i,
-        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
-      });
+      throw new BadRequestError(
+        `Question ${i + 1}: ${ERROR_MESSAGES.INVALID_OPTIONS_FORMAT}`,
+        {
+          questionIndex: i + 1,
+          providedKeys: Object.keys(q.options),
+          expectedKeys: ['A', 'B', 'C', 'D', 'E'],
+          errorCode: ERROR_CODES.QUESTION_INVALID_OPTIONS,
+        }
+      );
     }
-    if (!validateCorrectAnswer(q.correctAnswer, q.options as QuestionOptions)) {
-      throw new BadRequestError(`Question ${i + 1}: ${ERROR_MESSAGES.CORRECT_ANSWER_NOT_IN_OPTIONS}`, {
-        questionIndex: i,
-        errorCode: ERROR_CODES.QUESTION_INVALID_FORMAT,
-      });
+
+    // Validate correct answer
+    if (!validateCorrectAnswer(q.correctAnswer, q.options)) {
+      throw new BadRequestError(
+        `Question ${i + 1}: ${ERROR_MESSAGES.INVALID_CORRECT_ANSWER}`,
+        {
+          questionIndex: i + 1,
+          correctAnswer: q.correctAnswer,
+          availableOptions: Object.keys(q.options),
+          errorCode: ERROR_CODES.QUESTION_INVALID_ANSWER,
+        }
+      );
     }
   }
 
   // Create all questions
-  const created = await prisma.questionBank.createMany({
-    data: questions.map((q) => ({
-      content: q.content,
-      options: q.options as Prisma.JsonObject,
-      correctAnswer: q.correctAnswer,
-      defaultScore: q.defaultScore,
-      questionType: q.questionType,
-    })),
-  });
-
-  // Fetch created questions
-  const createdQuestions = await prisma.questionBank.findMany({
-    select: QUESTION_PUBLIC_SELECT,
-    orderBy: { createdAt: 'desc' },
-    take: created.count,
-  });
+  const createdQuestions = await prisma.$transaction(
+    questions.map((q) =>
+      prisma.questionBank.create({
+        data: {
+          content: q.content,
+          options: q.options as Prisma.JsonObject,
+          correctAnswer: q.correctAnswer,
+          questionType: q.questionType,
+          defaultScore: q.defaultScore || 1,
+        },
+        select: QUESTION_SELECT,
+      })
+    )
+  );
 
   return {
-    message: `Successfully created ${created.count} question(s)`,
-    created: created.count,
+    created: createdQuestions.length,
     questions: createdQuestions,
   };
-};
-
-/**
- * Bulk delete questions
- */
-export const bulkDeleteQuestions = async (input: BulkDeleteQuestionsInput) => {
-  const { questionIds } = input;
-
-  // Check which questions are in use
-  const questionsInUse = await prisma.examQuestion.findMany({
-    where: {
-      questionId: { in: questionIds },
-    },
-    select: {
-      questionId: true,
-    },
-    distinct: ['questionId'],
-  });
-
-  const inUseIds = questionsInUse.map((eq) => eq.questionId);
-  const deletableIds = questionIds.filter((id) => !inUseIds.includes(id));
-
-  if (deletableIds.length === 0) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.ALL_QUESTIONS_IN_USE,
-      ERROR_CODES.QUESTION_IN_USE,
-      {
-        requestedIds: questionIds,
-        inUseIds,
-      }
-    );
-  }
-
-  // Delete questions
-  const result = await prisma.questionBank.deleteMany({
-    where: {
-      id: { in: deletableIds },
-    },
-  });
-
-  const message =
-    inUseIds.length > 0
-      ? `Deleted ${result.count} question(s). Skipped ${inUseIds.length} question(s) that are in use.`
-      : `Successfully deleted ${result.count} question(s)`;
-
-  return {
-    message,
-    deleted: result.count,
-    skipped: inUseIds.length,
-    skippedIds: inUseIds,
-  };
-};
-
-/**
- * Get question statistics
- */
-export const getQuestionStats = async () => {
-  // Get total count
-  const total = await prisma.questionBank.count();
-
-  // Get count by type
-  const byType = await prisma.questionBank.groupBy({
-    by: ['questionType'],
-    _count: true,
-    _sum: {
-      defaultScore: true,
-    },
-    _avg: {
-      defaultScore: true,
-    },
-  });
-
-  // Get most used questions
-  const mostUsed = await prisma.examQuestion.groupBy({
-    by: ['questionId'],
-    _count: true,
-    orderBy: {
-      _count: {
-        questionId: 'desc',
-      },
-    },
-    take: 10,
-  });
-
-  // Fetch question details for most used
-  const mostUsedDetails = await prisma.questionBank.findMany({
-    where: {
-      id: { in: mostUsed.map((q) => q.questionId) },
-    },
-    select: {
-      id: true,
-      content: true,
-      questionType: true,
-    },
-  });
-
-  // Combine most used data
-  const mostUsedWithDetails = mostUsed.map((mu) => {
-    const details = mostUsedDetails.find((d) => d.id === mu.questionId);
-    return {
-      id: mu.questionId,
-      content: details?.content.substring(0, 100) || '',
-      questionType: details?.questionType,
-      usageCount: mu._count,
-    };
-  });
-
-  return {
-    total,
-    byType: byType.map((bt) => ({
-      type: bt.questionType,
-      count: bt._count,
-      totalScore: bt._sum.defaultScore || 0,
-      averageScore: bt._avg.defaultScore || 0,
-    })),
-    mostUsed: mostUsedWithDetails,
-  };
-};
-
-/**
- * Get questions for participant (without correct answer)
- */
-export const getQuestionsForParticipant = async (questionIds: number[]) => {
-  const questions = await prisma.questionBank.findMany({
-    where: {
-      id: { in: questionIds },
-    },
-    select: QUESTION_WITHOUT_ANSWER_SELECT,
-  });
-
-  return questions;
 };

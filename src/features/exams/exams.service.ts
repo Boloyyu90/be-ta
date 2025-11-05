@@ -14,6 +14,9 @@ import type {
 
 // ==================== PRISMA SELECT OBJECTS ====================
 
+/**
+ * Basic exam data for public listing
+ */
 const EXAM_PUBLIC_SELECT = {
   id: true,
   title: true,
@@ -23,10 +26,25 @@ const EXAM_PUBLIC_SELECT = {
   durationMinutes: true,
   createdBy: true,
   createdAt: true,
+  _count: {
+    select: {
+      examQuestions: true,
+    },
+  },
 } as const;
 
+/**
+ * Detailed exam data with relationships
+ */
 const EXAM_DETAIL_SELECT = {
-  ...EXAM_PUBLIC_SELECT,
+  id: true,
+  title: true,
+  description: true,
+  startTime: true,
+  endTime: true,
+  durationMinutes: true,
+  createdBy: true,
+  createdAt: true,
   creator: {
     select: {
       id: true,
@@ -42,6 +60,9 @@ const EXAM_DETAIL_SELECT = {
   },
 } as const;
 
+/**
+ * Exam with questions
+ */
 const EXAM_WITH_QUESTIONS_SELECT = {
   ...EXAM_DETAIL_SELECT,
   examQuestions: {
@@ -54,6 +75,8 @@ const EXAM_WITH_QUESTIONS_SELECT = {
           content: true,
           questionType: true,
           defaultScore: true,
+          options: true,
+          correctAnswer: true,
         },
       },
     },
@@ -63,10 +86,93 @@ const EXAM_WITH_QUESTIONS_SELECT = {
   },
 } as const;
 
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Verify exam ownership
+ * Throws ForbiddenError if user is not the creator
+ */
+const verifyOwnership = async (examId: number, userId: number) => {
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    select: { createdBy: true },
+  });
+
+  if (!exam) {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+      examId,
+      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
+    });
+  }
+
+  if (exam.createdBy !== userId) {
+    throw new ForbiddenError(ERROR_MESSAGES.NOT_EXAM_CREATOR, {
+      examId,
+      userId,
+      createdBy: exam.createdBy,
+      errorCode: ERROR_CODES.EXAM_NOT_CREATOR,
+    });
+  }
+
+  return exam;
+};
+
+/**
+ * Check if exam has active sessions
+ */
+const hasActiveSessions = async (examId: number): Promise<boolean> => {
+  const count = await prisma.userExam.count({
+    where: {
+      examId,
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  return count > 0;
+};
+
+/**
+ * Check if exam can be deleted
+ */
+const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reason?: string; attempts?: number }> => {
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    include: {
+      _count: {
+        select: {
+          userExams: true,
+        },
+      },
+    },
+  });
+
+  if (!exam) {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+      examId,
+      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
+    });
+  }
+
+  if (exam._count.userExams > 0) {
+    return {
+      canDelete: false,
+      reason: 'Exam has participant attempts',
+      attempts: exam._count.userExams,
+    };
+  }
+
+  return { canDelete: true };
+};
+
 // ==================== SERVICE FUNCTIONS ====================
 
 /**
  * Create a new exam (Admin only)
+ *
+ * @param userId - Creator user ID
+ * @param input - Exam creation data
+ * @returns Created exam data
+ * @throws {ConflictError} If exam title already exists for user
  */
 export const createExam = async (userId: number, input: CreateExamInput) => {
   const { title, description, startTime, endTime, durationMinutes } = input;
@@ -109,9 +215,14 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
 
 /**
  * Get list of exams with filters and pagination
+ *
+ * @param filter - Query filters
+ * @param isAdmin - Whether user is admin
+ * @param userId - Current user ID (for filtering own exams)
+ * @returns Paginated list of exams
  */
-export const getExams = async (filter: GetExamsQuery, isAdmin: boolean = false) => {
-  const { page, limit, search, sortBy, sortOrder } = filter;
+export const getExams = async (filter: GetExamsQuery, isAdmin: boolean = false, userId?: number) => {
+  const { page, limit, search, sortBy, sortOrder, createdBy } = filter;
 
   // Build where clause
   const where: Prisma.ExamWhereInput = {
@@ -121,6 +232,9 @@ export const getExams = async (filter: GetExamsQuery, isAdmin: boolean = false) 
         { description: { contains: search, mode: 'insensitive' } },
       ],
     }),
+    // Admin can filter by creator
+    ...(isAdmin && createdBy && { createdBy }),
+    // Participants only see exams with questions
     ...(!isAdmin && {
       examQuestions: {
         some: {},
@@ -149,6 +263,11 @@ export const getExams = async (filter: GetExamsQuery, isAdmin: boolean = false) 
 
 /**
  * Get single exam by ID with full details
+ *
+ * @param id - Exam ID
+ * @param includeQuestions - Whether to include questions
+ * @returns Exam data
+ * @throws {NotFoundError} If exam not found
  */
 export const getExamById = async (id: number, includeQuestions: boolean = false) => {
   const exam = await prisma.exam.findUnique({
@@ -168,48 +287,33 @@ export const getExamById = async (id: number, includeQuestions: boolean = false)
 
 /**
  * Update exam by ID
+ * Only creator can update
+ *
+ * @param id - Exam ID
+ * @param userId - Current user ID
+ * @param data - Update data
+ * @returns Updated exam data
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
+ * @throws {BusinessLogicError} If updating duration with active sessions
  */
 export const updateExam = async (id: number, userId: number, data: UpdateExamInput) => {
-  // Check if exam exists and user is the creator
-  const existingExam = await prisma.exam.findUnique({
-    where: { id },
-  });
+  // Verify ownership
+  await verifyOwnership(id, userId);
 
-  if (!existingExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
-      examId: id,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
-    });
-  }
-
-  // Authorization check: only creator can update
-  if (existingExam.createdBy !== userId) {
-    throw new ForbiddenError(ERROR_MESSAGES.NOT_EXAM_CREATOR, {
-      examId: id,
-      userId,
-      createdBy: existingExam.createdBy,
-      errorCode: ERROR_CODES.EXAM_NOT_CREATOR,
-    });
-  }
-
-  // Check if exam has active sessions
-  const hasActiveSessions = await prisma.userExam.count({
-    where: {
-      examId: id,
-      status: 'IN_PROGRESS',
-    },
-  });
-
-  if (hasActiveSessions > 0 && data.durationMinutes) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.CANNOT_UPDATE_ACTIVE_EXAM_DURATION,
-      ERROR_CODES.EXAM_CANNOT_UPDATE,
-      {
-        examId: id,
-        activeSessions: hasActiveSessions,
-        attemptedChange: 'durationMinutes',
-      }
-    );
+  // Check if exam has active sessions when updating duration
+  if (data.durationMinutes) {
+    const hasActive = await hasActiveSessions(id);
+    if (hasActive) {
+      throw new BusinessLogicError(
+        ERROR_MESSAGES.CANNOT_UPDATE_ACTIVE_EXAM_DURATION,
+        ERROR_CODES.EXAM_CANNOT_UPDATE,
+        {
+          examId: id,
+          attemptedChange: 'durationMinutes',
+        }
+      );
+    }
   }
 
   // Update exam
@@ -228,44 +332,30 @@ export const updateExam = async (id: number, userId: number, data: UpdateExamInp
 
 /**
  * Delete exam by ID
+ * Only creator can delete
+ * Cannot delete exam with participant attempts
+ *
+ * @param id - Exam ID
+ * @param userId - Current user ID
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
+ * @throws {BusinessLogicError} If exam has attempts
  */
 export const deleteExam = async (id: number, userId: number) => {
-  // Check if exam exists and user is creator
-  const existingExam = await prisma.exam.findUnique({
-    where: { id },
-    include: {
-      _count: {
-        select: {
-          userExams: true,
-        },
-      },
-    },
-  });
+  // Verify ownership
+  await verifyOwnership(id, userId);
 
-  if (!existingExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
-      examId: id,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
-    });
-  }
+  // Check if exam can be deleted
+  const { canDelete, reason, attempts } = await canDeleteExam(id);
 
-  if (existingExam.createdBy !== userId) {
-    throw new ForbiddenError(ERROR_MESSAGES.CANNOT_DELETE_EXAM_NOT_CREATOR, {
-      examId: id,
-      userId,
-      createdBy: existingExam.createdBy,
-      errorCode: ERROR_CODES.EXAM_NOT_CREATOR,
-    });
-  }
-
-  // Prevent deletion if exam has been taken
-  if (existingExam._count.userExams > 0) {
+  if (!canDelete) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.CANNOT_DELETE_EXAM_WITH_ATTEMPTS,
       ERROR_CODES.EXAM_CANNOT_DELETE,
       {
         examId: id,
-        attempts: existingExam._count.userExams,
+        reason,
+        attempts,
       }
     );
   }
@@ -275,26 +365,72 @@ export const deleteExam = async (id: number, userId: number) => {
     where: { id },
   });
 
-  return { message: 'Exam deleted successfully' };
+  return { success: true, message: 'Exam deleted successfully' };
+};
+
+/**
+ * Clone/duplicate exam with all questions
+ *
+ * @param id - Exam ID to clone
+ * @param userId - Current user ID (will be new owner)
+ * @returns Cloned exam data
+ * @throws {NotFoundError} If exam not found
+ */
+export const cloneExam = async (id: number, userId: number) => {
+  // Get original exam with questions
+  const originalExam = await prisma.exam.findUnique({
+    where: { id },
+    include: {
+      examQuestions: {
+        orderBy: { orderNumber: 'asc' },
+      },
+    },
+  });
+
+  if (!originalExam) {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+      examId: id,
+      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
+    });
+  }
+
+  // Create new exam
+  const clonedExam = await prisma.exam.create({
+    data: {
+      title: `${originalExam.title} (Copy)`,
+      description: originalExam.description,
+      startTime: null, // Reset times for cloned exam
+      endTime: null,
+      durationMinutes: originalExam.durationMinutes,
+      createdBy: userId,
+      examQuestions: {
+        create: originalExam.examQuestions.map((eq) => ({
+          questionId: eq.questionId,
+          orderNumber: eq.orderNumber,
+        })),
+      },
+    },
+    select: EXAM_DETAIL_SELECT,
+  });
+
+  return clonedExam;
 };
 
 /**
  * Attach questions to exam
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @param input - Question IDs to attach
+ * @returns Attach result
+ * @throws {NotFoundError} If exam or questions not found
+ * @throws {ForbiddenError} If user is not creator
  */
-export const attachQuestions = async (examId: number, input: AttachQuestionsInput) => {
+export const attachQuestions = async (examId: number, userId: number, input: AttachQuestionsInput) => {
   const { questionIds } = input;
 
-  // Check if exam exists
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-  });
-
-  if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
-      examId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
-    });
-  }
+  // Verify ownership
+  await verifyOwnership(examId, userId);
 
   // Check if all questions exist
   const questions = await prisma.questionBank.findMany({
@@ -338,6 +474,7 @@ export const attachQuestions = async (examId: number, input: AttachQuestionsInpu
     return {
       message: 'All questions were already attached to this exam',
       attached: 0,
+      alreadyAttached: existingQuestionIds.length,
     };
   }
 
@@ -355,26 +492,25 @@ export const attachQuestions = async (examId: number, input: AttachQuestionsInpu
   return {
     message: `Successfully attached ${newQuestionIds.length} question(s) to exam`,
     attached: newQuestionIds.length,
+    alreadyAttached: existingQuestionIds.length,
   };
 };
 
 /**
  * Detach questions from exam
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @param input - Question IDs to detach
+ * @returns Detach result
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
  */
-export const detachQuestions = async (examId: number, input: DetachQuestionsInput) => {
+export const detachQuestions = async (examId: number, userId: number, input: DetachQuestionsInput) => {
   const { questionIds } = input;
 
-  // Check if exam exists
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-  });
-
-  if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
-      examId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
-    });
-  }
+  // Verify ownership
+  await verifyOwnership(examId, userId);
 
   // Delete exam questions
   const result = await prisma.examQuestion.deleteMany({
@@ -391,22 +527,56 @@ export const detachQuestions = async (examId: number, input: DetachQuestionsInpu
 };
 
 /**
- * Get questions for a specific exam
+ * Reorder questions in exam
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @param questionIds - Question IDs in new order
+ * @returns Reorder result
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
  */
-export const getExamQuestions = async (examId: number, filter: GetExamQuestionsQuery) => {
+export const reorderQuestions = async (examId: number, userId: number, questionIds: number[]) => {
+  // Verify ownership
+  await verifyOwnership(examId, userId);
+
+  // Update order for each question
+  await prisma.$transaction(
+    questionIds.map((questionId, index) =>
+      prisma.examQuestion.updateMany({
+        where: {
+          examId,
+          questionId,
+        },
+        data: {
+          orderNumber: index + 1,
+        },
+      })
+    )
+  );
+
+  return {
+    success: true,
+    message: 'Questions reordered successfully',
+    count: questionIds.length,
+  };
+};
+
+/**
+ * Get questions for a specific exam
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @param filter - Question filters
+ * @returns List of exam questions
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
+ */
+export const getExamQuestions = async (examId: number, userId: number, filter: GetExamQuestionsQuery) => {
   const { type } = filter;
 
-  // Check if exam exists
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
-  });
-
-  if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
-      examId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
-    });
-  }
+  // Verify ownership
+  await verifyOwnership(examId, userId);
 
   // Build where clause
   const where: Prisma.ExamQuestionWhereInput = {
@@ -441,4 +611,151 @@ export const getExamQuestions = async (examId: number, filter: GetExamQuestionsQ
   });
 
   return examQuestions;
+};
+
+/**
+ * Get exam statistics
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @returns Exam statistics
+ * @throws {NotFoundError} If exam not found
+ * @throws {ForbiddenError} If user is not creator
+ */
+export const getExamStats = async (examId: number, userId: number) => {
+  // Verify ownership
+  await verifyOwnership(examId, userId);
+
+  // Get exam with counts
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    select: {
+      id: true,
+      title: true,
+      _count: {
+        select: {
+          examQuestions: true,
+          userExams: true,
+        },
+      },
+    },
+  });
+
+  if (!exam) {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+      examId,
+      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
+    });
+  }
+
+  // Get participant statistics
+  const [finishedCount, inProgressCount, userExams] = await Promise.all([
+    prisma.userExam.count({
+      where: { examId, status: 'FINISHED' },
+    }),
+    prisma.userExam.count({
+      where: { examId, status: 'IN_PROGRESS' },
+    }),
+    prisma.userExam.findMany({
+      where: { examId, status: 'FINISHED' },
+      select: {
+        totalScore: true,
+        exam: {
+          select: {
+            examQuestions: {
+              select: {
+                question: {
+                  select: {
+                    defaultScore: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  // Calculate score statistics
+  let totalScore = 0;
+  let totalMaxScore = 0;
+  let highestPercentage = 0;
+  let lowestPercentage = 100;
+  let passedCount = 0;
+
+  for (const userExam of userExams) {
+    const score = userExam.totalScore || 0;
+    const maxScore = userExam.exam.examQuestions.reduce(
+      (sum, eq) => sum + eq.question.defaultScore,
+      0
+    );
+
+    totalScore += score;
+    totalMaxScore += maxScore;
+
+    if (maxScore > 0) {
+      const percentage = (score / maxScore) * 100;
+      if (percentage > highestPercentage) highestPercentage = percentage;
+      if (percentage < lowestPercentage) lowestPercentage = percentage;
+      if (percentage >= 65) passedCount++; // 65% passing grade
+    }
+  }
+
+  const averageScore = totalMaxScore > 0
+    ? Math.round((totalScore / totalMaxScore) * 100 * 10) / 10
+    : 0;
+
+  const completionRate = exam._count.userExams > 0
+    ? Math.round((finishedCount / exam._count.userExams) * 100 * 10) / 10
+    : 0;
+
+  const passRate = finishedCount > 0
+    ? Math.round((passedCount / finishedCount) * 100 * 10) / 10
+    : 0;
+
+  return {
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      totalQuestions: exam._count.examQuestions,
+    },
+    participantStats: {
+      total: exam._count.userExams,
+      finished: finishedCount,
+      inProgress: inProgressCount,
+      completionRate,
+    },
+    scoreStats: {
+      average: averageScore,
+      highest: finishedCount > 0 ? Math.round(highestPercentage * 10) / 10 : 0,
+      lowest: finishedCount > 0 ? Math.round(lowestPercentage * 10) / 10 : 0,
+      passRate,
+      passed: passedCount,
+    },
+  };
+};
+
+/**
+ * Toggle exam publish status
+ * (Future feature - for now just a placeholder)
+ *
+ * @param examId - Exam ID
+ * @param userId - Current user ID
+ * @param publish - Whether to publish or unpublish
+ * @returns Updated status
+ */
+export const togglePublish = async (examId: number, userId: number, publish: boolean) => {
+  // Verify ownership
+  await verifyOwnership(examId, userId);
+
+  // For MVP, we can use a simple flag in metadata or skip this
+  // In production, add 'published' boolean to Exam model
+
+  return {
+    success: true,
+    examId,
+    published: publish,
+    message: publish ? 'Exam published' : 'Exam unpublished',
+  };
 };

@@ -3,10 +3,15 @@ import { prisma } from '@/config/database';
 import { hash } from '@/shared/utils/hash';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
-import { ConflictError, NotFoundError } from '@/shared/errors/app-errors';
-import type { CreateUserInput, UpdateUserInput, GetUsersQuery } from './users.validation';
+import { ConflictError, NotFoundError, BadRequestError } from '@/shared/errors/app-errors';
+import type { CreateUserInput, UpdateUserInput, GetUsersQuery, UpdateMeInput } from './users.validation';
 
-// Reusable Prisma select objects (internal to service)
+// ==================== PRISMA SELECT OBJECTS ====================
+
+/**
+ * Public user data without password
+ * Used for API responses
+ */
 const USER_PUBLIC_SELECT = {
   id: true,
   email: true,
@@ -17,6 +22,10 @@ const USER_PUBLIC_SELECT = {
   updatedAt: true,
 } as const;
 
+/**
+ * Detailed user data with counts
+ * Used for admin views
+ */
 const USER_DETAIL_SELECT = {
   ...USER_PUBLIC_SELECT,
   _count: {
@@ -27,8 +36,14 @@ const USER_DETAIL_SELECT = {
   },
 } as const;
 
+// ==================== SERVICE FUNCTIONS ====================
+
 /**
  * Create a new user (Admin only)
+ *
+ * @param input - User creation data
+ * @returns Created user data
+ * @throws {ConflictError} If email already exists
  */
 export const createUser = async (input: CreateUserInput) => {
   const { email, password, name, role } = input;
@@ -64,9 +79,12 @@ export const createUser = async (input: CreateUserInput) => {
 
 /**
  * Get users list with filters and pagination
+ *
+ * @param filter - Query filters (page, limit, role, search)
+ * @returns Paginated list of users
  */
 export const getUsers = async (filter: GetUsersQuery) => {
-  const { page, limit, role, search } = filter;
+  const { page, limit, role, search, sortBy, sortOrder } = filter;
 
   // Build where clause
   const where: Prisma.UserWhereInput = {
@@ -82,6 +100,11 @@ export const getUsers = async (filter: GetUsersQuery) => {
   // Calculate pagination
   const skip = (page - 1) * limit;
 
+  // Build orderBy
+  const orderBy: Prisma.UserOrderByWithRelationInput = {
+    [sortBy]: sortOrder,
+  };
+
   // Execute queries in parallel
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -89,7 +112,7 @@ export const getUsers = async (filter: GetUsersQuery) => {
       select: USER_PUBLIC_SELECT,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     }),
     prisma.user.count({ where }),
   ]);
@@ -98,7 +121,11 @@ export const getUsers = async (filter: GetUsersQuery) => {
 };
 
 /**
- * Get single user by ID
+ * Get single user by ID with detailed information
+ *
+ * @param id - User ID
+ * @returns User data with counts
+ * @throws {NotFoundError} If user not found
  */
 export const getUserById = async (id: number) => {
   const user = await prisma.user.findUnique({
@@ -118,6 +145,10 @@ export const getUserById = async (id: number) => {
 
 /**
  * Get current authenticated user profile
+ *
+ * @param userId - Current user ID
+ * @returns User profile data
+ * @throws {NotFoundError} If user not found
  */
 export const getMe = async (userId: number) => {
   const user = await prisma.user.findUnique({
@@ -136,7 +167,13 @@ export const getMe = async (userId: number) => {
 };
 
 /**
- * Update user by ID
+ * Update user by ID (Admin only)
+ *
+ * @param id - User ID to update
+ * @param data - Update data
+ * @returns Updated user data
+ * @throws {NotFoundError} If user not found
+ * @throws {ConflictError} If email already exists
  */
 export const updateUser = async (id: number, data: UpdateUserInput) => {
   // Check if user exists
@@ -183,12 +220,62 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
 };
 
 /**
+ * Update current user profile (Self-update)
+ * Users can only update: name, password (not email, role)
+ *
+ * @param userId - Current user ID
+ * @param data - Update data (limited fields)
+ * @returns Updated user data
+ * @throws {NotFoundError} If user not found
+ */
+export const updateMe = async (userId: number, data: UpdateMeInput) => {
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!existingUser) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  // Build update data (only allowed fields)
+  const updateData: Prisma.UserUpdateInput = {
+    ...(data.name && { name: data.name }),
+    ...(data.password && { password: await hash(data.password) }),
+  };
+
+  // Update user
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: USER_PUBLIC_SELECT,
+  });
+
+  return user;
+};
+
+/**
  * Delete user by ID
+ *
+ * @param id - User ID to delete
+ * @throws {NotFoundError} If user not found
+ * @throws {BadRequestError} If trying to delete user with exam attempts
  */
 export const deleteUser = async (id: number) => {
   // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id },
+    include: {
+      _count: {
+        select: {
+          userExams: true,
+          createdExams: true,
+        },
+      },
+    },
   });
 
   if (!existingUser) {
@@ -198,10 +285,235 @@ export const deleteUser = async (id: number) => {
     });
   }
 
+  // Prevent deletion if user has exam attempts (data preservation)
+  if (existingUser._count.userExams > 0) {
+    throw new BadRequestError(
+      'Cannot delete user with exam attempts. This is for data preservation.',
+      {
+        userId: id,
+        examAttempts: existingUser._count.userExams,
+        errorCode: 'USER_HAS_EXAM_ATTEMPTS',
+      }
+    );
+  }
+
+  // Prevent deletion if user created exams
+  if (existingUser._count.createdExams > 0) {
+    throw new BadRequestError(
+      'Cannot delete user who created exams. Transfer ownership first.',
+      {
+        userId: id,
+        createdExams: existingUser._count.createdExams,
+        errorCode: 'USER_HAS_CREATED_EXAMS',
+      }
+    );
+  }
+
   // Delete user (cascade will handle related records)
   await prisma.user.delete({
     where: { id },
   });
 
-  return { message: 'User deleted successfully' };
+  return { success: true, message: 'User deleted successfully' };
+};
+
+/**
+ * Get user statistics for admin
+ *
+ * @param id - User ID
+ * @returns User activity statistics
+ * @throws {NotFoundError} If user not found
+ */
+export const getUserStats = async (id: number) => {
+  // Check if user exists
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+      userId: id,
+      errorCode: ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  // Get exam statistics
+  const [totalExams, finishedExams, inProgressExams, userExams] = await Promise.all([
+    prisma.userExam.count({
+      where: { userId: id },
+    }),
+    prisma.userExam.count({
+      where: { userId: id, status: 'FINISHED' },
+    }),
+    prisma.userExam.count({
+      where: { userId: id, status: 'IN_PROGRESS' },
+    }),
+    prisma.userExam.findMany({
+      where: {
+        userId: id,
+        status: 'FINISHED',
+      },
+      select: {
+        totalScore: true,
+        exam: {
+          select: {
+            examQuestions: {
+              select: {
+                question: {
+                  select: {
+                    defaultScore: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  // Calculate score statistics
+  let totalScore = 0;
+  let totalMaxScore = 0;
+  let highestPercentage = 0;
+  let lowestPercentage = 100;
+
+  for (const userExam of userExams) {
+    const score = userExam.totalScore || 0;
+    const maxScore = userExam.exam.examQuestions.reduce(
+      (sum, eq) => sum + eq.question.defaultScore,
+      0
+    );
+
+    totalScore += score;
+    totalMaxScore += maxScore;
+
+    if (maxScore > 0) {
+      const percentage = (score / maxScore) * 100;
+      if (percentage > highestPercentage) highestPercentage = percentage;
+      if (percentage < lowestPercentage) lowestPercentage = percentage;
+    }
+  }
+
+  const averageScore = totalMaxScore > 0
+    ? Math.round((totalScore / totalMaxScore) * 100 * 10) / 10
+    : 0;
+
+  // Get recent activity
+  const recentExams = await prisma.userExam.findMany({
+    where: { userId: id },
+    select: {
+      id: true,
+      status: true,
+      startedAt: true,
+      submittedAt: true,
+      totalScore: true,
+      exam: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+
+  // Count proctoring violations (if user is participant)
+  const proctoringViolations = await prisma.proctoringEvent.count({
+    where: {
+      userExam: {
+        userId: id,
+      },
+      eventType: {
+        in: ['NO_FACE_DETECTED', 'MULTIPLE_FACES', 'LOOKING_AWAY'],
+      },
+    },
+  });
+
+  return {
+    user,
+    examStats: {
+      total: totalExams,
+      finished: finishedExams,
+      inProgress: inProgressExams,
+      cancelled: totalExams - finishedExams - inProgressExams,
+    },
+    scoreStats: {
+      average: averageScore,
+      highest: finishedExams > 0 ? Math.round(highestPercentage * 10) / 10 : 0,
+      lowest: finishedExams > 0 ? Math.round(lowestPercentage * 10) / 10 : 0,
+    },
+    recentActivity: recentExams,
+    proctoringViolations,
+  };
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Check if email exists (for validation)
+ *
+ * @param email - Email to check
+ * @returns True if email exists, false otherwise
+ */
+export const emailExists = async (email: string): Promise<boolean> => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  return !!user;
+};
+
+/**
+ * Get users count by role
+ *
+ * @returns Count of users by role
+ */
+export const getUserCountByRole = async () => {
+  const [adminCount, participantCount] = await Promise.all([
+    prisma.user.count({ where: { role: UserRole.ADMIN } }),
+    prisma.user.count({ where: { role: UserRole.PARTICIPANT } }),
+  ]);
+
+  return {
+    admin: adminCount,
+    participant: participantCount,
+    total: adminCount + participantCount,
+  };
+};
+
+/**
+ * Search users by name or email (autocomplete)
+ *
+ * @param query - Search query
+ * @param limit - Maximum results
+ * @returns List of matching users
+ */
+export const searchUsers = async (query: string, limit: number = 10) => {
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [
+        { name: { contains: query, mode: 'insensitive' } },
+        { email: { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+    take: limit,
+  });
+
+  return users;
 };

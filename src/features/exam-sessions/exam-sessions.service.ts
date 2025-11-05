@@ -171,7 +171,7 @@ export const startExam = async (userId: number, examId: number) => {
   if (existingUserExam?.submittedAt) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_ALREADY_STARTED,
-      ERROR_CODES.SESSION_ALREADY_STARTED,
+      ERROR_CODES.EXAM_SESSION_ALREADY_STARTED,
       {
         examId,
         userId,
@@ -306,7 +306,7 @@ export const submitAnswer = async (
     throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -324,7 +324,7 @@ export const submitAnswer = async (
   if (userExam.submittedAt) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.UNABLE_SUBMIT_ANSWER_EXAM_FINISHED,
-      ERROR_CODES.SESSION_ALREADY_SUBMITTED,
+      ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
       {
         userExamId,
         userId,
@@ -341,7 +341,7 @@ export const submitAnswer = async (
     });
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_TIMEOUT,
-      ERROR_CODES.SESSION_TIMEOUT,
+      ERROR_CODES.EXAM_SESSION_TIMEOUT,
       {
         userExamId,
         userId,
@@ -361,7 +361,7 @@ export const submitAnswer = async (
         userExamId,
         examQuestionId: data.examQuestionId,
         examId: userExam.examId,
-        errorCode: ERROR_CODES.SESSION_INVALID_QUESTION,
+        errorCode: ERROR_CODES.EXAM_SESSION_INVALID_QUESTION,
       }
     );
   }
@@ -443,7 +443,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
     throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -461,7 +461,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
   if (userExam.submittedAt) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED,
-      ERROR_CODES.SESSION_ALREADY_SUBMITTED,
+      ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
       {
         userExamId,
         userId,
@@ -480,7 +480,7 @@ export const submitExam = async (userExamId: number, userId: number) => {
     });
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_TIMEOUT,
-      ERROR_CODES.SESSION_TIMEOUT,
+      ERROR_CODES.EXAM_SESSION_TIMEOUT,
       {
         userExamId,
         userId,
@@ -584,7 +584,7 @@ export const getUserExam = async (userExamId: number, userId: number) => {
     throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -888,7 +888,7 @@ export const getExamQuestions = async (
     throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -941,7 +941,7 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
     throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.SESSION_NOT_FOUND,
+      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -958,7 +958,7 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
   if (!userExam.submittedAt) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT,
-      ERROR_CODES.SESSION_NOT_FOUND,
+      ERROR_CODES.EXAM_SESSION_NOT_FOUND,
       {
         userExamId,
         userId,
