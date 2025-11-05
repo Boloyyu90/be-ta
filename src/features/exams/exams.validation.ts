@@ -275,19 +275,6 @@ export const getExamQuestionsSchema = z.object({
   }),
 });
 
-/**
- * Schema for toggling publish status
- * PATCH /api/v1/admin/exams/:id/publish
- */
-export const togglePublishSchema = z.object({
-  params: z.object({
-    id: examIdParamSchema,
-  }),
-  body: z.object({
-    publish: z.boolean({ required_error: 'Publish status is required' }),
-  }),
-});
-
 // ==================== REQUEST TYPES ====================
 
 export type CreateExamInput = z.infer<typeof createExamSchema>['body'];
@@ -305,7 +292,6 @@ export type DetachQuestionsInput = z.infer<typeof detachQuestionsSchema>['body']
 export type ReorderQuestionsInput = z.infer<typeof reorderQuestionsSchema>['body'];
 export type GetExamQuestionsParams = z.infer<typeof getExamQuestionsSchema>['params'];
 export type GetExamQuestionsQuery = z.infer<typeof getExamQuestionsSchema>['query'];
-export type TogglePublishInput = z.infer<typeof togglePublishSchema>['body'];
 
 // ==================== RESPONSE TYPES ====================
 

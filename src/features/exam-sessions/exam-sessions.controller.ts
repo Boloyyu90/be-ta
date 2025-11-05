@@ -32,12 +32,7 @@ export const startExam = async (
 
   const result = await examSessionsService.startExam(userId, examId);
 
-  sendSuccess(
-    res,
-    result,
-    SUCCESS_MESSAGES.EXAM_STARTED,
-    HTTP_STATUS.OK
-  );
+  sendSuccess(res, result, SUCCESS_MESSAGES.EXAM_STARTED, HTTP_STATUS.OK);
 };
 
 /**
@@ -55,12 +50,7 @@ export const getUserExams = async (
 
   const result = await examSessionsService.getUserExams(userId, req.query);
 
-  sendSuccess(
-    res,
-    result,
-    'User exam sessions retrieved successfully',
-    HTTP_STATUS.OK
-  );
+  sendSuccess(res, result, SUCCESS_MESSAGES.USER_EXAMS_RETRIEVED, HTTP_STATUS.OK);
 };
 
 /**
@@ -79,12 +69,7 @@ export const getUserExam = async (
 
   const userExam = await examSessionsService.getUserExam(userExamId, userId);
 
-  sendSuccess(
-    res,
-    { userExam },
-    'User exam retrieved successfully',
-    HTTP_STATUS.OK
-  );
+  sendSuccess(res, { userExam }, SUCCESS_MESSAGES.USER_EXAM_RETRIEVED, HTTP_STATUS.OK);
 };
 
 /**
@@ -107,10 +92,11 @@ export const getExamQuestions = async (
     req.query
   );
 
+  // ✅ FIX: Calculate total from questions.length
   sendSuccess(
     res,
     { questions, total: questions.length },
-    'Exam questions retrieved successfully',
+    SUCCESS_MESSAGES.EXAM_QUESTIONS_RETRIEVED,
     HTTP_STATUS.OK
   );
 };
@@ -131,12 +117,7 @@ export const submitAnswer = async (
 
   const result = await examSessionsService.submitAnswer(userExamId, userId, req.body);
 
-  sendSuccess(
-    res,
-    result,
-    result.message,
-    HTTP_STATUS.OK
-  );
+  sendSuccess(res, result, result.message, HTTP_STATUS.OK);
 };
 
 /**
@@ -155,12 +136,7 @@ export const submitExam = async (
 
   const result = await examSessionsService.submitExam(userExamId, userId);
 
-  sendSuccess(
-    res,
-    result,
-    SUCCESS_MESSAGES.EXAM_SUBMITTED,
-    HTTP_STATUS.OK
-  );
+  sendSuccess(res, result, SUCCESS_MESSAGES.EXAM_SUBMITTED, HTTP_STATUS.OK);
 };
 
 /**
@@ -179,10 +155,11 @@ export const getExamAnswers = async (
 
   const answers = await examSessionsService.getExamAnswers(userExamId, userId);
 
+  // ✅ UPDATED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { answers, total: answers.length },
-    'Exam answers retrieved successfully',
+    SUCCESS_MESSAGES.EXAM_ANSWERS_RETRIEVED,
     HTTP_STATUS.OK
   );
 };
@@ -202,12 +179,8 @@ export const getMyResultsSummary = async (
 
   const summary = await examSessionsService.getMyResultsSummary(userId);
 
-  sendSuccess(
-    res,
-    summary,
-    'Results summary retrieved successfully',
-    HTTP_STATUS.OK
-  );
+  // ✅ UPDATED: Use constant instead of hardcoded string
+  sendSuccess(res, summary, SUCCESS_MESSAGES.RESULTS_SUMMARY_RETRIEVED, HTTP_STATUS.OK);
 };
 
 /**
@@ -225,12 +198,8 @@ export const getMyResults = async (
 
   const result = await examSessionsService.getMyResults(userId, req.query);
 
-  sendSuccess(
-    res,
-    result,
-    'Results retrieved successfully',
-    HTTP_STATUS.OK
-  );
+  // ✅ UPDATED: Use constant instead of hardcoded string
+  sendSuccess(res, result, SUCCESS_MESSAGES.RESULTS_RETRIEVED, HTTP_STATUS.OK);
 };
 
 /**
@@ -246,10 +215,6 @@ export const getResults = async (
 ): Promise<void> => {
   const result = await examSessionsService.getResults(req.query);
 
-  sendSuccess(
-    res,
-    result,
-    'Results retrieved successfully',
-    HTTP_STATUS.OK
-  );
+  // ✅ UPDATED: Use constant instead of hardcoded string
+  sendSuccess(res, result, SUCCESS_MESSAGES.RESULTS_RETRIEVED, HTTP_STATUS.OK);
 };

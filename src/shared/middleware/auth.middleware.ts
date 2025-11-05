@@ -4,18 +4,6 @@ import { verifyAccessToken } from '@/shared/utils/jwt';
 import { sendError } from '@/shared/utils/response';
 import { HTTP_STATUS, ERROR_MESSAGES } from '@/config/constants';
 
-// Extend Express Request type
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: number;
-        role: UserRole;
-      };
-    }
-  }
-}
-
 export const authenticate = async (
   req: Request,
   res: Response,

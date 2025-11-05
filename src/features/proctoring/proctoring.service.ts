@@ -3,13 +3,11 @@ import { prisma } from '@/config/database';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { NotFoundError, UnauthorizedError, BadRequestError } from '@/shared/errors/app-errors';
+import { getFaceAnalyzer } from './ml/analyzer.factory'; // ✅ NEW IMPORT
 import type { LogEventInput, GetEventsQuery, GetAdminEventsQuery } from './proctoring.validation';
 
 // ==================== PRISMA SELECT OBJECTS ====================
 
-/**
- * Standard proctoring event select object
- */
 const PROCTORING_EVENT_SELECT = {
   id: true,
   userExamId: true,
@@ -18,9 +16,6 @@ const PROCTORING_EVENT_SELECT = {
   timestamp: true,
 } as const;
 
-/**
- * Detailed event with user exam info
- */
 const PROCTORING_EVENT_WITH_EXAM_SELECT = {
   ...PROCTORING_EVENT_SELECT,
   userExam: {
@@ -46,76 +41,15 @@ const PROCTORING_EVENT_WITH_EXAM_SELECT = {
   },
 } as const;
 
-// ==================== ML MOCK SERVICE ====================
-
-/**
- * Mock face detection analysis
- * Simulates ML model response
- *
- * @param imageBase64 - Base64 encoded image
- * @returns Analysis result with confidence scores
- */
-const analyzeFaceDetectionMock = async (imageBase64: string) => {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  try {
-    if (!imageBase64 || imageBase64.length < 100) {
-      throw new Error('Invalid image data');
-    }
-
-    const random = Math.random();
-
-    if (random < 0.1) {
-      return {
-        faceDetected: false,
-        faceCount: 0,
-        confidence: 0,
-        lookingAway: false,
-        message: 'No face detected in the image',
-      };
-    } else if (random < 0.2) {
-      return {
-        faceDetected: true,
-        faceCount: Math.floor(Math.random() * 3) + 2,
-        confidence: 0.85 + Math.random() * 0.1,
-        lookingAway: false,
-        message: 'Multiple faces detected',
-      };
-    } else if (random < 0.3) {
-      return {
-        faceDetected: true,
-        faceCount: 1,
-        confidence: 0.8 + Math.random() * 0.15,
-        lookingAway: true,
-        message: 'User appears to be looking away',
-      };
-    } else {
-      return {
-        faceDetected: true,
-        faceCount: 1,
-        confidence: 0.9 + Math.random() * 0.1,
-        lookingAway: false,
-        message: 'Face detected successfully',
-      };
-    }
-  } catch (error) {
-    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      errorCode: ERROR_CODES.PROCTORING_ANALYSIS_FAILED,
-    });
-  }
-};
+// ✅ REMOVED: analyzeFaceDetectionMock function (moved to mock-analyzer.service.ts)
 
 // ==================== SERVICE FUNCTIONS ====================
 
 /**
  * Log a proctoring event
- *
- * @param input - Event data
- * @returns Created event
  */
 export const logEvent = async (input: LogEventInput) => {
-  const { userExamId, eventType, metadata } = input; // ✅ CHANGED: destructure metadata directly
+  const { userExamId, eventType, metadata } = input;
 
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
@@ -129,7 +63,6 @@ export const logEvent = async (input: LogEventInput) => {
     });
   }
 
-  // ✅ CHANGED: Use metadata directly without mapping
   const event = await prisma.proctoringEvent.create({
     data: {
       userExamId,
@@ -145,12 +78,6 @@ export const logEvent = async (input: LogEventInput) => {
 
 /**
  * Get proctoring events for a user exam
- * Only the exam participant can view their own events
- *
- * @param userExamId - User exam ID
- * @param userId - Current user ID
- * @param filter - Event filters
- * @returns Paginated list of events
  */
 export const getEvents = async (userExamId: number, userId: number, filter: GetEventsQuery) => {
   const { page, limit, eventType, startDate, endDate, sortOrder } = filter;
@@ -207,9 +134,6 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
 
 /**
  * Get all proctoring events (Admin only)
- *
- * @param filter - Event filters
- * @returns Paginated list of events with user/exam info
  */
 export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   const { page, limit, eventType, startDate, endDate, sortOrder, userExamId } = filter;
@@ -273,38 +197,48 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
     });
   }
 
-  const analysis = await analyzeFaceDetectionMock(imageBase64);
+  // ✅ NEW: Use factory to get analyzer (mock or YOLO)
+  const faceAnalyzer = getFaceAnalyzer();
 
-  let eventType: ProctoringEventType | null = null;
+  try {
+    const analysis = await faceAnalyzer.analyze(imageBase64);
 
-  if (!analysis.faceDetected) {
-    eventType = ProctoringEventType.NO_FACE_DETECTED;
-  } else if (analysis.faceCount > 1) {
-    eventType = ProctoringEventType.MULTIPLE_FACES;
-  } else if (analysis.lookingAway) {
-    eventType = ProctoringEventType.LOOKING_AWAY;
-  }
+    let eventType: ProctoringEventType | null = null;
 
-  // ✅ CHANGED: Use metadata consistently
-  if (eventType) {
-    const eventMetadata = {
-      ...analysis,
-      autoGenerated: true,
-    } as Prisma.InputJsonValue;
+    if (!analysis.faceDetected) {
+      eventType = ProctoringEventType.NO_FACE_DETECTED;
+    } else if (analysis.faceCount > 1) {
+      eventType = ProctoringEventType.MULTIPLE_FACES;
+    } else if (analysis.lookingAway) {
+      eventType = ProctoringEventType.LOOKING_AWAY;
+    }
 
-    await prisma.proctoringEvent.create({
-      data: {
-        userExamId,
-        eventType,
-        metadata: eventMetadata,
-        timestamp: new Date(),
-      },
+    // Log event if violation detected
+    if (eventType) {
+      const eventMetadata = {
+        ...analysis,
+        autoGenerated: true,
+      } as Prisma.InputJsonValue;
+
+      await prisma.proctoringEvent.create({
+        data: {
+          userExamId,
+          eventType,
+          metadata: eventMetadata,
+          timestamp: new Date(),
+        },
+      });
+    }
+
+    return {
+      analysis,
+      eventLogged: eventType !== null,
+      eventType,
+    };
+  } catch (error) {
+    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_ANALYZE_IMAGE, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorCode: ERROR_CODES.PROCTORING_ANALYSIS_FAILED,
     });
   }
-
-  return {
-    analysis,
-    eventLogged: eventType !== null,
-    eventType,
-  };
 };

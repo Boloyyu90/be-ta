@@ -282,25 +282,3 @@ export const getExamStats = async (
     HTTP_STATUS.OK
   );
 };
-
-/**
- * Publish/unpublish exam controller
- * PATCH /api/v1/admin/exams/:id/publish
- *
- * @access Private (Admin only - creator)
- */
-export const togglePublish = async (
-  req: Request<GetExamParams, {}, { publish: boolean }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { id } = req.params;
-  const userId = req.user!.id;
-  const { publish } = req.body;
-
-  const result = await examsService.togglePublish(id, userId, publish);
-
-  const message = publish ? 'Exam published successfully' : 'Exam unpublished successfully';
-
-  sendSuccess(res, result, message, HTTP_STATUS.OK);
-};

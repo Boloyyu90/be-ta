@@ -735,27 +735,3 @@ export const getExamStats = async (examId: number, userId: number) => {
     },
   };
 };
-
-/**
- * Toggle exam publish status
- * (Future feature - for now just a placeholder)
- *
- * @param examId - Exam ID
- * @param userId - Current user ID
- * @param publish - Whether to publish or unpublish
- * @returns Updated status
- */
-export const togglePublish = async (examId: number, userId: number, publish: boolean) => {
-  // Verify ownership
-  await verifyOwnership(examId, userId);
-
-  // For MVP, we can use a simple flag in metadata or skip this
-  // In production, add 'published' boolean to Exam model
-
-  return {
-    success: true,
-    examId,
-    published: publish,
-    message: publish ? 'Exam published' : 'Exam unpublished',
-  };
-};

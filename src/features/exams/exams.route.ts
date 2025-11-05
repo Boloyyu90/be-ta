@@ -104,19 +104,6 @@ examsRouter.patch(
 );
 
 /**
- * @route   PATCH /api/v1/admin/exams/:id/publish
- * @desc    Publish or unpublish exam
- * @access  Private (Admin only - creator)
- */
-examsRouter.patch(
-  '/admin/exams/:id/publish',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.togglePublishSchema),
-  asyncHandler(examsController.togglePublish)
-);
-
-/**
  * @route   POST /api/v1/admin/exams/:id/clone
  * @desc    Clone/duplicate exam with all questions
  * @access  Private (Admin only)

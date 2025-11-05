@@ -158,14 +158,18 @@ export const SUCCESS_MESSAGES = {
   EXAM_RETRIEVED: 'Exam retrieved successfully',
   EXAMS_RETRIEVED: 'Exams retrieved successfully',
   EXAM_CLONED: 'Exam cloned successfully',
-  EXAM_PUBLISHED: 'Exam published successfully',
-  EXAM_UNPUBLISHED: 'Exam unpublished successfully',
 
   // ==================== EXAM SESSION ====================
   EXAM_STARTED: 'Exam started successfully',
   EXAM_SUBMITTED: 'Exam submitted successfully',
   EXAM_FINISHED: 'Exam finished successfully',
   EXAM_SESSION_RETRIEVED: 'Exam session retrieved successfully',
+  USER_EXAM_RETRIEVED: 'User exam retrieved successfully',
+  USER_EXAMS_RETRIEVED: 'User exam sessions retrieved successfully',
+  EXAM_QUESTIONS_RETRIEVED: 'Exam questions retrieved successfully',
+  EXAM_ANSWERS_RETRIEVED: 'Exam answers retrieved successfully',
+  RESULTS_SUMMARY_RETRIEVED: 'Results summary retrieved successfully',
+  RESULTS_RETRIEVED: 'Results retrieved successfully',
 
   // ==================== QUESTION ====================
   QUESTION_CREATED: 'Question created successfully',
