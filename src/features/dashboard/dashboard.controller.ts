@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as dashboardService from './dashboard.service';
 import { sendSuccess } from '@/shared/utils/response';
-import { HTTP_STATUS } from '@/config/constants';
+import { HTTP_STATUS, SUCCESS_MESSAGES } from '@/config/constants';
 
 /**
  * Get dashboard overview controller
@@ -14,14 +14,15 @@ export const getDashboardOverview = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const userId = req.user!.id;
-    const userRole = req.user!.role;
+  const userId = req.user!.id;
+  const userRole = req.user!.role;
 
-    const overview = await dashboardService.getDashboardOverview(userId, userRole);
+  const overview = await dashboardService.getDashboardOverview(userId, userRole);
 
-    sendSuccess(res, overview, 'Dashboard overview retrieved successfully', HTTP_STATUS.OK);
-  } catch (error) {
-    next(error);
-  }
+  sendSuccess(
+    res,
+    overview,
+    SUCCESS_MESSAGES.DASHBOARD_RETRIEVED,
+    HTTP_STATUS.OK
+  );
 };

@@ -14,7 +14,7 @@ const PROCTORING_EVENT_SELECT = {
   id: true,
   userExamId: true,
   eventType: true,
-  metadata: true,  // ✅ Changed from eventData to metadata
+  metadata: true,
   timestamp: true,
 } as const;
 
@@ -47,8 +47,6 @@ const PROCTORING_EVENT_WITH_EXAM_SELECT = {
 } as const;
 
 // ==================== ML MOCK SERVICE ====================
-// Note: This is a mock implementation for MVP
-// In production, replace with actual ML service integration
 
 /**
  * Mock face detection analysis
@@ -58,20 +56,16 @@ const PROCTORING_EVENT_WITH_EXAM_SELECT = {
  * @returns Analysis result with confidence scores
  */
 const analyzeFaceDetectionMock = async (imageBase64: string) => {
-  // Simulate processing delay
   await new Promise((resolve) => setTimeout(resolve, 300));
 
   try {
-    // Mock validation
     if (!imageBase64 || imageBase64.length < 100) {
       throw new Error('Invalid image data');
     }
 
-    // Mock random results for different scenarios
     const random = Math.random();
 
     if (random < 0.1) {
-      // 10% chance: No face detected
       return {
         faceDetected: false,
         faceCount: 0,
@@ -80,16 +74,14 @@ const analyzeFaceDetectionMock = async (imageBase64: string) => {
         message: 'No face detected in the image',
       };
     } else if (random < 0.2) {
-      // 10% chance: Multiple faces
       return {
         faceDetected: true,
-        faceCount: Math.floor(Math.random() * 3) + 2, // 2-4 faces
+        faceCount: Math.floor(Math.random() * 3) + 2,
         confidence: 0.85 + Math.random() * 0.1,
         lookingAway: false,
         message: 'Multiple faces detected',
       };
     } else if (random < 0.3) {
-      // 10% chance: Looking away
       return {
         faceDetected: true,
         faceCount: 1,
@@ -98,7 +90,6 @@ const analyzeFaceDetectionMock = async (imageBase64: string) => {
         message: 'User appears to be looking away',
       };
     } else {
-      // 70% chance: Normal/good detection
       return {
         faceDetected: true,
         faceCount: 1,
@@ -124,9 +115,8 @@ const analyzeFaceDetectionMock = async (imageBase64: string) => {
  * @returns Created event
  */
 export const logEvent = async (input: LogEventInput) => {
-  const { userExamId, eventType, eventData } = input;
+  const { userExamId, eventType, metadata } = input; // ✅ CHANGED: destructure metadata directly
 
-  // Verify user exam exists
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     select: { id: true, status: true },
@@ -139,12 +129,12 @@ export const logEvent = async (input: LogEventInput) => {
     });
   }
 
-  // Log event
+  // ✅ CHANGED: Use metadata directly without mapping
   const event = await prisma.proctoringEvent.create({
     data: {
       userExamId,
       eventType,
-      ...(eventData && { metadata: eventData as Prisma.InputJsonValue }),  // ✅ Changed to metadata
+      ...(metadata && { metadata: metadata as Prisma.InputJsonValue }),
       timestamp: new Date(),
     },
     select: PROCTORING_EVENT_SELECT,
@@ -165,7 +155,6 @@ export const logEvent = async (input: LogEventInput) => {
 export const getEvents = async (userExamId: number, userId: number, filter: GetEventsQuery) => {
   const { page, limit, eventType, startDate, endDate, sortOrder } = filter;
 
-  // Verify ownership
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     select: { userId: true },
@@ -186,21 +175,15 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
     });
   }
 
-  // Build where clause properly
   const where: Prisma.ProctoringEventWhereInput = {
     userExamId,
     ...(eventType && { eventType }),
   };
 
-  // Add date filters if provided
   if (startDate || endDate) {
     where.timestamp = {};
-    if (startDate) {
-      where.timestamp.gte = new Date(startDate);
-    }
-    if (endDate) {
-      where.timestamp.lte = new Date(endDate);
-    }
+    if (startDate) where.timestamp.gte = new Date(startDate);
+    if (endDate) where.timestamp.lte = new Date(endDate);
   }
 
   const skip = (page - 1) * limit;
@@ -208,7 +191,6 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
     timestamp: sortOrder,
   };
 
-  // Execute queries in parallel
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -232,21 +214,15 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
 export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   const { page, limit, eventType, startDate, endDate, sortOrder, userExamId } = filter;
 
-  // Build where clause properly
   const where: Prisma.ProctoringEventWhereInput = {
     ...(eventType && { eventType }),
     ...(userExamId && { userExamId }),
   };
 
-  // Add date filters if provided
   if (startDate || endDate) {
     where.timestamp = {};
-    if (startDate) {
-      where.timestamp.gte = new Date(startDate);
-    }
-    if (endDate) {
-      where.timestamp.lte = new Date(endDate);
-    }
+    if (startDate) where.timestamp.gte = new Date(startDate);
+    if (endDate) where.timestamp.lte = new Date(endDate);
   }
 
   const skip = (page - 1) * limit;
@@ -254,7 +230,6 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
     timestamp: sortOrder,
   };
 
-  // Execute queries in parallel
   const [events, total] = await Promise.all([
     prisma.proctoringEvent.findMany({
       where,
@@ -278,7 +253,6 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
  * @returns Analysis result
  */
 export const analyzeFace = async (userExamId: number, userId: number, imageBase64: string) => {
-  // Verify ownership
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     select: { userId: true, status: true },
@@ -299,10 +273,8 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
     });
   }
 
-  // Analyze face (using mock for MVP)
   const analysis = await analyzeFaceDetectionMock(imageBase64);
 
-  // Auto-log event if violation detected
   let eventType: ProctoringEventType | null = null;
 
   if (!analysis.faceDetected) {
@@ -313,9 +285,8 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
     eventType = ProctoringEventType.LOOKING_AWAY;
   }
 
-  // Log event if violation
+  // ✅ CHANGED: Use metadata consistently
   if (eventType) {
-    // ✅ Use metadata field to match Prisma schema
     const eventMetadata = {
       ...analysis,
       autoGenerated: true,
@@ -325,7 +296,7 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
       data: {
         userExamId,
         eventType,
-        metadata: eventMetadata,  // ✅ Changed to metadata
+        metadata: eventMetadata,
         timestamp: new Date(),
       },
     });

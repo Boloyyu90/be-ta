@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as proctoringService from './proctoring.service';
 import { sendSuccess } from '@/shared/utils/response';
-import { HTTP_STATUS } from '@/config/constants';
+import { HTTP_STATUS, SUCCESS_MESSAGES } from '@/config/constants';
 import type {
   LogEventInput,
   GetEventsParams,
@@ -26,7 +26,7 @@ export const logEvent = async (
   sendSuccess(
     res,
     result,
-    'Event logged successfully',
+    SUCCESS_MESSAGES.PROCTORING_EVENT_LOGGED, // ✅ Using constant
     HTTP_STATUS.OK
   );
 };
@@ -50,7 +50,7 @@ export const getEvents = async (
   sendSuccess(
     res,
     result,
-    'Events retrieved successfully',
+    SUCCESS_MESSAGES.PROCTORING_EVENTS_RETRIEVED, // ✅ Using constant
     HTTP_STATUS.OK
   );
 };
@@ -71,7 +71,7 @@ export const getAdminEvents = async (
   sendSuccess(
     res,
     result,
-    'Admin events retrieved successfully',
+    SUCCESS_MESSAGES.PROCTORING_EVENTS_RETRIEVED, // ✅ Using constant
     HTTP_STATUS.OK
   );
 };
@@ -96,7 +96,7 @@ export const analyzeFace = async (
   sendSuccess(
     res,
     result,
-    'Face analysis completed',
+    SUCCESS_MESSAGES.PROCTORING_ANALYSIS_COMPLETED, // ✅ Using constant
     HTTP_STATUS.OK
   );
 };

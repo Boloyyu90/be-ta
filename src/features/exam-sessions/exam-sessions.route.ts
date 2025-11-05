@@ -13,7 +13,7 @@ export const examSessionsRouter = Router();
 /**
  * @route   POST /api/v1/exams/:id/start
  * @desc    Start an exam session
- * @access  Private (All authenticated users)
+ * @access  Private (Authenticated users)
  */
 examSessionsRouter.post(
   '/exams/:id/start',
@@ -25,7 +25,7 @@ examSessionsRouter.post(
 /**
  * @route   GET /api/v1/user-exams
  * @desc    Get list of user's exam sessions
- * @access  Private (All authenticated users)
+ * @access  Private (Authenticated users)
  */
 examSessionsRouter.get(
   '/user-exams',
@@ -71,18 +71,6 @@ examSessionsRouter.post(
 );
 
 /**
- * @route   POST /api/v1/user-exams/:id/submit
- * @desc    Submit exam and calculate score
- * @access  Private (Owner only)
- */
-examSessionsRouter.post(
-  '/user-exams/:id/submit',
-  authenticate,
-  validate(examSessionsValidation.submitExamSchema),
-  asyncHandler(examSessionsController.submitExam)
-);
-
-/**
  * @route   GET /api/v1/user-exams/:id/answers
  * @desc    Get exam answers for review (after submit)
  * @access  Private (Owner only)
@@ -95,9 +83,21 @@ examSessionsRouter.get(
 );
 
 /**
+ * @route   POST /api/v1/user-exams/:id/submit
+ * @desc    Submit exam and calculate score
+ * @access  Private (Owner only)
+ */
+examSessionsRouter.post(
+  '/user-exams/:id/submit',
+  authenticate,
+  validate(examSessionsValidation.submitExamSchema),
+  asyncHandler(examSessionsController.submitExam)
+);
+
+/**
  * @route   GET /api/v1/results/me/summary
  * @desc    Get summary statistics of my results
- * @access  Private (All authenticated users)
+ * @access  Private (Authenticated users)
  */
 examSessionsRouter.get(
   '/results/me/summary',
@@ -109,7 +109,7 @@ examSessionsRouter.get(
 /**
  * @route   GET /api/v1/results/me
  * @desc    Get my exam results
- * @access  Private (All authenticated users)
+ * @access  Private (Authenticated users)
  */
 examSessionsRouter.get(
   '/results/me',

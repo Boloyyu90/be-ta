@@ -1,110 +1,45 @@
 import { z } from 'zod';
 import { ExamStatus, QuestionType } from '@prisma/client';
 
+// ==================== VALIDATION HELPERS ====================
+
+/**
+ * User exam ID parameter validation
+ */
+const userExamIdParamSchema = z
+  .string({ required_error: 'User exam ID is required' })
+  .regex(/^\d+$/, 'User exam ID must be a number')
+  .transform(Number)
+  .pipe(z.number().int().positive());
+
+/**
+ * Exam ID parameter validation
+ */
+const examIdParamSchema = z
+  .string({ required_error: 'Exam ID is required' })
+  .regex(/^\d+$/, 'Exam ID must be a number')
+  .transform(Number)
+  .pipe(z.number().int().positive());
+
 // ==================== REQUEST SCHEMAS ====================
 
 /**
  * Schema for starting an exam
  * POST /api/v1/exams/:id/start
+ *
+ * @access Authenticated users
  */
 export const startExamSchema = z.object({
   params: z.object({
-    id: z
-      .string({ required_error: 'Exam ID is required' })
-      .regex(/^\d+$/, 'Exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
+    id: examIdParamSchema,
   }),
 });
 
 /**
- * Schema for submitting an answer
- * POST /api/v1/user-exams/:id/answers
- *
- * Supports both single answer and autosave
- */
-export const submitAnswerSchema = z.object({
-  params: z.object({
-    id: z
-      .string({ required_error: 'User exam ID is required' })
-      .regex(/^\d+$/, 'User exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-  body: z.object({
-    examQuestionId: z
-      .number({ required_error: 'Exam question ID is required' })
-      .int('Exam question ID must be an integer')
-      .positive('Exam question ID must be positive'),
-    selectedOption: z
-      .enum(['A', 'B', 'C', 'D', 'E'], {
-        errorMap: () => ({ message: 'Selected option must be A, B, C, D, or E' }),
-      })
-      .nullable()
-      .optional(), // Allow null/undefined for clearing answer
-  }),
-});
-
-/**
- * Schema for submitting exam
- * POST /api/v1/user-exams/:id/submit
- */
-export const submitExamSchema = z.object({
-  params: z.object({
-    id: z
-      .string({ required_error: 'User exam ID is required' })
-      .regex(/^\d+$/, 'User exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-});
-
-/**
- * Schema for getting user exam details
- * GET /api/v1/user-exams/:id
- */
-export const getUserExamSchema = z.object({
-  params: z.object({
-    id: z
-      .string({ required_error: 'User exam ID is required' })
-      .regex(/^\d+$/, 'User exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-});
-
-/**
- * Schema for listing user's exam results
- * GET /api/v1/results/me
- */
-export const getMyResultsSchema = z.object({
-  query: z.object({
-    page: z
-      .string()
-      .optional()
-      .default('1')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1)),
-    limit: z
-      .string()
-      .optional()
-      .default('10')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1).max(100)),
-    status: z.nativeEnum(ExamStatus).optional(),
-  }),
-});
-
-/* Schema for getting results summary
-* GET /api/v1/results/me/summary
-*/
-export const getMyResultsSummarySchema = z.object({
-  // No query params needed
-});
-
-/**
- * Schema for listing user's exam sessions
+ * Schema for getting user's exam sessions
  * GET /api/v1/user-exams
+ *
+ * @access Authenticated users
  */
 export const getUserExamsSchema = z.object({
   query: z.object({
@@ -130,8 +65,119 @@ export const getUserExamsSchema = z.object({
 });
 
 /**
+ * Schema for getting user exam details
+ * GET /api/v1/user-exams/:id
+ *
+ * @access Owner only
+ */
+export const getUserExamSchema = z.object({
+  params: z.object({
+    id: userExamIdParamSchema,
+  }),
+});
+
+/**
+ * Schema for getting exam questions during exam session
+ * GET /api/v1/user-exams/:id/questions
+ *
+ * @access Owner only
+ */
+export const getExamQuestionsSchema = z.object({
+  params: z.object({
+    id: userExamIdParamSchema,
+  }),
+  query: z.object({
+    type: z.nativeEnum(QuestionType).optional(),
+  }),
+});
+
+/**
+ * Schema for submitting an answer
+ * POST /api/v1/user-exams/:id/answers
+ *
+ * @access Owner only
+ */
+export const submitAnswerSchema = z.object({
+  params: z.object({
+    id: userExamIdParamSchema,
+  }),
+  body: z.object({
+    examQuestionId: z
+      .number({ required_error: 'Exam question ID is required' })
+      .int('Exam question ID must be an integer')
+      .positive('Exam question ID must be positive'),
+    selectedOption: z
+      .enum(['A', 'B', 'C', 'D', 'E'], {
+        errorMap: () => ({ message: 'Selected option must be A, B, C, D, or E' }),
+      })
+      .nullable()
+      .optional(),
+  }),
+});
+
+/**
+ * Schema for getting exam answers (review after submit)
+ * GET /api/v1/user-exams/:id/answers
+ *
+ * @access Owner only
+ */
+export const getExamAnswersSchema = z.object({
+  params: z.object({
+    id: userExamIdParamSchema,
+  }),
+});
+
+/**
+ * Schema for submitting exam
+ * POST /api/v1/user-exams/:id/submit
+ *
+ * @access Owner only
+ */
+export const submitExamSchema = z.object({
+  params: z.object({
+    id: userExamIdParamSchema,
+  }),
+});
+
+/**
+ * Schema for getting results summary
+ * GET /api/v1/results/me/summary
+ *
+ * @access Authenticated users
+ */
+export const getMyResultsSummarySchema = z.object({
+  query: z.object({}),
+});
+
+/**
+ * Schema for listing user's exam results
+ * GET /api/v1/results/me
+ *
+ * @access Authenticated users
+ */
+export const getMyResultsSchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .default('1')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1)),
+    limit: z
+      .string()
+      .optional()
+      .default('10')
+      .transform(Number)
+      .pipe(z.number().int().positive().min(1).max(100)),
+    status: z.nativeEnum(ExamStatus).optional(),
+  }),
+});
+
+/**
  * Schema for admin viewing all results
  * GET /api/v1/admin/results
+ *
+ * @access Admin only
  */
 export const getResultsSchema = z.object({
   query: z.object({
@@ -163,51 +209,20 @@ export const getResultsSchema = z.object({
   }),
 });
 
-/**
- * Schema for getting exam questions during exam session
- * GET /api/v1/user-exams/:id/questions
- */
-export const getExamQuestionsSchema = z.object({
-  params: z.object({
-    id: z
-      .string({ required_error: 'User exam ID is required' })
-      .regex(/^\d+$/, 'User exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-  query: z.object({
-    type: z.nativeEnum(QuestionType).optional(),
-  }),
-});
-
-/**
- * Schema for getting exam answers (review after submit)
- * GET /api/v1/user-exams/:id/answers
- */
-export const getExamAnswersSchema = z.object({
-  params: z.object({
-    id: z
-      .string({ required_error: 'User exam ID is required' })
-      .regex(/^\d+$/, 'User exam ID must be a number')
-      .transform(Number)
-      .pipe(z.number().int().positive()),
-  }),
-});
-
 // ==================== REQUEST TYPES ====================
 
 export type StartExamParams = z.infer<typeof startExamSchema>['params'];
-export type SubmitAnswerParams = z.infer<typeof submitAnswerSchema>['params'];
-export type SubmitAnswerInput = z.infer<typeof submitAnswerSchema>['body'];
-export type SubmitExamParams = z.infer<typeof submitExamSchema>['params'];
-export type GetUserExamParams = z.infer<typeof getUserExamSchema>['params'];
-export type GetMyResultsQuery = z.infer<typeof getMyResultsSchema>['query'];
-export type GetMyResultsSummaryInput = z.infer<typeof getMyResultsSummarySchema>;
 export type GetUserExamsQuery = z.infer<typeof getUserExamsSchema>['query'];
-export type GetResultsQuery = z.infer<typeof getResultsSchema>['query'];
+export type GetUserExamParams = z.infer<typeof getUserExamSchema>['params'];
 export type GetExamQuestionsParams = z.infer<typeof getExamQuestionsSchema>['params'];
 export type GetExamQuestionsQuery = z.infer<typeof getExamQuestionsSchema>['query'];
+export type SubmitAnswerParams = z.infer<typeof submitAnswerSchema>['params'];
+export type SubmitAnswerInput = z.infer<typeof submitAnswerSchema>['body'];
 export type GetExamAnswersParams = z.infer<typeof getExamAnswersSchema>['params'];
+export type SubmitExamParams = z.infer<typeof submitExamSchema>['params'];
+export type GetMyResultsSummaryInput = z.infer<typeof getMyResultsSummarySchema>;
+export type GetMyResultsQuery = z.infer<typeof getMyResultsSchema>['query'];
+export type GetResultsQuery = z.infer<typeof getResultsSchema>['query'];
 
 // ==================== RESPONSE TYPES ====================
 
@@ -249,9 +264,27 @@ export interface UserExamSession {
   startedAt: Date;
   submittedAt: Date | null;
   status: ExamStatus;
-  remainingTimeMs: number | null; // null if finished
+  remainingTimeMs: number | null;
   totalQuestions: number;
   answeredQuestions: number;
+}
+
+/**
+ * User exam list item
+ */
+export interface UserExamListItem {
+  id: number;
+  exam: {
+    id: number;
+    title: string;
+    description: string | null;
+  };
+  status: ExamStatus;
+  startedAt: Date | null;
+  submittedAt: Date | null;
+  totalScore: number | null;
+  remainingTimeMs: number | null;
+  durationMinutes: number | null;
 }
 
 /**
@@ -281,6 +314,26 @@ export interface SubmitAnswerResponse {
 }
 
 /**
+ * Answer review (after submit)
+ */
+export interface AnswerReview {
+  examQuestionId: number;
+  questionContent: string;
+  questionType: QuestionType;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+    E: string;
+  };
+  selectedOption: string | null;
+  correctAnswer: string;
+  isCorrect: boolean | null;
+  score: number;
+}
+
+/**
  * Exam result data
  */
 export interface ExamResult {
@@ -299,7 +352,7 @@ export interface ExamResult {
   submittedAt: Date | null;
   totalScore: number | null;
   status: ExamStatus;
-  duration: number | null; // Duration in seconds
+  duration: number | null;
   answeredQuestions: number;
   totalQuestions: number;
   scoresByType: Array<{
@@ -320,40 +373,8 @@ export interface SubmitExamResponse {
 }
 
 /**
- * Answer review (after submit)
+ * Results summary response
  */
-export interface AnswerReview {
-  examQuestionId: number;
-  questionContent: string;
-  questionType: QuestionType;
-  options: {
-    A: string;
-    B: string;
-    C: string;
-    D: string;
-    E: string;
-  };
-  selectedOption: string | null;
-  correctAnswer: string;
-  isCorrect: boolean | null;
-  score: number;
-}
-
-export interface UserExamListItem {
-  id: number;
-  exam: {
-    id: number;
-    title: string;
-    description: string | null;
-  };
-  status: ExamStatus;
-  startedAt: Date | null;
-  submittedAt: Date | null;
-  totalScore: number | null;
-  remainingTimeMs: number | null;
-  durationMinutes: number | null;
-}
-
 export interface ResultsSummaryResponse {
   taken: number;
   avgScore: number;
@@ -363,6 +384,9 @@ export interface ResultsSummaryResponse {
   lowestScore: number;
 }
 
+/**
+ * User exams list response
+ */
 export interface UserExamsListResponse {
   data: UserExamListItem[];
   pagination: {

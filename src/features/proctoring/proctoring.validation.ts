@@ -36,7 +36,7 @@ export const logEventSchema = z.object({
     eventType: z.nativeEnum(ProctoringEventType, {
       errorMap: () => ({ message: 'Invalid event type' }),
     }),
-    eventData: z.record(z.any()).optional(),
+    metadata: z.record(z.any()).optional(), // ✅ CHANGED: eventData → metadata
   }),
 });
 
@@ -137,7 +137,7 @@ export interface ProctoringEventData {
   id: number;
   userExamId: number;
   eventType: ProctoringEventType;
-  eventData: Record<string, any> | null;
+  metadata: Record<string, any> | null; // ✅ CHANGED: eventData → metadata
   timestamp: Date;
 }
 
