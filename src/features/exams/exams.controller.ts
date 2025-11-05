@@ -58,9 +58,10 @@ export const getExams = async (
 
   const result = await examsService.getExams(req.query, isAdmin, userId);
 
+  // ✅ FIXED: Use constants instead of hardcoded strings
   const message = isAdmin
-    ? 'Exams retrieved successfully'
-    : 'Available exams retrieved successfully';
+    ? SUCCESS_MESSAGES.EXAMS_RETRIEVED
+    : SUCCESS_MESSAGES.AVAILABLE_EXAMS_RETRIEVED;
 
   sendSuccess(res, result, message, HTTP_STATUS.OK);
 };
@@ -82,10 +83,11 @@ export const getExamById = async (
 
   const exam = await examsService.getExamById(id, isAdmin);
 
+  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { exam },
-    'Exam retrieved successfully',
+    SUCCESS_MESSAGES.EXAM_RETRIEVED,
     HTTP_STATUS.OK
   );
 };
@@ -154,10 +156,11 @@ export const cloneExam = async (
 
   const exam = await examsService.cloneExam(id, userId);
 
+  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { exam },
-    'Exam cloned successfully',
+    SUCCESS_MESSAGES.EXAM_CLONED,
     HTTP_STATUS.CREATED
   );
 };
@@ -227,10 +230,11 @@ export const reorderQuestions = async (
 
   const result = await examsService.reorderQuestions(id, userId, questionIds);
 
+  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     result,
-    'Questions reordered successfully',
+    SUCCESS_MESSAGES.QUESTIONS_REORDERED,
     HTTP_STATUS.OK
   );
 };
@@ -251,10 +255,11 @@ export const getExamQuestions = async (
 
   const questions = await examsService.getExamQuestions(id, userId, req.query);
 
+  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { questions, total: questions.length },
-    'Exam questions retrieved successfully',
+    SUCCESS_MESSAGES.EXAM_QUESTIONS_RETRIEVED,
     HTTP_STATUS.OK
   );
 };
@@ -278,7 +283,7 @@ export const getExamStats = async (
   sendSuccess(
     res,
     stats,
-    'Exam statistics retrieved successfully',
+    SUCCESS_MESSAGES.EXAM_STATISTICS_RETRIEVED,
     HTTP_STATUS.OK
   );
 };

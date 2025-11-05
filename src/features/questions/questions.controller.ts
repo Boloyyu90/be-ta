@@ -68,10 +68,11 @@ export const getQuestionById = async (
   const { id } = req.params;
   const question = await questionsService.getQuestionById(id);
 
+  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { question },
-    'Question retrieved successfully',
+    SUCCESS_MESSAGES.QUESTION_RETRIEVED,
     HTTP_STATUS.OK
   );
 };
@@ -133,10 +134,12 @@ export const bulkCreateQuestions = async (
 ): Promise<void> => {
   const result = await questionsService.bulkCreateQuestions(req.body);
 
+  // ✅ FIXED: Use constant with dynamic count in data
+  // Note: The count is included in response data, message is standardized
   sendSuccess(
     res,
-    result,
-    `Successfully created ${result.created} questions`,
+    result, // Contains: { created: number, questions: [...] }
+    SUCCESS_MESSAGES.QUESTIONS_BULK_CREATED,
     HTTP_STATUS.CREATED
   );
 };

@@ -134,6 +134,8 @@ export const ERROR_CODES = {
 /**
  * Centralized success messages for API responses
  * Organized by module/domain
+ *
+ * ✅ Updated: Added missing constants for complete standardization
  */
 export const SUCCESS_MESSAGES = {
   // ==================== AUTH ====================
@@ -148,8 +150,9 @@ export const SUCCESS_MESSAGES = {
   USER_DELETED: 'User deleted successfully',
   USER_RETRIEVED: 'User retrieved successfully',
   USERS_RETRIEVED: 'Users retrieved successfully',
-  PROFILE_UPDATED: 'Profile updated successfully',
   PROFILE_RETRIEVED: 'Profile retrieved successfully',
+  PROFILE_UPDATED: 'Profile updated successfully',
+  USER_STATISTICS_RETRIEVED: 'User statistics retrieved successfully',
 
   // ==================== EXAM ====================
   EXAM_CREATED: 'Exam created successfully',
@@ -157,7 +160,9 @@ export const SUCCESS_MESSAGES = {
   EXAM_DELETED: 'Exam deleted successfully',
   EXAM_RETRIEVED: 'Exam retrieved successfully',
   EXAMS_RETRIEVED: 'Exams retrieved successfully',
+  AVAILABLE_EXAMS_RETRIEVED: 'Available exams retrieved successfully',
   EXAM_CLONED: 'Exam cloned successfully',
+  EXAM_STATISTICS_RETRIEVED: 'Exam statistics retrieved successfully',
 
   // ==================== EXAM SESSION ====================
   EXAM_STARTED: 'Exam started successfully',
