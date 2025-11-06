@@ -1,0 +1,1922 @@
+{
+  "info": {
+    "name": "Tryout & Proctoring System API",
+    "description": "Comprehensive API testing for Online Tryout System with Proctoring\n\n**Features:**\n- Authentication & Authorization\n- User Management\n- Question Bank\n- Exam Management\n- Exam Sessions\n- Proctoring & Face Detection\n- Dashboard & Analytics\n\n**Setup:**\n1. Import Environment file\n2. Set `baseUrl` variable\n3. Run Authentication → Register & Login first\n4. All other requests will auto-use the token\n\n**Author:** Generated for TA Project\n**Version:** 1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🏥 Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has success true', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.status).to.eql('ok');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if server is running"
+          }
+        },
+        {
+          "name": "Root Endpoint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has API info', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.message).to.exist;",
+                  "    pm.expect(jsonData.data.endpoints).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Register Participant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Registration successful', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.user).to.exist;",
+                  "    pm.expect(jsonData.data.tokens).to.exist;",
+                  "    ",
+                  "    // Save tokens",
+                  "    pm.environment.set('accessToken', jsonData.data.tokens.accessToken);",
+                  "    pm.environment.set('refreshToken', jsonData.data.tokens.refreshToken);",
+                  "    pm.environment.set('userId', jsonData.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Participant\",\n  \"email\": \"participant@test.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Register new participant account"
+          }
+        },
+        {
+          "name": "Register Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Admin registered', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    ",
+                  "    // Save admin tokens separately",
+                  "    pm.environment.set('adminAccessToken', jsonData.data.tokens.accessToken);",
+                  "    pm.environment.set('adminRefreshToken', jsonData.data.tokens.refreshToken);",
+                  "    pm.environment.set('adminId', jsonData.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin User\",\n  \"email\": \"admin@test.com\",\n  \"password\": \"AdminPass123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Register admin account (manually change role in DB)"
+          }
+        },
+        {
+          "name": "Login Participant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Login successful', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.tokens.accessToken).to.exist;",
+                  "    ",
+                  "    // Save tokens",
+                  "    pm.environment.set('accessToken', jsonData.data.tokens.accessToken);",
+                  "    pm.environment.set('refreshToken', jsonData.data.tokens.refreshToken);",
+                  "    pm.environment.set('userId', jsonData.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"participant@test.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Admin login successful', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    ",
+                  "    // Save admin tokens",
+                  "    pm.environment.set('adminAccessToken', jsonData.data.tokens.accessToken);",
+                  "    pm.environment.set('adminRefreshToken', jsonData.data.tokens.refreshToken);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"AdminPass123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token refreshed', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.tokens.accessToken).to.exist;",
+                  "    ",
+                  "    // Update tokens",
+                  "    pm.environment.set('accessToken', jsonData.data.tokens.accessToken);",
+                  "    pm.environment.set('refreshToken', jsonData.data.tokens.refreshToken);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Logout successful', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User Management",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Profile retrieved', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user.email).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            }
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Profile updated', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('User created', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user.id).to.exist;",
+                  "    pm.environment.set('createdUserId', jsonData.data.user.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@test.com\",\n  \"password\": \"Password123\",\n  \"role\": \"PARTICIPANT\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get All Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Users list retrieved', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.data).to.be.an('array');",
+                  "    pm.expect(jsonData.data.pagination).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "PARTICIPANT",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "test",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get User By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get User Stats",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{userId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "{{userId}}", "stats"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Update User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{createdUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "{{createdUserId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Delete User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/{{createdUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "{{createdUserId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Question Bank",
+      "item": [
+        {
+          "name": "[ADMIN] Create Question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Question created', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.question.id).to.exist;",
+                  "    pm.environment.set('questionId', jsonData.data.question.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Siapakah presiden pertama Republik Indonesia?\",\n  \"options\": {\n    \"A\": \"Ir. Soekarno\",\n    \"B\": \"Mohammad Hatta\",\n    \"C\": \"Soeharto\",\n    \"D\": \"B.J. Habibie\",\n    \"E\": \"Megawati\"\n  },\n  \"correctAnswer\": \"A\",\n  \"questionType\": \"TWK\",\n  \"defaultScore\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Bulk Create Questions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Questions created', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.created).to.be.greaterThan(0);",
+                  "    ",
+                  "    // Save first question ID",
+                  "    if (jsonData.data.questions.length > 0) {",
+                  "        pm.environment.set('bulkQuestionId1', jsonData.data.questions[0].id);",
+                  "        pm.environment.set('bulkQuestionId2', jsonData.data.questions[1].id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"content\": \"Jika 3x + 5 = 20, maka nilai x adalah?\",\n      \"options\": {\n        \"A\": \"3\",\n        \"B\": \"5\",\n        \"C\": \"7\",\n        \"D\": \"10\",\n        \"E\": \"15\"\n      },\n      \"correctAnswer\": \"B\",\n      \"questionType\": \"TIU\",\n      \"defaultScore\": 5\n    },\n    {\n      \"content\": \"Berapakah hasil dari 15 x 8?\",\n      \"options\": {\n        \"A\": \"100\",\n        \"B\": \"110\",\n        \"C\": \"120\",\n        \"D\": \"130\",\n        \"E\": \"140\"\n      },\n      \"correctAnswer\": \"C\",\n      \"questionType\": \"TIU\",\n      \"defaultScore\": 5\n    },\n    {\n      \"content\": \"Anda diminta lembur tapi sudah ada janji dengan keluarga. Apa yang Anda lakukan?\",\n      \"options\": {\n        \"A\": \"Langsung menolak\",\n        \"B\": \"Menerima lembur dan membatalkan janji\",\n        \"C\": \"Mencari solusi kompromi\",\n        \"D\": \"Mengabaikan permintaan\",\n        \"E\": \"Menerima tapi tidak datang\"\n      },\n      \"correctAnswer\": \"C\",\n      \"questionType\": \"TKP\",\n      \"defaultScore\": 5\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions", "bulk"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get All Questions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Questions list retrieved', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.data).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "type",
+                  "value": "TIU",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "presiden",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get Question By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions/{{questionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions", "{{questionId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Update Question",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Updated question content\",\n  \"defaultScore\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions/{{questionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions", "{{questionId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Delete Question",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/questions/{{questionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "questions", "{{questionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Exam Management",
+      "item": [
+        {
+          "name": "[ADMIN] Create Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Exam created', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.exam.id).to.exist;",
+                  "    pm.environment.set('examId', jsonData.data.exam.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tryout SKD CPNS 2025\",\n  \"description\": \"Simulasi ujian CPNS dengan 100 soal\",\n  \"durationMinutes\": 90\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Attach Questions to Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Questions attached', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.attached).to.be.greaterThan(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    {{bulkQuestionId1}},\n    {{bulkQuestionId2}}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get All Exams",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "SKD",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get Exam By ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get Exam Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "questions"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "TIU",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get Exam Stats",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "stats"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Update Exam",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Exam Title\",\n  \"durationMinutes\": 120\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Clone Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Exam cloned', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.exam.id).to.exist;",
+                  "    pm.environment.set('clonedExamId', jsonData.data.exam.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/clone",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "clone"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Reorder Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    {{bulkQuestionId2}},\n    {{bulkQuestionId1}}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/questions/reorder",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "questions", "reorder"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Detach Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    {{bulkQuestionId1}}\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{examId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{examId}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Delete Exam",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/admin/{{clonedExamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "admin", "{{clonedExamId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Available Exams",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/{{examId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "{{examId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "✍️ Exam Session",
+      "item": [
+        {
+          "name": "Start Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Exam started', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.userExam.id).to.exist;",
+                  "    pm.expect(jsonData.data.questions).to.be.an('array');",
+                  "    ",
+                  "    // Save session ID and first question",
+                  "    pm.environment.set('userExamId', jsonData.data.userExam.id);",
+                  "    if (jsonData.data.questions.length > 0) {",
+                  "        pm.environment.set('examQuestionId', jsonData.data.questions[0].examQuestionId);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/exams/{{examId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "exams", "{{examId}}", "start"]
+            }
+          }
+        },
+        {
+          "name": "Get My Exam Sessions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "IN_PROGRESS",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Session Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams/{{userExamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams", "{{userExamId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams/{{userExamId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams", "{{userExamId}}", "questions"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "TIU",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Answer (Auto-save)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Answer saved', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.answer).to.exist;",
+                  "    pm.expect(jsonData.data.progress).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examQuestionId\": {{examQuestionId}},\n  \"selectedOption\": \"A\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams/{{userExamId}}/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams", "{{userExamId}}", "answers"]
+            }
+          }
+        },
+        {
+          "name": "Submit Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Exam submitted', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.result.totalScore).to.exist;",
+                  "    pm.expect(jsonData.data.result.status).to.eql('FINISHED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams/{{userExamId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams", "{{userExamId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Get Exam Answers (Review)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-exams/{{userExamId}}/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user-exams", "{{userExamId}}", "answers"]
+            }
+          }
+        },
+        {
+          "name": "Get My Results Summary",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/results/me/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "results", "me", "summary"]
+            }
+          }
+        },
+        {
+          "name": "Get My Results",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/results/me?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "results", "me"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "FINISHED",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get All Results",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/results?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "results"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "examId",
+                  "value": "{{examId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👁️ Proctoring",
+      "item": [
+        {
+          "name": "Log Proctoring Event (Manual)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userExamId\": {{userExamId}},\n  \"eventType\": \"LOOKING_AWAY\",\n  \"metadata\": {\n    \"note\": \"Manual logging test\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proctoring/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "proctoring", "events"]
+            }
+          }
+        },
+        {
+          "name": "Analyze Face (Mock)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Face analysis completed', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.analysis).to.exist;",
+                  "    pm.expect(jsonData.data.eventLogged).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageBase64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proctoring/user-exams/{{userExamId}}/analyze-face",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "proctoring", "user-exams", "{{userExamId}}", "analyze-face"]
+            },
+            "description": "Submit base64 image for face detection analysis"
+          }
+        },
+        {
+          "name": "Get My Proctoring Events",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proctoring/user-exams/{{userExamId}}/events?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "proctoring", "user-exams", "{{userExamId}}", "events"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "eventType",
+                  "value": "NO_FACE_DETECTED",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[ADMIN] Get All Proctoring Events",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/proctoring/events?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "admin", "proctoring", "events"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "userExamId",
+                  "value": "{{userExamId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "eventType",
+                  "value": "MULTIPLE_FACES",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Overview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Dashboard data retrieved', () => {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.user).to.exist;",
+                  "    pm.expect(jsonData.data.upcomingExams).to.be.an('array');",
+                  "    pm.expect(jsonData.data.activeSessions).to.be.an('array');",
+                  "    pm.expect(jsonData.data.summary).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard", "overview"]
+            },
+            "description": "Get comprehensive dashboard with upcoming exams, active sessions, recent results, and summary statistics"
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-add timestamp to request",
+          "pm.variables.set('timestamp', new Date().toISOString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test - check response time",
+          "pm.test('Response time is less than 2000ms', () => {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});",
+          "",
+          "// Log response for debugging",
+          "if (pm.response.code >= 400) {",
+          "    console.log('Error Response:', pm.response.json());",
+          "}"
+        ]
+      }
+    }
+  ]
+}
