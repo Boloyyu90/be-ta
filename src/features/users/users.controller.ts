@@ -87,7 +87,6 @@ export const getMe = async (
   const userId = req.user!.id;
   const user = await usersService.getMe(userId);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { user },
@@ -132,7 +131,6 @@ export const updateMe = async (
   const userId = req.user!.id;
   const user = await usersService.updateMe(userId, req.body);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     { user },
@@ -177,7 +175,6 @@ export const getUserStats = async (
   const { id } = req.params;
   const stats = await usersService.getUserStats(id);
 
-  // ✅ FIXED: Use constant instead of hardcoded string
   sendSuccess(
     res,
     stats,

@@ -54,7 +54,7 @@ proctoringRouter.post(
  * @access  Private (Admin only)
  */
 proctoringRouter.get(
-  '/admin/proctoring/events',
+  '/admin/events',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(proctoringValidation.getAdminEventsSchema),

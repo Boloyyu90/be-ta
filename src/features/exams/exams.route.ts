@@ -17,7 +17,7 @@ export const examsRouter = Router();
  * @access  Private (All authenticated users)
  */
 examsRouter.get(
-  '/exams',
+  '/',
   authenticate,
   validate(examsValidation.getExamsSchema),
   asyncHandler(examsController.getExams)
@@ -29,7 +29,7 @@ examsRouter.get(
  * @access  Private (All authenticated users)
  */
 examsRouter.get(
-  '/exams/:id',
+  '/:id',
   authenticate,
   validate(examsValidation.getExamSchema),
   asyncHandler(examsController.getExamById)
@@ -44,7 +44,7 @@ examsRouter.get(
  * @access  Private (Admin only)
  */
 examsRouter.post(
-  '/admin/exams',
+  '/admin',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.createExamSchema),
@@ -57,7 +57,7 @@ examsRouter.post(
  * @access  Private (Admin only)
  */
 examsRouter.get(
-  '/admin/exams',
+  '/admin',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.getExamsSchema),
@@ -70,7 +70,7 @@ examsRouter.get(
  * @access  Private (Admin only)
  */
 examsRouter.get(
-  '/admin/exams/:id',
+  '/admin/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.getExamSchema),
@@ -83,7 +83,7 @@ examsRouter.get(
  * @access  Private (Admin only - creator)
  */
 examsRouter.get(
-  '/admin/exams/:id/stats',
+  '/admin/:id/stats',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.getExamStatsSchema),
@@ -96,7 +96,7 @@ examsRouter.get(
  * @access  Private (Admin only - creator)
  */
 examsRouter.patch(
-  '/admin/exams/:id',
+  '/admin/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.updateExamSchema),
@@ -109,7 +109,7 @@ examsRouter.patch(
  * @access  Private (Admin only)
  */
 examsRouter.post(
-  '/admin/exams/:id/clone',
+  '/admin/:id/clone',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.cloneExamSchema),
@@ -122,7 +122,7 @@ examsRouter.post(
  * @access  Private (Admin only - creator)
  */
 examsRouter.delete(
-  '/admin/exams/:id',
+  '/admin/:id',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.deleteExamSchema),
@@ -137,7 +137,7 @@ examsRouter.delete(
  * @access  Private (Admin only - creator)
  */
 examsRouter.post(
-  '/admin/exams/:id/questions',
+  '/admin/:id/questions',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.attachQuestionsSchema),
@@ -150,7 +150,7 @@ examsRouter.post(
  * @access  Private (Admin only - creator)
  */
 examsRouter.get(
-  '/admin/exams/:id/questions',
+  '/admin/:id/questions',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.getExamQuestionsSchema),
@@ -163,7 +163,7 @@ examsRouter.get(
  * @access  Private (Admin only - creator)
  */
 examsRouter.patch(
-  '/admin/exams/:id/questions/reorder',
+  '/admin/:id/questions/reorder',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.reorderQuestionsSchema),
@@ -176,7 +176,7 @@ examsRouter.patch(
  * @access  Private (Admin only - creator)
  */
 examsRouter.delete(
-  '/admin/exams/:id/questions',
+  '/admin/:id/questions',
   authenticate,
   authorize(UserRole.ADMIN),
   validate(examsValidation.detachQuestionsSchema),
