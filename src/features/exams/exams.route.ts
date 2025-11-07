@@ -12,20 +12,30 @@ export const examsRouter = Router();
 // 2. /api/v1/admin/exams     → Admin management (admin required)
 //
 // STRATEGY:
-// - Participant routes: GET / and GET /:id (view only)
-// - Admin routes: Full CRUD + question management
+// - Use context guards to prevent cross-contamination
+// - Guards check req.baseUrl.includes('/admin')
+// - No hardcoded /admin paths in this file
 // =================================================================
 
 // -----------------------------------------------------------------
-// CONTEXT HELPERS
+// CONTEXT GUARDS
 // -----------------------------------------------------------------
-const isParticipantContext = (req: any) =>
-  !req.baseUrl.includes('/admin') && req.baseUrl.includes('/exams');
-const isAdminContext = (req: any) =>
-  req.baseUrl.includes('/admin');
+
+
+/**
+ * Guard helpers for dual-mount routing
+ */
+const isAdminContext = (req: any) => req.baseUrl.includes('/admin');
+const onlyAdminContext = (req: any, _res: any, next: any) =>
+  isAdminContext(req) ? next() : next('route');
+
+const isParticipantContext = (req: any) => !req.baseUrl.includes('/admin');
+const onlyParticipantContext = (req: any, _res: any, next: any) =>
+  isParticipantContext(req) ? next() : next('route');
 
 // -----------------------------------------------------------------
-// ROUTES: Participant View (mounted at /exams)
+// PARTICIPANT ROUTES (mounted at /api/v1/exams)
+// Only GET operations - view exams and details
 // -----------------------------------------------------------------
 
 /**
@@ -35,13 +45,10 @@ const isAdminContext = (req: any) =>
  */
 examsRouter.get(
   '/',
+  onlyParticipantContext,
   validate(examsValidation.getExamsSchema),
-  asyncHandler(async (req, res, next) => {
-    if (isParticipantContext(req)) {
-      return await examsController.getExams(req, res, next);
-    }
-    return next(); // Let admin handler take over
-  })
+
+  asyncHandler(examsController.getExams)
 );
 
 /**
@@ -51,17 +58,14 @@ examsRouter.get(
  */
 examsRouter.get(
   '/:id',
+  onlyParticipantContext,
   validate(examsValidation.getExamSchema),
-  asyncHandler(async (req, res, next) => {
-    if (isParticipantContext(req)) {
-      return await examsController.getExamById(req, res, next);
-    }
-    return next(); // Let admin handler take over
-  })
+
+  asyncHandler(examsController.getExamById)
 );
 
 // -----------------------------------------------------------------
-// ROUTES: Admin Management (mounted at /admin/exams)
+// ADMIN ROUTES (mounted at /api/v1/admin/exams)
 // Order: Most specific to least specific
 // -----------------------------------------------------------------
 
@@ -72,6 +76,7 @@ examsRouter.get(
  */
 examsRouter.patch(
   '/:id/questions/reorder',
+  onlyAdminContext,
   validate(examsValidation.reorderQuestionsSchema),
   asyncHandler(examsController.reorderQuestions)
 );
@@ -83,6 +88,7 @@ examsRouter.patch(
  */
 examsRouter.get(
   '/:id/questions',
+  onlyAdminContext,
   validate(examsValidation.getExamQuestionsSchema),
   asyncHandler(examsController.getExamQuestions)
 );
@@ -94,6 +100,7 @@ examsRouter.get(
  */
 examsRouter.post(
   '/:id/questions',
+  onlyAdminContext,
   validate(examsValidation.attachQuestionsSchema),
   asyncHandler(examsController.attachQuestions)
 );
@@ -105,6 +112,7 @@ examsRouter.post(
  */
 examsRouter.delete(
   '/:id/questions',
+  onlyAdminContext,
   validate(examsValidation.detachQuestionsSchema),
   asyncHandler(examsController.detachQuestions)
 );
@@ -116,6 +124,7 @@ examsRouter.delete(
  */
 examsRouter.get(
   '/:id/stats',
+  onlyAdminContext,
   validate(examsValidation.getExamStatsSchema),
   asyncHandler(examsController.getExamStats)
 );
@@ -127,6 +136,7 @@ examsRouter.get(
  */
 examsRouter.post(
   '/:id/clone',
+  onlyAdminContext,
   validate(examsValidation.cloneExamSchema),
   asyncHandler(examsController.cloneExam)
 );
@@ -138,13 +148,10 @@ examsRouter.post(
  */
 examsRouter.get(
   '/:id',
+  onlyAdminContext,
   validate(examsValidation.getExamSchema),
-  asyncHandler(async (req, res, next) => {
-    if (isAdminContext(req)) {
-      return await examsController.getExamById(req, res, next);
-    }
-    return next(); // Already handled by participant route
-  })
+
+  asyncHandler(examsController.getExamById)
 );
 
 /**
@@ -154,6 +161,7 @@ examsRouter.get(
  */
 examsRouter.patch(
   '/:id',
+  onlyAdminContext,
   validate(examsValidation.updateExamSchema),
   asyncHandler(examsController.updateExam)
 );
@@ -165,6 +173,7 @@ examsRouter.patch(
  */
 examsRouter.delete(
   '/:id',
+  onlyAdminContext,
   validate(examsValidation.deleteExamSchema),
   asyncHandler(examsController.deleteExam)
 );
@@ -176,13 +185,9 @@ examsRouter.delete(
  */
 examsRouter.get(
   '/',
+  onlyAdminContext,
   validate(examsValidation.getExamsSchema),
-  asyncHandler(async (req, res, next) => {
-    if (isAdminContext(req)) {
-      return await examsController.getExams(req, res, next);
-    }
-    return next(); // Already handled by participant route
-  })
+  asyncHandler(examsController.getExams)
 );
 
 /**
@@ -192,6 +197,7 @@ examsRouter.get(
  */
 examsRouter.post(
   '/',
+  onlyAdminContext,
   validate(examsValidation.createExamSchema),
   asyncHandler(examsController.createExam)
 );

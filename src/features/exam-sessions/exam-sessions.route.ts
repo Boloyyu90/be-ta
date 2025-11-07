@@ -8,26 +8,33 @@ export const examSessionsRouter = Router();
 
 // =================================================================
 // MOUNTING CONTEXTS:
-// 1. /api/v1/exams/:id/start     → Start exam (needs special handling)
-// 2. /api/v1/user-exams           → Participant exam sessions
-// 3. /api/v1/results              → Participant results
-// 4. /api/v1/admin/results        → Admin results monitoring
+// 1. /api/v1/user-exams          → Participant exam sessions
+// 2. /api/v1/results             → Participant results
+// 3. /api/v1/admin/results       → Admin results monitoring
 //
-// Note: This router handles multiple mounting points
+// STRATEGY:
+// - User-exams context: session management routes
+// - Results context: results viewing routes (both participant & admin)
+// - Use guards for admin-specific endpoints
 // =================================================================
 
 // -----------------------------------------------------------------
-// CONTEXT HELPERS
+// CONTEXT GUARDS
 // -----------------------------------------------------------------
-const isUserExamsContext = (req: any) =>
-  req.baseUrl.endsWith('/user-exams');
-const isResultsContext = (req: any) =>
-  req.baseUrl.includes('/results');
-const isAdminContext = (req: any) =>
-  req.baseUrl.includes('/admin');
+
+/**
+ * Guard helpers for dual-mount routing
+ */
+const isAdminContext = (req: any) => req.baseUrl.includes('/admin');
+const onlyAdminContext = (req: any, _res: any, next: any) =>
+  isAdminContext(req) ? next() : next('route');
+
+const isParticipantContext = (req: any) => !req.baseUrl.includes('/admin');
+const onlyParticipantContext = (req: any, _res: any, next: any) =>
+  isParticipantContext(req) ? next() : next('route');
 
 // -----------------------------------------------------------------
-// ROUTES: Exam Sessions (mounted at /user-exams)
+// EXAM SESSION ROUTES (mounted at /api/v1/user-exams)
 // -----------------------------------------------------------------
 
 /**
@@ -97,7 +104,8 @@ examSessionsRouter.get(
 );
 
 // -----------------------------------------------------------------
-// ROUTES: Results (mounted at /results or /admin/results)
+// RESULTS ROUTES (mounted at /api/v1/results or /api/v1/admin/results)
+// Shared mounting point with different permissions
 // -----------------------------------------------------------------
 
 /**
@@ -107,6 +115,7 @@ examSessionsRouter.get(
  */
 examSessionsRouter.get(
   '/me/summary',
+  onlyParticipantContext,
   validate(examSessionsValidation.getMyResultsSummarySchema),
   asyncHandler(examSessionsController.getMyResultsSummary)
 );
@@ -118,6 +127,7 @@ examSessionsRouter.get(
  */
 examSessionsRouter.get(
   '/me',
+  onlyParticipantContext,
   validate(examSessionsValidation.getMyResultsSchema),
   asyncHandler(examSessionsController.getMyResults)
 );
@@ -129,11 +139,7 @@ examSessionsRouter.get(
  */
 examSessionsRouter.get(
   '/',
+  onlyAdminContext,
   validate(examSessionsValidation.getResultsSchema),
-  asyncHandler(async (req, res, next) => {
-    if (isAdminContext(req)) {
-      return await examSessionsController.getResults(req, res, next);
-    }
-    return next();
-  })
+  asyncHandler(examSessionsController.getResults)
 );

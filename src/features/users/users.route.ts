@@ -6,44 +6,38 @@ import * as usersValidation from './users.validation';
 
 export const usersRouter = Router();
 
+
 // =================================================================
 // MOUNTING CONTEXTS:
-// 1. /api/v1/me              → Self-management (auth required)
+// 1. /api/v1/me             → Self-management (auth required)
 // 2. /api/v1/admin/users     → User management (admin required)
 //
 // STRATEGY:
-// - Routes check req.baseUrl to determine context
-// - Participant routes: only accessible from /me
-// - Admin routes: only accessible from /admin/users
-// - No hardcoded /admin in this file
+// - /me mounting only serves GET / and PATCH /
+// - /admin/users mounting serves all other routes
+// - No baseUrl checking needed - mounting naturally separates them
 // =================================================================
 
 // -----------------------------------------------------------------
-// CONTEXT HELPER: Check if mounted at /me
+// SELF-MANAGEMENT ROUTES (mounted at /api/v1/me)
+// Only GET and PATCH on root path
 // -----------------------------------------------------------------
-const isMeContext = (req: any) => req.baseUrl.endsWith('/me');
-const isAdminContext = (req: any) => req.baseUrl.includes('/admin');
 
-// -----------------------------------------------------------------
-// ROUTES: Self-Management (mounted at /me)
-// -----------------------------------------------------------------
+
 
 /**
  * @route   GET /api/v1/me
  * @desc    Get current user profile
  * @access  Private (All authenticated users)
+ *
+ * Note: This route is ONLY matched when mounted at /me
+ * because /me has no dynamic segments.
+ * When mounted at /admin/users, this won't match.
  */
 usersRouter.get(
   '/',
   validate(usersValidation.getMeSchema),
-  asyncHandler(async (req, res, next) => {
-    // Only serve this for /me context
-    if (isMeContext(req)) {
-      return await usersController.getMe(req, res, next);
-    }
-    // For admin context, skip to next route (admin GET /)
-    return next();
-  })
+  asyncHandler(usersController.getMe)
 );
 
 /**
@@ -54,18 +48,11 @@ usersRouter.get(
 usersRouter.patch(
   '/',
   validate(usersValidation.updateMeSchema),
-  asyncHandler(async (req, res, next) => {
-    // Only serve this for /me context
-    if (isMeContext(req)) {
-      return await usersController.updateMe(req, res, next);
-    }
-    // Admin context has no PATCH /, skip
-    return next();
-  })
+  asyncHandler(usersController.updateMe)
 );
 
 // -----------------------------------------------------------------
-// ROUTES: Admin Management (mounted at /admin/users)
+// ADMIN ROUTES (mounted at /api/v1/admin/users)
 // Order: Most specific paths first
 // -----------------------------------------------------------------
 
@@ -121,14 +108,7 @@ usersRouter.delete(
 usersRouter.get(
   '/',
   validate(usersValidation.getUsersSchema),
-  asyncHandler(async (req, res, next) => {
-    // Only serve this for admin context
-    if (isAdminContext(req)) {
-      return await usersController.getUsers(req, res, next);
-    }
-    // Already handled by /me route above
-    return next();
-  })
+  asyncHandler(usersController.getUsers)
 );
 
 /**

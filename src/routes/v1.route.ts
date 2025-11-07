@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { UserRole } from '@prisma/client';
 import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
+import { asyncHandler } from '@/shared/utils/route-handler';
+import * as examSessionsController from '@/features/exam-sessions/exam-sessions.controller';
 
 // Import feature routes
 import { authRouter } from '@/features/auth/auth.route';
@@ -19,38 +21,50 @@ export const v1Router = Router();
 v1Router.use('/auth', authRouter);
 
 // =================================================================
-// SELF-MANAGEMENT ROUTES - All authenticated users
+// PARTICIPANT ROUTES - Authenticated users
+// Context: participant (no /admin in baseUrl)
 // =================================================================
+
+// Self-management
 v1Router.use('/me', authenticate, usersRouter);
 v1Router.use('/dashboard', authenticate, dashboardRouter);
 
-// =================================================================
-// PARTICIPANT ROUTES - Authenticated users (exam taking)
-// Each router will check context and serve appropriate routes
-// =================================================================
+// Exam browsing & taking
 v1Router.use('/exams', authenticate, examsRouter);
 v1Router.use('/user-exams', authenticate, examSessionsRouter);
+
+// Results viewing (participant)
 v1Router.use('/results', authenticate, examSessionsRouter);
+
+// Proctoring events
 v1Router.use('/proctoring', authenticate, proctoringRouter);
 
 // =================================================================
-// ADMIN ROUTES - Admins only (full resource management)
-// Same routers, different mounting path + authorization
+// ADMIN ROUTES - Admin only
+// Context: admin (/admin in baseUrl)
+// Authorization applied once at router level
 // =================================================================
 const adminRouter = Router();
 
-// Apply admin authorization to ALL admin routes
-adminRouter.use(authenticate, authorize(UserRole.ADMIN));
+// ✅ Global authorization for ALL admin routes
+  adminRouter.use(authenticate, authorize(UserRole.ADMIN));
 
-// Mount feature routers - they will serve admin-appropriate routes
-adminRouter.use('/users', usersRouter);
-adminRouter.use('/exams', examsRouter);
-adminRouter.use('/questions', questionsRouter);
-adminRouter.use('/results', examSessionsRouter);
-adminRouter.use('/proctoring', proctoringRouter);
+// User management (admin)
+  adminRouter.use('/users', usersRouter);
 
-// Mount admin router with prefix
-v1Router.use('/admin', adminRouter);
+// Exam management (admin)
+  adminRouter.use('/exams', examsRouter);
+
+// Question bank
+  adminRouter.use('/questions', questionsRouter);
+
+// Results monitoring (admin)
+  adminRouter.use('/results', examSessionsRouter);
+
+// Proctoring monitoring (admin)
+  adminRouter.use('/proctoring', proctoringRouter);
+
+  v1Router.use('/admin', adminRouter);
 
 // =================================================================
 // DEVELOPMENT ROUTE MAP
@@ -60,6 +74,16 @@ if (process.env.NODE_ENV === 'development') {
     res.json({
       version: 'v1',
       baseUrl: '/api/v1',
+      mountingStrategy: {
+        participant: {
+          prefix: '/api/v1',
+          routes: ['/exams', '/user-exams', '/results', '/proctoring', '/me'],
+        },
+        admin: {
+          prefix: '/api/v1/admin',
+          routes: ['/users', '/exams', '/questions', '/results', '/proctoring'],
+        },
+      },
       routes: {
         public: ['POST /auth/register', 'POST /auth/login', 'POST /auth/refresh', 'POST /auth/logout'],
         user: ['GET /me', 'PATCH /me', 'GET /dashboard/overview'],
