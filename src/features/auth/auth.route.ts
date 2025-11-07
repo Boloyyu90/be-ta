@@ -7,9 +7,14 @@ import * as authValidation from './auth.validation';
 
 export const authRouter = Router();
 
+// =================================================================
+// MOUNTING CONTEXT:
+// 1. /api/v1/auth    → Public authentication (no auth required)
+// =================================================================
+
 /**
  * @route   POST /api/v1/auth/register
- * @desc    Register a new user
+ * @desc    Register new user
  * @access  Public
  */
 authRouter.post(
@@ -44,7 +49,7 @@ authRouter.post(
 
 /**
  * @route   POST /api/v1/auth/logout
- * @desc    Logout user (invalidate refresh token)
+ * @desc    Logout user
  * @access  Public
  */
 authRouter.post(

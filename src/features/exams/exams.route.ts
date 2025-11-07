@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import { UserRole } from '@prisma/client';
-import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
 import { validate } from '@/shared/middleware/validate.middleware';
 import { asyncHandler } from '@/shared/utils/route-handler';
 import * as examsController from './exams.controller';
@@ -8,177 +6,192 @@ import * as examsValidation from './exams.validation';
 
 export const examsRouter = Router();
 
-// ==================== PARTICIPANT ROUTES ====================
-// Public exam viewing for all authenticated users
+// =================================================================
+// MOUNTING CONTEXTS:
+// 1. /api/v1/exams           → Participant view (auth required)
+// 2. /api/v1/admin/exams     → Admin management (admin required)
+//
+// STRATEGY:
+// - Participant routes: GET / and GET /:id (view only)
+// - Admin routes: Full CRUD + question management
+// =================================================================
+
+// -----------------------------------------------------------------
+// CONTEXT HELPERS
+// -----------------------------------------------------------------
+const isParticipantContext = (req: any) =>
+  !req.baseUrl.includes('/admin') && req.baseUrl.includes('/exams');
+const isAdminContext = (req: any) =>
+  req.baseUrl.includes('/admin');
+
+// -----------------------------------------------------------------
+// ROUTES: Participant View (mounted at /exams)
+// -----------------------------------------------------------------
 
 /**
  * @route   GET /api/v1/exams
- * @desc    Get available exams for participants
- * @access  Private (All authenticated users)
+ * @desc    Get available exams (with questions)
+ * @access  Private (Authenticated users)
  */
 examsRouter.get(
   '/',
-  authenticate,
   validate(examsValidation.getExamsSchema),
-  asyncHandler(examsController.getExams)
+  asyncHandler(async (req, res, next) => {
+    if (isParticipantContext(req)) {
+      return await examsController.getExams(req, res, next);
+    }
+    return next(); // Let admin handler take over
+  })
 );
 
 /**
  * @route   GET /api/v1/exams/:id
- * @desc    Get exam details (without questions for participants)
- * @access  Private (All authenticated users)
+ * @desc    Get exam details (without answers)
+ * @access  Private (Authenticated users)
  */
 examsRouter.get(
   '/:id',
-  authenticate,
   validate(examsValidation.getExamSchema),
-  asyncHandler(examsController.getExamById)
+  asyncHandler(async (req, res, next) => {
+    if (isParticipantContext(req)) {
+      return await examsController.getExamById(req, res, next);
+    }
+    return next(); // Let admin handler take over
+  })
 );
 
-// ==================== ADMIN ROUTES ====================
-// Full exam management for admins
-
-/**
- * @route   POST /api/v1/admin/exams
- * @desc    Create a new exam
- * @access  Private (Admin only)
- */
-examsRouter.post(
-  '/admin',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.createExamSchema),
-  asyncHandler(examsController.createExam)
-);
-
-/**
- * @route   GET /api/v1/admin/exams
- * @desc    Get all exams (admin view with filters)
- * @access  Private (Admin only)
- */
-examsRouter.get(
-  '/admin',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.getExamsSchema),
-  asyncHandler(examsController.getExams)
-);
-
-/**
- * @route   GET /api/v1/admin/exams/:id
- * @desc    Get single exam details with full info
- * @access  Private (Admin only)
- */
-examsRouter.get(
-  '/admin/:id',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.getExamSchema),
-  asyncHandler(examsController.getExamById)
-);
-
-/**
- * @route   GET /api/v1/admin/exams/:id/stats
- * @desc    Get exam statistics (participants, scores, completion rate)
- * @access  Private (Admin only - creator)
- */
-examsRouter.get(
-  '/admin/:id/stats',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.getExamStatsSchema),
-  asyncHandler(examsController.getExamStats)
-);
-
-/**
- * @route   PATCH /api/v1/admin/exams/:id
- * @desc    Update exam
- * @access  Private (Admin only - creator)
- */
-examsRouter.patch(
-  '/admin/:id',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.updateExamSchema),
-  asyncHandler(examsController.updateExam)
-);
-
-/**
- * @route   POST /api/v1/admin/exams/:id/clone
- * @desc    Clone/duplicate exam with all questions
- * @access  Private (Admin only)
- */
-examsRouter.post(
-  '/admin/:id/clone',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.cloneExamSchema),
-  asyncHandler(examsController.cloneExam)
-);
-
-/**
- * @route   DELETE /api/v1/admin/exams/:id
- * @desc    Delete exam
- * @access  Private (Admin only - creator)
- */
-examsRouter.delete(
-  '/admin/:id',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.deleteExamSchema),
-  asyncHandler(examsController.deleteExam)
-);
-
-// ==================== EXAM QUESTIONS ROUTES ====================
-
-/**
- * @route   POST /api/v1/admin/exams/:id/questions
- * @desc    Attach questions to exam
- * @access  Private (Admin only - creator)
- */
-examsRouter.post(
-  '/admin/:id/questions',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.attachQuestionsSchema),
-  asyncHandler(examsController.attachQuestions)
-);
-
-/**
- * @route   GET /api/v1/admin/exams/:id/questions
- * @desc    Get all questions in exam (with correct answers)
- * @access  Private (Admin only - creator)
- */
-examsRouter.get(
-  '/admin/:id/questions',
-  authenticate,
-  authorize(UserRole.ADMIN),
-  validate(examsValidation.getExamQuestionsSchema),
-  asyncHandler(examsController.getExamQuestions)
-);
+// -----------------------------------------------------------------
+// ROUTES: Admin Management (mounted at /admin/exams)
+// Order: Most specific to least specific
+// -----------------------------------------------------------------
 
 /**
  * @route   PATCH /api/v1/admin/exams/:id/questions/reorder
- * @desc    Reorder questions in exam
- * @access  Private (Admin only - creator)
+ * @desc    Reorder questions
+ * @access  Private (Admin only)
  */
 examsRouter.patch(
-  '/admin/:id/questions/reorder',
-  authenticate,
-  authorize(UserRole.ADMIN),
+  '/:id/questions/reorder',
   validate(examsValidation.reorderQuestionsSchema),
   asyncHandler(examsController.reorderQuestions)
 );
 
 /**
+ * @route   GET /api/v1/admin/exams/:id/questions
+ * @desc    Get exam questions with correct answers
+ * @access  Private (Admin only)
+ */
+examsRouter.get(
+  '/:id/questions',
+  validate(examsValidation.getExamQuestionsSchema),
+  asyncHandler(examsController.getExamQuestions)
+);
+
+/**
+ * @route   POST /api/v1/admin/exams/:id/questions
+ * @desc    Attach questions to exam
+ * @access  Private (Admin only)
+ */
+examsRouter.post(
+  '/:id/questions',
+  validate(examsValidation.attachQuestionsSchema),
+  asyncHandler(examsController.attachQuestions)
+);
+
+/**
  * @route   DELETE /api/v1/admin/exams/:id/questions
  * @desc    Detach questions from exam
- * @access  Private (Admin only - creator)
+ * @access  Private (Admin only)
  */
 examsRouter.delete(
-  '/admin/:id/questions',
-  authenticate,
-  authorize(UserRole.ADMIN),
+  '/:id/questions',
   validate(examsValidation.detachQuestionsSchema),
   asyncHandler(examsController.detachQuestions)
+);
+
+/**
+ * @route   GET /api/v1/admin/exams/:id/stats
+ * @desc    Get exam statistics
+ * @access  Private (Admin only)
+ */
+examsRouter.get(
+  '/:id/stats',
+  validate(examsValidation.getExamStatsSchema),
+  asyncHandler(examsController.getExamStats)
+);
+
+/**
+ * @route   POST /api/v1/admin/exams/:id/clone
+ * @desc    Clone exam with all questions
+ * @access  Private (Admin only)
+ */
+examsRouter.post(
+  '/:id/clone',
+  validate(examsValidation.cloneExamSchema),
+  asyncHandler(examsController.cloneExam)
+);
+
+/**
+ * @route   GET /api/v1/admin/exams/:id
+ * @desc    Get exam by ID with full details
+ * @access  Private (Admin only)
+ */
+examsRouter.get(
+  '/:id',
+  validate(examsValidation.getExamSchema),
+  asyncHandler(async (req, res, next) => {
+    if (isAdminContext(req)) {
+      return await examsController.getExamById(req, res, next);
+    }
+    return next(); // Already handled by participant route
+  })
+);
+
+/**
+ * @route   PATCH /api/v1/admin/exams/:id
+ * @desc    Update exam
+ * @access  Private (Admin only)
+ */
+examsRouter.patch(
+  '/:id',
+  validate(examsValidation.updateExamSchema),
+  asyncHandler(examsController.updateExam)
+);
+
+/**
+ * @route   DELETE /api/v1/admin/exams/:id
+ * @desc    Delete exam
+ * @access  Private (Admin only)
+ */
+examsRouter.delete(
+  '/:id',
+  validate(examsValidation.deleteExamSchema),
+  asyncHandler(examsController.deleteExam)
+);
+
+/**
+ * @route   GET /api/v1/admin/exams
+ * @desc    Get all exams (including drafts)
+ * @access  Private (Admin only)
+ */
+examsRouter.get(
+  '/',
+  validate(examsValidation.getExamsSchema),
+  asyncHandler(async (req, res, next) => {
+    if (isAdminContext(req)) {
+      return await examsController.getExams(req, res, next);
+    }
+    return next(); // Already handled by participant route
+  })
+);
+
+/**
+ * @route   POST /api/v1/admin/exams
+ * @desc    Create new exam
+ * @access  Private (Admin only)
+ */
+examsRouter.post(
+  '/',
+  validate(examsValidation.createExamSchema),
+  asyncHandler(examsController.createExam)
 );
