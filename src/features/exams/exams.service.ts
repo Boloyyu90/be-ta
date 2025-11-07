@@ -26,6 +26,7 @@ const EXAM_PUBLIC_SELECT = {
   durationMinutes: true,
   createdBy: true,
   createdAt: true,
+  updatedAt: true,
   _count: {
     select: {
       examQuestions: true,
@@ -45,6 +46,7 @@ const EXAM_DETAIL_SELECT = {
   durationMinutes: true,
   createdBy: true,
   createdAt: true,
+  updatedAt: true,
   creator: {
     select: {
       id: true,

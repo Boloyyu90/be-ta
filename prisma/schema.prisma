@@ -48,10 +48,12 @@ model QuestionBank {
   defaultScore  Int            @default(5) @map("default_score")
   questionType  QuestionType   @default(TIU) @map("question_type")
   createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
   examQuestions ExamQuestion[]
 
   @@index([questionType])
   @@index([createdAt])
+  @@index([updatedAt])
   @@map("question_bank")
 }
 
@@ -64,12 +66,14 @@ model Exam {
   durationMinutes Int            @default(60) @map("duration_minutes")
   createdBy       Int            @map("created_by")
   createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @default(now()) @map("updated_at")
   examQuestions   ExamQuestion[]
   creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
   userExams       UserExam[]
 
   @@index([createdBy])
   @@index([startTime])
+  @@index([updatedAt])
   @@map("exams")
 }
 
@@ -129,7 +133,7 @@ model ProctoringEvent {
   userExamId Int                 @map("user_exam_id")
   eventType  ProctoringEventType @map("event_type")
   timestamp  DateTime            @default(now())
-  severity   String              @default("LOW")  // LOW, MEDIUM, HIGH
+  severity   String              @default("LOW") // LOW, MEDIUM, HIGH
   metadata   Json?
   userExam   UserExam            @relation(fields: [userExamId], references: [id], onDelete: Cascade)
 
