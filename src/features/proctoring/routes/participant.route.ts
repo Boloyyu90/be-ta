@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { validate } from '@/shared/middleware/validate.middleware';
+import { proctoringLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { asyncHandler } from '@/shared/utils/route-handler';
 import * as proctoringController from '../proctoring.controller';
 import * as proctoringValidation from '../proctoring.validation';
@@ -19,6 +20,7 @@ export const participantProctoringRouter = Router();
  */
 participantProctoringRouter.post(
   '/events',
+  proctoringLimiter,
   validate(proctoringValidation.logEventSchema),
   asyncHandler(proctoringController.logEvent)
 );
@@ -30,6 +32,7 @@ participantProctoringRouter.post(
  */
 participantProctoringRouter.post(
   '/exam-sessions/:userExamId/analyze-face',
+  proctoringLimiter,
   validate(proctoringValidation.analyzeFaceSchema),
   asyncHandler(proctoringController.analyzeFace)
 );

@@ -36,3 +36,21 @@ export const refreshLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+/**
+ * Applied to proctoring event logging and face analysis
+ *
+ * Reasoning:
+ * - Face analysis is CPU-intensive (ML operations)
+ * - Event logging can be spammed during exam
+ * - Prevent abuse while allowing legitimate proctoring
+ */
+export const proctoringLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 30, // 30 requests per minute (1 every 2 seconds)
+  message: 'Too many proctoring requests, please slow down',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Don't skip successful requests - count all
+  skipSuccessfulRequests: false,
+});
