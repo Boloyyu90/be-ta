@@ -10,7 +10,7 @@ import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
 import { authRouter } from '@/features/auth/routes/participant.route';
 
 // Participant routes
-import { selfRouter } from '@/features/users/routes/self.route';
+import { selfRouter } from '@/features/users/routes/participant.route';
 import { participantDashboardRouter } from '@/features/dashboard/routes/participant.route';
 import { participantExamsRouter } from '@/features/exams/routes/participant.route';
 import { participantExamSessionsRouter } from '@/features/exam-sessions/routes/participant.route';
