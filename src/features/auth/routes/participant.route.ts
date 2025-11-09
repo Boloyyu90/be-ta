@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { validate } from '@/shared/middleware/validate.middleware';
 import { authLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { asyncHandler } from '@/shared/utils/route-handler';
-import * as authController from './auth.controller';
-import * as authValidation from './auth.validation';
+import * as authController from '../auth.controller';
+import * as authValidation from '../auth.validation';
 
 export const authRouter = Router();
 

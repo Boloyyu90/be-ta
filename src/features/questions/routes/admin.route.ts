@@ -1,36 +1,56 @@
 import { Router } from 'express';
 import { validate } from '@/shared/middleware/validate.middleware';
 import { asyncHandler } from '@/shared/utils/route-handler';
-import * as questionsController from './questions.controller';
-import * as questionsValidation from './questions.validation';
+import * as questionsController from '../questions.controller';
+import * as questionsValidation from '../questions.validation';
 
-export const questionsRouter = Router();
+export const adminQuestionsRouter = Router();
 
 // =================================================================
-// MOUNTING CONTEXT:
-// 1. /api/v1/admin/questions    → Question bank (admin only)
-//
-// Note: This router is ONLY mounted at admin path
-// Authorization is applied at router mounting level in v1.route.ts
+// QUESTION BANK MANAGEMENT ROUTES
+// Mounted at: /api/v1/admin/questions
+// Authorization: Admin only (enforced at parent router level)
 // =================================================================
+
+/**
+ * @route   POST /api/v1/admin/questions
+ * @desc    Create new question
+ * @access  Admin only
+ */
+adminQuestionsRouter.post(
+  '/',
+  validate(questionsValidation.createQuestionSchema),
+  asyncHandler(questionsController.createQuestion)
+);
 
 /**
  * @route   POST /api/v1/admin/questions/bulk
  * @desc    Bulk create questions
- * @access  Private (Admin only)
+ * @access  Admin only
  */
-questionsRouter.post(
+adminQuestionsRouter.post(
   '/bulk',
   validate(questionsValidation.bulkCreateQuestionsSchema),
   asyncHandler(questionsController.bulkCreateQuestions)
 );
 
 /**
+ * @route   GET /api/v1/admin/questions
+ * @desc    Get all questions with pagination and filters
+ * @access  Admin only
+ */
+adminQuestionsRouter.get(
+  '/',
+  validate(questionsValidation.getQuestionsSchema),
+  asyncHandler(questionsController.getQuestions)
+);
+
+/**
  * @route   GET /api/v1/admin/questions/:id
  * @desc    Get question by ID
- * @access  Private (Admin only)
+ * @access  Admin only
  */
-questionsRouter.get(
+adminQuestionsRouter.get(
   '/:id',
   validate(questionsValidation.getQuestionSchema),
   asyncHandler(questionsController.getQuestionById)
@@ -39,9 +59,9 @@ questionsRouter.get(
 /**
  * @route   PATCH /api/v1/admin/questions/:id
  * @desc    Update question
- * @access  Private (Admin only)
+ * @access  Admin only
  */
-questionsRouter.patch(
+adminQuestionsRouter.patch(
   '/:id',
   validate(questionsValidation.updateQuestionSchema),
   asyncHandler(questionsController.updateQuestion)
@@ -50,32 +70,10 @@ questionsRouter.patch(
 /**
  * @route   DELETE /api/v1/admin/questions/:id
  * @desc    Delete question
- * @access  Private (Admin only)
+ * @access  Admin only
  */
-questionsRouter.delete(
+adminQuestionsRouter.delete(
   '/:id',
   validate(questionsValidation.deleteQuestionSchema),
   asyncHandler(questionsController.deleteQuestion)
-);
-
-/**
- * @route   GET /api/v1/admin/questions
- * @desc    Get all questions
- * @access  Private (Admin only)
- */
-questionsRouter.get(
-  '/',
-  validate(questionsValidation.getQuestionsSchema),
-  asyncHandler(questionsController.getQuestions)
-);
-
-/**
- * @route   POST /api/v1/admin/questions
- * @desc    Create question
- * @access  Private (Admin only)
- */
-questionsRouter.post(
-  '/',
-  validate(questionsValidation.createQuestionSchema),
-  asyncHandler(questionsController.createQuestion)
 );
