@@ -11,7 +11,6 @@ import type {
   GetMyResultsQuery,
   GetResultsQuery,
   GetExamQuestionsParams,
-  GetExamQuestionsQuery,
   GetExamAnswersParams,
   GetUserExamsQuery,
 } from './exam-sessions.validation';
@@ -37,7 +36,7 @@ export const startExam = async (
 
 /**
  * Get user's exam sessions controller
- * GET /api/v1/user-exams
+ * GET /api/v1/exam-sessions
  *
  * @access Private (Authenticated users)
  */
@@ -55,7 +54,7 @@ export const getUserExams = async (
 
 /**
  * Get user exam session details controller
- * GET /api/v1/user-exams/:id
+ * GET /api/v1/exam-sessions/:id
  *
  * @access Private (Owner only)
  */
@@ -74,23 +73,20 @@ export const getUserExam = async (
 
 /**
  * Get exam questions controller
- * GET /api/v1/user-exams/:id/questions
+ * GET /api/v1/exam-sessions/:id/questions
  *
  * @access Private (Owner only)
+ * @simplified No query parameter - returns all questions
  */
 export const getExamQuestions = async (
-  req: Request<GetExamQuestionsParams, {}, {}, GetExamQuestionsQuery>,
+  req: Request<GetExamQuestionsParams>,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   const userId = req.user!.id;
   const { id: userExamId } = req.params;
 
-  const questions = await examSessionsService.getExamQuestions(
-    userExamId,
-    userId,
-    req.query
-  );
+  const questions = await examSessionsService.getExamQuestions(userExamId, userId);
 
   sendSuccess(
     res,
@@ -102,7 +98,7 @@ export const getExamQuestions = async (
 
 /**
  * Submit answer controller
- * POST /api/v1/user-exams/:id/answers
+ * POST /api/v1/exam-sessions/:id/answers
  *
  * @access Private (Owner only)
  */
@@ -121,7 +117,7 @@ export const submitAnswer = async (
 
 /**
  * Submit exam controller
- * POST /api/v1/user-exams/:id/submit
+ * POST /api/v1/exam-sessions/:id/submit
  *
  * @access Private (Owner only)
  */
@@ -140,7 +136,7 @@ export const submitExam = async (
 
 /**
  * Get exam answers controller (review after submit)
- * GET /api/v1/user-exams/:id/answers
+ * GET /api/v1/exam-sessions/:id/answers
  *
  * @access Private (Owner only)
  */
@@ -164,7 +160,7 @@ export const getExamAnswers = async (
 
 /**
  * Get my results controller
- * GET /api/v1/results/me
+ * GET /api/v1/results
  *
  * @access Private (Authenticated users)
  */

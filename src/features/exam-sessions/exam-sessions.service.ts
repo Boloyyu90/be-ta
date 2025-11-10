@@ -1,6 +1,6 @@
 import { Prisma, ExamStatus, QuestionType } from '@prisma/client';
 import { prisma } from '@/config/database';
-import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants'; // ✅ FIXED: Removed PROCTORING_VALIDATION
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import {
   NotFoundError,
@@ -12,7 +12,6 @@ import type {
   SubmitAnswerInput,
   GetMyResultsQuery,
   GetResultsQuery,
-  GetExamQuestionsQuery,
   ParticipantQuestion,
   ParticipantAnswer,
   UserExamSession,
@@ -563,19 +562,19 @@ export const getUserExam = async (userExamId: number, userId: number) => {
 
 /**
  * Get list of user's exam sessions
+ * @simplified No filtering - basic pagination only, always sorted by newest first
  */
 export const getUserExams = async (userId: number, filter: GetUserExamsQuery) => {
-  const { page, limit, status, sortBy, sortOrder } = filter;
+  const { page, limit } = filter;
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    ...(status && { status }),
   };
 
   const skip = (page - 1) * limit;
 
   const orderBy: Prisma.UserExamOrderByWithRelationInput = {
-    [sortBy]: sortOrder,
+    createdAt: 'desc', // Always sort by newest first
   };
 
   const [userExams, total] = await Promise.all([
@@ -632,14 +631,14 @@ export const getUserExams = async (userId: number, filter: GetUserExamsQuery) =>
 };
 
 /**
- * Get user's exam results (their own results only)
+ * Get user's exam results (participant view)
+ * @simplified No status filter - participants see all their results
  */
 export const getMyResults = async (userId: number, filter: GetMyResultsQuery) => {
-  const { page, limit, status } = filter;
+  const { page, limit } = filter;
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    ...(status && { status }),
   };
 
   const skip = (page - 1) * limit;
@@ -650,7 +649,7 @@ export const getMyResults = async (userId: number, filter: GetMyResultsQuery) =>
       select: USER_EXAM_SELECT,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' }, // Always sort by newest first
     }),
     prisma.userExam.count({ where }),
   ]);
@@ -678,10 +677,11 @@ export const getMyResults = async (userId: number, filter: GetMyResultsQuery) =>
 };
 
 /**
- * Get all exam results (admin only)
+ * Get all exam results (admin view)
+ * @enhanced Added status filter for admin monitoring
  */
 export const getResults = async (filter: GetResultsQuery) => {
-  const { page, limit, examId, userId, status, sortBy, sortOrder } = filter;
+  const { page, limit, examId, userId, status } = filter;
 
   const where: Prisma.UserExamWhereInput = {
     ...(examId && { examId }),
@@ -692,7 +692,7 @@ export const getResults = async (filter: GetResultsQuery) => {
   const skip = (page - 1) * limit;
 
   const orderBy: Prisma.UserExamOrderByWithRelationInput = {
-    [sortBy]: sortOrder,
+    createdAt: 'desc', // Always sort by newest first
   };
 
   const [userExams, total] = await Promise.all([
@@ -730,21 +730,15 @@ export const getResults = async (filter: GetResultsQuery) => {
 
 /**
  * Get exam questions for active session
+ * @simplified No type filter - returns all questions in order
  */
-export const getExamQuestions = async (
-  userExamId: number,
-  userId: number,
-  filter: GetExamQuestionsQuery
-) => {
-  const { type } = filter;
-
+export const getExamQuestions = async (userExamId: number, userId: number) => {
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
     include: {
       exam: {
         include: {
           examQuestions: {
-            where: type ? { question: { questionType: type } } : undefined,
             include: {
               question: true,
             },

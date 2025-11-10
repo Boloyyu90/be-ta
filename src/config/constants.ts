@@ -217,25 +217,7 @@ export const ML_CONFIG = {
   WARMUP_RETRIES: 3,
 } as const;
 
-// ==================== PROCTORING VALIDATION CONSTANTS ====================
 
-/**
- * Proctoring validation rules for exam integrity
- */
-export const PROCTORING_VALIDATION = {
-  // Minimum proctoring events required per exam duration
-  MIN_EVENTS_PER_HOUR: 10, // At least 10 events per 60 minutes
-
-  // Maximum violations allowed before exam invalidation
-  MAX_VIOLATIONS: {
-    NO_FACE_DETECTED: 3,      // Max 3 times no face detected
-    MULTIPLE_FACES: 2,         // Max 2 times multiple faces
-    LOOKING_AWAY: 5,           // Max 5 times looking away
-  },
-
-  // Grace period for initial face detection (milliseconds)
-  INITIAL_GRACE_PERIOD_MS: 30000, // 30 seconds to setup camera
-} as const;
 
 /**
  * Proctoring violation severity levels
@@ -278,4 +260,3 @@ export type ErrorMessage = (typeof ERROR_MESSAGES)[keyof typeof ERROR_MESSAGES];
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 export type SuccessMessage = (typeof SUCCESS_MESSAGES)[keyof typeof SUCCESS_MESSAGES];
 export type ProctoringEventSeverity = typeof PROCTORING_SEVERITY[keyof typeof PROCTORING_SEVERITY]
-export type ProctoringValidation = typeof PROCTORING_VALIDATION;

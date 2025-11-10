@@ -4,22 +4,19 @@ import { ExamStatus, QuestionType } from '@prisma/client';
 // ==================== VALIDATION HELPERS ====================
 
 /**
- * User exam ID parameter validation
+ * Simplified ID parameter validation using z.coerce
+ * Cleaner than regex + transform pattern
  */
-const userExamIdParamSchema = z
-  .string({ required_error: 'User exam ID is required' })
-  .regex(/^\d+$/, 'User exam ID must be a number')
-  .transform(Number)
-  .pipe(z.number().int().positive());
+const idParamSchema = z.coerce.number().int().positive();
 
 /**
- * Exam ID parameter validation
+ * Reusable pagination schema (DRY principle)
+ * Used across multiple endpoints
  */
-const examIdParamSchema = z
-  .string({ required_error: 'Exam ID is required' })
-  .regex(/^\d+$/, 'Exam ID must be a number')
-  .transform(Number)
-  .pipe(z.number().int().positive());
+const paginationSchema = z.object({
+  page: z.coerce.number().int().positive().min(1).default(1),
+  limit: z.coerce.number().int().positive().min(1).max(100).default(10),
+});
 
 // ==================== REQUEST SCHEMAS ====================
 
@@ -31,75 +28,58 @@ const examIdParamSchema = z
  */
 export const startExamSchema = z.object({
   params: z.object({
-    id: examIdParamSchema,
+    id: idParamSchema,
   }),
 });
 
 /**
- * Schema for getting user's exam sessions
- * GET /api/v1/user-exams
+ * Schema for getting user's exam sessions (participant)
+ * GET /api/v1/exam-sessions
  *
  * @access Authenticated users
+ * @simplified Basic pagination only, no filtering needed for participants
  */
 export const getUserExamsSchema = z.object({
-  query: z.object({
-    page: z
-      .string()
-      .optional()
-      .default('1')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1)),
-    limit: z
-      .string()
-      .optional()
-      .default('10')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1).max(100)),
-  }),
+  query: paginationSchema,
 });
 
 /**
  * Schema for getting user exam details
- * GET /api/v1/user-exams/:id
+ * GET /api/v1/exam-sessions/:id
  *
  * @access Owner only
  */
 export const getUserExamSchema = z.object({
   params: z.object({
-    id: userExamIdParamSchema,
+    id: idParamSchema,
   }),
 });
 
 /**
- * Schema for getting exam questions during exam session
- * GET /api/v1/user-exams/:id/questions
+ * Schema for getting exam questions
+ * GET /api/v1/exam-sessions/:id/questions
  *
  * @access Owner only
+ * @simplified Removed type filter - returns all questions in order
  */
 export const getExamQuestionsSchema = z.object({
   params: z.object({
-    id: userExamIdParamSchema,
-  }),
-  query: z.object({
-    type: z.nativeEnum(QuestionType).optional(),
+    id: idParamSchema,
   }),
 });
 
 /**
  * Schema for submitting an answer
- * POST /api/v1/user-exams/:id/answers
+ * POST /api/v1/exam-sessions/:id/answers
  *
  * @access Owner only
  */
 export const submitAnswerSchema = z.object({
   params: z.object({
-    id: userExamIdParamSchema,
+    id: idParamSchema,
   }),
   body: z.object({
-    examQuestionId: z
-      .number({ required_error: 'Exam question ID is required' })
-      .int('Exam question ID must be an integer')
-      .positive('Exam question ID must be positive'),
+    examQuestionId: z.coerce.number().int().positive(),
     selectedOption: z
       .enum(['A', 'B', 'C', 'D', 'E'], {
         errorMap: () => ({ message: 'Selected option must be A, B, C, D, or E' }),
@@ -111,92 +91,60 @@ export const submitAnswerSchema = z.object({
 
 /**
  * Schema for getting exam answers (review after submit)
- * GET /api/v1/user-exams/:id/answers
+ * GET /api/v1/exam-sessions/:id/answers
  *
  * @access Owner only
  */
 export const getExamAnswersSchema = z.object({
   params: z.object({
-    id: userExamIdParamSchema,
+    id: idParamSchema,
   }),
 });
 
 /**
  * Schema for submitting exam
- * POST /api/v1/user-exams/:id/submit
+ * POST /api/v1/exam-sessions/:id/submit
  *
  * @access Owner only
  */
 export const submitExamSchema = z.object({
   params: z.object({
-    id: userExamIdParamSchema,
+    id: idParamSchema,
   }),
 });
 
 /**
- * Schema for listing user's exam results
- * GET /api/v1/results/me
+ * Schema for getting user's results (participant)
+ * GET /api/v1/results
  *
  * @access Authenticated users
+ * @simplified Removed status filter - participants see all their results
  */
 export const getMyResultsSchema = z.object({
-  query: z.object({
-    page: z
-      .string()
-      .optional()
-      .default('1')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1)),
-    limit: z
-      .string()
-      .optional()
-      .default('10')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1).max(100)),
+  query: paginationSchema,
+});
+
+/**
+ * Schema for getting all results (admin)
+ * GET /api/v1/admin/results
+ *
+ * @access Admin only
+ * @enhanced Added status filter for admin monitoring
+ */
+export const getResultsSchema = z.object({
+  query: paginationSchema.extend({
+    examId: z.coerce.number().int().positive().optional(),
+    userId: z.coerce.number().int().positive().optional(),
     status: z.nativeEnum(ExamStatus).optional(),
   }),
 });
 
-/**
- * Schema for admin viewing all results
- * GET /api/v1/admin/results
- *
- * @access Admin only
- */
-export const getResultsSchema = z.object({
-  query: z.object({
-    page: z
-      .string()
-      .optional()
-      .default('1')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1)),
-    limit: z
-      .string()
-      .optional()
-      .default('10')
-      .transform(Number)
-      .pipe(z.number().int().positive().min(1).max(100)),
-    examId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
-    userId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
-  }),
-});
-
-// ==================== REQUEST TYPES ====================
+// ==================== EXPORTED TYPES ====================
 
 export type StartExamParams = z.infer<typeof startExamSchema>['params'];
 export type GetUserExamsQuery = z.infer<typeof getUserExamsSchema>['query'];
 export type GetUserExamParams = z.infer<typeof getUserExamSchema>['params'];
 export type GetExamQuestionsParams = z.infer<typeof getExamQuestionsSchema>['params'];
-export type GetExamQuestionsQuery = z.infer<typeof getExamQuestionsSchema>['query'];
 export type SubmitAnswerParams = z.infer<typeof submitAnswerSchema>['params'];
 export type SubmitAnswerInput = z.infer<typeof submitAnswerSchema>['body'];
 export type GetExamAnswersParams = z.infer<typeof getExamAnswersSchema>['params'];
@@ -204,7 +152,7 @@ export type SubmitExamParams = z.infer<typeof submitExamSchema>['params'];
 export type GetMyResultsQuery = z.infer<typeof getMyResultsSchema>['query'];
 export type GetResultsQuery = z.infer<typeof getResultsSchema>['query'];
 
-// ==================== RESPONSE TYPES ====================
+// ==================== RESPONSE INTERFACES ====================
 
 /**
  * Question for participant (without correct answer)
@@ -280,7 +228,6 @@ export interface StartExamResponse {
  * Submit answer response
  */
 export interface SubmitAnswerResponse {
-  message: string;
   answer: {
     examQuestionId: number;
     selectedOption: string | null;
