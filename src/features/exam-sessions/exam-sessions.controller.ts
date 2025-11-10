@@ -163,24 +163,6 @@ export const getExamAnswers = async (
 };
 
 /**
- * Get my results summary controller
- * GET /api/v1/results/me/summary
- *
- * @access Private (Authenticated users)
- */
-export const getMyResultsSummary = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const userId = req.user!.id;
-
-  const summary = await examSessionsService.getMyResultsSummary(userId);
-
-  sendSuccess(res, summary, SUCCESS_MESSAGES.RESULTS_SUMMARY_RETRIEVED, HTTP_STATUS.OK);
-};
-
-/**
  * Get my results controller
  * GET /api/v1/results/me
  *

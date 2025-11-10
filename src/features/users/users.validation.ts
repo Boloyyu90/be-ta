@@ -146,18 +146,6 @@ export const getUserSchema = z.object({
 });
 
 /**
- * Schema for getting user statistics
- * GET /api/v1/users/:id/stats
- *
- * @access Admin only
- */
-export const getUserStatsSchema = z.object({
-  params: z.object({
-    id: userIdParamSchema,
-  }),
-});
-
-/**
  * Schema for updating user
  * PATCH /api/v1/users/:id
  *
@@ -206,7 +194,6 @@ export type UpdateMeInput = z.infer<typeof updateMeSchema>['body'];
 export type UpdateUserParams = z.infer<typeof updateUserSchema>['params'];
 export type UpdateUserInput = z.infer<typeof updateUserSchema>['body'];
 export type DeleteUserParams = z.infer<typeof deleteUserSchema>['params'];
-export type GetUserStatsParams = z.infer<typeof getUserStatsSchema>['params'];
 
 // ==================== RESPONSE TYPES ====================
 
@@ -231,42 +218,6 @@ export interface UserDetailData extends UserPublicData {
     createdExams: number;
     userExams: number;
   };
-}
-
-/**
- * User statistics response
- */
-export interface UserStatsResponse {
-  user: {
-    id: number;
-    name: string;
-    email: string;
-    role: UserRole;
-    createdAt: Date;
-  };
-  examStats: {
-    total: number;
-    finished: number;
-    inProgress: number;
-    cancelled: number;
-  };
-  scoreStats: {
-    average: number;
-    highest: number;
-    lowest: number;
-  };
-  recentActivity: Array<{
-    id: number;
-    status: string;
-    startedAt: Date | null;
-    submittedAt: Date | null;
-    totalScore: number | null;
-    exam: {
-      id: number;
-      title: string;
-    };
-  }>;
-  proctoringViolations: number;
 }
 
 /**

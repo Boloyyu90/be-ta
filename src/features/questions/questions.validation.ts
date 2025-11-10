@@ -154,41 +154,7 @@ export const getQuestionsSchema = z.object({
   }),
 });
 
-/**
- * Schema for bulk creating questions
- * POST /api/v1/admin/questions/bulk
- *
- * @access Admin only
- */
-export const bulkCreateQuestionsSchema = z.object({
-  body: z.object({
-    questions: z
-      .array(
-        z.object({
-          content: z
-            .string({ required_error: 'Content is required' })
-            .min(10, 'Content must be at least 10 characters')
-            .max(5000, 'Content must not exceed 5000 characters')
-            .trim(),
-          options: optionsSchema,
-          correctAnswer: correctAnswerSchema,
-          questionType: z.nativeEnum(QuestionType, {
-            errorMap: () => ({ message: 'Question type must be TIU, TWK, or TKP' }),
-          }),
-          defaultScore: z
-            .number()
-            .int('Score must be an integer')
-            .positive('Score must be positive')
-            .min(1, 'Score must be at least 1')
-            .max(100, 'Score must not exceed 100')
-            .optional()
-            .default(1),
-        })
-      )
-      .min(1, 'At least one question is required')
-      .max(100, 'Cannot create more than 100 questions at once'),
-  }),
-});
+
 
 // ==================== REQUEST TYPES ====================
 
@@ -198,7 +164,6 @@ export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>['body'];
 export type GetQuestionParams = z.infer<typeof getQuestionSchema>['params'];
 export type DeleteQuestionParams = z.infer<typeof deleteQuestionSchema>['params'];
 export type GetQuestionsQuery = z.infer<typeof getQuestionsSchema>['query'];
-export type BulkCreateQuestionsInput = z.infer<typeof bulkCreateQuestionsSchema>['body'];
 
 // ==================== RESPONSE TYPES ====================
 
@@ -250,12 +215,4 @@ export interface QuestionResponse {
 export interface QuestionDeletedResponse {
   success: boolean;
   message: string;
-}
-
-/**
- * Bulk create response
- */
-export interface BulkCreateResponse {
-  created: number;
-  questions: QuestionData[];
 }

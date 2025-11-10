@@ -35,39 +35,6 @@ adminExamsRouter.get(
 );
 
 /**
- * @route   POST /api/v1/admin/exams/:id/clone
- * @desc    Clone exam with all questions
- * @access  Admin only
- */
-adminExamsRouter.post(
-  '/:id/clone',
-  validate(examsValidation.cloneExamSchema),
-  asyncHandler(examsController.cloneExam)
-);
-
-/**
- * @route   GET /api/v1/admin/exams/:id/stats
- * @desc    Get exam statistics (participants, scores, etc)
- * @access  Admin only
- */
-adminExamsRouter.get(
-  '/:id/stats',
-  validate(examsValidation.getExamStatsSchema),
-  asyncHandler(examsController.getExamStats)
-);
-
-/**
- * @route   PATCH /api/v1/admin/exams/:id/questions/reorder
- * @desc    Reorder exam questions
- * @access  Admin only
- */
-adminExamsRouter.patch(
-  '/:id/questions/reorder',
-  validate(examsValidation.reorderQuestionsSchema),
-  asyncHandler(examsController.reorderQuestions)
-);
-
-/**
  * @route   GET /api/v1/admin/exams/:id/questions
  * @desc    Get exam questions with correct answers
  * @access  Admin only

@@ -24,17 +24,6 @@ adminQuestionsRouter.post(
 );
 
 /**
- * @route   POST /api/v1/admin/questions/bulk
- * @desc    Bulk create questions
- * @access  Admin only
- */
-adminQuestionsRouter.post(
-  '/bulk',
-  validate(questionsValidation.bulkCreateQuestionsSchema),
-  asyncHandler(questionsController.bulkCreateQuestions)
-);
-
-/**
  * @route   GET /api/v1/admin/questions
  * @desc    Get all questions with pagination and filters
  * @access  Admin only

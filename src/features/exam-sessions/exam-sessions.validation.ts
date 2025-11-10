@@ -55,12 +55,6 @@ export const getUserExamsSchema = z.object({
       .default('10')
       .transform(Number)
       .pipe(z.number().int().positive().min(1).max(100)),
-    status: z.nativeEnum(ExamStatus).optional(),
-    sortBy: z
-      .enum(['createdAt', 'startedAt', 'submittedAt'])
-      .optional()
-      .default('createdAt'),
-    sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
 
@@ -140,16 +134,6 @@ export const submitExamSchema = z.object({
 });
 
 /**
- * Schema for getting results summary
- * GET /api/v1/results/me/summary
- *
- * @access Authenticated users
- */
-export const getMyResultsSummarySchema = z.object({
-  query: z.object({}),
-});
-
-/**
  * Schema for listing user's exam results
  * GET /api/v1/results/me
  *
@@ -203,9 +187,6 @@ export const getResultsSchema = z.object({
       .optional()
       .transform((val) => (val ? Number(val) : undefined))
       .pipe(z.number().int().positive().optional()),
-    status: z.nativeEnum(ExamStatus).optional(),
-    sortBy: z.enum(['createdAt', 'submittedAt', 'totalScore']).optional().default('createdAt'),
-    sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
 
@@ -220,7 +201,6 @@ export type SubmitAnswerParams = z.infer<typeof submitAnswerSchema>['params'];
 export type SubmitAnswerInput = z.infer<typeof submitAnswerSchema>['body'];
 export type GetExamAnswersParams = z.infer<typeof getExamAnswersSchema>['params'];
 export type SubmitExamParams = z.infer<typeof submitExamSchema>['params'];
-export type GetMyResultsSummaryInput = z.infer<typeof getMyResultsSummarySchema>;
 export type GetMyResultsQuery = z.infer<typeof getMyResultsSchema>['query'];
 export type GetResultsQuery = z.infer<typeof getResultsSchema>['query'];
 
@@ -370,18 +350,6 @@ export interface ExamResult {
 export interface SubmitExamResponse {
   message: string;
   result: ExamResult;
-}
-
-/**
- * Results summary response
- */
-export interface ResultsSummaryResponse {
-  taken: number;
-  avgScore: number;
-  passed: number;
-  passRate: number;
-  highestScore: number;
-  lowestScore: number;
 }
 
 /**

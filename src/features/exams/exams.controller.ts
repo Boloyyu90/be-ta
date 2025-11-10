@@ -15,7 +15,6 @@ import type {
   DetachQuestionsInput,
   GetExamQuestionsParams,
   GetExamQuestionsQuery,
-  CloneExamParams,
 } from './exams.validation';
 
 /**
@@ -139,30 +138,6 @@ export const deleteExam = async (
 };
 
 /**
- * Clone/duplicate exam controller
- * POST /api/v1/admin/exams/:id/clone
- *
- * @access Private (Admin only)
- */
-export const cloneExam = async (
-  req: Request<CloneExamParams>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { id } = req.params;
-  const userId = req.user!.id;
-
-  const exam = await examsService.cloneExam(id, userId);
-
-  sendSuccess(
-    res,
-    { exam },
-    SUCCESS_MESSAGES.EXAM_CLONED,
-    HTTP_STATUS.CREATED
-  );
-};
-
-/**
  * Attach questions to exam controller
  * POST /api/v1/admin/exams/:id/questions
  *
@@ -211,31 +186,6 @@ export const detachQuestions = async (
 };
 
 /**
- * Reorder exam questions controller
- * PATCH /api/v1/admin/exams/:id/questions/reorder
- *
- * @access Private (Admin only - creator)
- */
-export const reorderQuestions = async (
-  req: Request<AttachQuestionsParams, {}, { questionIds: number[] }>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { id } = req.params;
-  const userId = req.user!.id;
-  const { questionIds } = req.body;
-
-  const result = await examsService.reorderQuestions(id, userId, questionIds);
-
-  sendSuccess(
-    res,
-    result,
-    SUCCESS_MESSAGES.QUESTIONS_REORDERED,
-    HTTP_STATUS.OK
-  );
-};
-
-/**
  * Get exam questions controller
  * GET /api/v1/admin/exams/:id/questions
  *
@@ -255,30 +205,6 @@ export const getExamQuestions = async (
     res,
     { questions, total: questions.length },
     SUCCESS_MESSAGES.EXAM_QUESTIONS_RETRIEVED,
-    HTTP_STATUS.OK
-  );
-};
-
-/**
- * Get exam statistics controller
- * GET /api/v1/admin/exams/:id/stats
- *
- * @access Private (Admin only - creator)
- */
-export const getExamStats = async (
-  req: Request<GetExamParams>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { id } = req.params;
-  const userId = req.user!.id;
-
-  const stats = await examsService.getExamStats(id, userId);
-
-  sendSuccess(
-    res,
-    stats,
-    SUCCESS_MESSAGES.EXAM_STATISTICS_RETRIEVED,
     HTTP_STATUS.OK
   );
 };

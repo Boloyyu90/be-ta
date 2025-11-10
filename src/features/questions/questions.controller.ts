@@ -9,7 +9,6 @@ import type {
   GetQuestionsQuery,
   GetQuestionParams,
   DeleteQuestionParams,
-  BulkCreateQuestionsInput,
 } from './questions.validation';
 
 /**
@@ -120,23 +119,3 @@ export const deleteQuestion = async (
   );
 };
 
-/**
- * Bulk create questions controller
- * POST /api/v1/admin/questions/bulk
- *
- * @access Private (Admin only)
- */
-export const bulkCreateQuestions = async (
-  req: Request<{}, {}, BulkCreateQuestionsInput>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const result = await questionsService.bulkCreateQuestions(req.body);
-
-  sendSuccess(
-    res,
-    result, // Contains: { created: number, questions: [...] }
-    SUCCESS_MESSAGES.QUESTIONS_BULK_CREATED,
-    HTTP_STATUS.CREATED
-  );
-};

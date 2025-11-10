@@ -155,26 +155,6 @@ export const deleteExamSchema = z.object({
 });
 
 /**
- * Schema for cloning exam
- * POST /api/v1/admin/exams/:id/clone
- */
-export const cloneExamSchema = z.object({
-  params: z.object({
-    id: examIdParamSchema,
-  }),
-});
-
-/**
- * Schema for getting exam statistics
- * GET /api/v1/admin/exams/:id/stats
- */
-export const getExamStatsSchema = z.object({
-  params: z.object({
-    id: examIdParamSchema,
-  }),
-});
-
-/**
  * Schema for listing exams
  * GET /api/v1/admin/exams
  * GET /api/v1/exams
@@ -246,23 +226,6 @@ export const detachQuestionsSchema = z.object({
 });
 
 /**
- * Schema for reordering questions
- * PATCH /api/v1/admin/exams/:id/questions/reorder
- */
-export const reorderQuestionsSchema = z.object({
-  params: z.object({
-    id: examIdParamSchema,
-  }),
-  body: z.object({
-    questionIds: z
-      .array(z.number().int().positive(), {
-        required_error: 'Question IDs are required',
-      })
-      .min(1, 'At least one question must be provided'),
-  }),
-});
-
-/**
  * Schema for getting exam questions with filters
  * GET /api/v1/admin/exams/:id/questions
  */
@@ -282,14 +245,11 @@ export type UpdateExamParams = z.infer<typeof updateExamSchema>['params'];
 export type UpdateExamInput = z.infer<typeof updateExamSchema>['body'];
 export type GetExamParams = z.infer<typeof getExamSchema>['params'];
 export type DeleteExamParams = z.infer<typeof deleteExamSchema>['params'];
-export type CloneExamParams = z.infer<typeof cloneExamSchema>['params'];
-export type GetExamStatsParams = z.infer<typeof getExamStatsSchema>['params'];
 export type GetExamsQuery = z.infer<typeof getExamsSchema>['query'];
 export type AttachQuestionsParams = z.infer<typeof attachQuestionsSchema>['params'];
 export type AttachQuestionsInput = z.infer<typeof attachQuestionsSchema>['body'];
 export type DetachQuestionsParams = z.infer<typeof detachQuestionsSchema>['params'];
 export type DetachQuestionsInput = z.infer<typeof detachQuestionsSchema>['body'];
-export type ReorderQuestionsInput = z.infer<typeof reorderQuestionsSchema>['body'];
 export type GetExamQuestionsParams = z.infer<typeof getExamQuestionsSchema>['params'];
 export type GetExamQuestionsQuery = z.infer<typeof getExamQuestionsSchema>['query'];
 
@@ -344,30 +304,6 @@ export interface ExamWithQuestionsData extends ExamDetailData {
 }
 
 /**
- * Exam statistics
- */
-export interface ExamStatsResponse {
-  exam: {
-    id: number;
-    title: string;
-    totalQuestions: number;
-  };
-  participantStats: {
-    total: number;
-    finished: number;
-    inProgress: number;
-    completionRate: number;
-  };
-  scoreStats: {
-    average: number;
-    highest: number;
-    lowest: number;
-    passRate: number;
-    passed: number;
-  };
-}
-
-/**
  * Paginated exams list
  */
 export interface ExamsListResponse {
@@ -419,13 +355,4 @@ export interface AttachQuestionsResponse {
 export interface DetachQuestionsResponse {
   message: string;
   detached: number;
-}
-
-/**
- * Reorder questions response
- */
-export interface ReorderQuestionsResponse {
-  success: boolean;
-  message: string;
-  count: number;
 }

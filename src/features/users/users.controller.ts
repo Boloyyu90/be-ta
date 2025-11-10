@@ -161,24 +161,3 @@ export const deleteUser = async (
   );
 };
 
-/**
- * Get user statistics controller
- * GET /api/v1/users/:id/stats
- *
- * @access Private (Admin only)
- */
-export const getUserStats = async (
-  req: Request<GetUserParams>,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { id } = req.params;
-  const stats = await usersService.getUserStats(id);
-
-  sendSuccess(
-    res,
-    stats,
-    SUCCESS_MESSAGES.USER_STATISTICS_RETRIEVED,
-    HTTP_STATUS.OK
-  );
-};

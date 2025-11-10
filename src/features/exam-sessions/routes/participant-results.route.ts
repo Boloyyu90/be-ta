@@ -11,18 +11,6 @@ export const participantResultsRouter = Router();
 // Mounted at: /api/v1/results
 // Authorization: Authenticated users (enforced at parent router)
 // =================================================================
-
-/**
- * @route   GET /api/v1/results/summary
- * @desc    Get summary statistics of my exam results
- * @access  Authenticated users
- */
-participantResultsRouter.get(
-  '/summary',
-  validate(examSessionsValidation.getMyResultsSummarySchema),
-  asyncHandler(examSessionsController.getMyResultsSummary)
-);
-
 /**
  * @route   GET /api/v1/results
  * @desc    Get my exam results with pagination

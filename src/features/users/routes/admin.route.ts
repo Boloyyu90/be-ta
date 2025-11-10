@@ -35,17 +35,6 @@ adminUsersRouter.get(
 );
 
 /**
- * @route   GET /api/v1/admin/users/:id/stats
- * @desc    Get user statistics and activity
- * @access  Admin only
- */
-adminUsersRouter.get(
-  '/:id/stats',
-  validate(usersValidation.getUserStatsSchema),
-  asyncHandler(usersController.getUserStats)
-);
-
-/**
  * @route   GET /api/v1/admin/users/:id
  * @desc    Get user by ID with details
  * @access  Admin only

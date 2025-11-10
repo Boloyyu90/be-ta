@@ -98,7 +98,6 @@ v1Router.use('/exam-sessions', authenticate, participantExamSessionsRouter);
  * Base: /api/v1/results
  *
  * Routes:
- * - GET /api/v1/results/summary (my statistics)
  * - GET /api/v1/results (my results list)
  */
 v1Router.use('/results', authenticate, participantResultsRouter);
