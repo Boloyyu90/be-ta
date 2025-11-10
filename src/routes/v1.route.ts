@@ -124,7 +124,6 @@ adminRouter.use(authenticate, authorize(UserRole.ADMIN));
  * - POST /api/v1/admin/users (create user)
  * - GET /api/v1/admin/users (list users)
  * - GET /api/v1/admin/users/:id (get user details)
- * - GET /api/v1/admin/users/:id/stats (user statistics)
  * - PATCH /api/v1/admin/users/:id (update user)
  * - DELETE /api/v1/admin/users/:id (delete user)
  */
@@ -140,7 +139,6 @@ adminRouter.use('/users', adminUsersRouter);
  * - GET /api/v1/admin/exams/:id (get exam details)
  * - PATCH /api/v1/admin/exams/:id (update exam)
  * - DELETE /api/v1/admin/exams/:id (delete exam)
- * - GET /api/v1/admin/exams/:id/stats (exam statistics)
  * - POST /api/v1/admin/exams/:id/questions (attach questions)
  * - DELETE /api/v1/admin/exams/:id/questions (detach questions)
  * - GET /api/v1/admin/exams/:id/questions (get questions with answers)
@@ -173,7 +171,6 @@ adminRouter.use('/results', adminResultsRouter);
  *
  * Routes:
  * - POST /api/v1/admin/questions (create question)
- * - POST /api/v1/admin/questions/bulk (bulk create)
  * - GET /api/v1/admin/questions (list questions)
  * - GET /api/v1/admin/questions/:id (get question)
  * - PATCH /api/v1/admin/questions/:id (update question)
@@ -265,7 +262,6 @@ if (process.env.NODE_ENV === 'development') {
           'POST /api/v1/admin/users',
           'GET /api/v1/admin/users',
           'GET /api/v1/admin/users/:id',
-          'GET /api/v1/admin/users/:id/stats',
           'PATCH /api/v1/admin/users/:id',
           'DELETE /api/v1/admin/users/:id',
 
@@ -275,14 +271,12 @@ if (process.env.NODE_ENV === 'development') {
           'GET /api/v1/admin/exams/:id',
           'PATCH /api/v1/admin/exams/:id',
           'DELETE /api/v1/admin/exams/:id',
-          'GET /api/v1/admin/exams/:id/stats',
           'POST /api/v1/admin/exams/:id/questions',
           'DELETE /api/v1/admin/exams/:id/questions',
           'GET /api/v1/admin/exams/:id/questions',
 
           // Questions
           'POST /api/v1/admin/questions',
-          'POST /api/v1/admin/questions/bulk',
           'GET /api/v1/admin/questions',
           'GET /api/v1/admin/questions/:id',
           'PATCH /api/v1/admin/questions/:id',

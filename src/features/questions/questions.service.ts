@@ -7,7 +7,6 @@ import type {
   CreateQuestionInput,
   UpdateQuestionInput,
   GetQuestionsQuery,
-  BulkCreateQuestionsInput,
 } from './questions.validation';
 
 // ==================== TYPES ====================
