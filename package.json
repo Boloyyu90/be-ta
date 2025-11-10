@@ -51,6 +51,7 @@
     "@types/pino": "^7.0.4",
     "@types/pino-http": "^5.8.4",
     "@types/pino-pretty": "^4.7.5",
+    "@types/socket.io": "^3.0.2",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^4.0.3",
@@ -78,6 +79,7 @@
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
     "pino-pretty": "^13.0.0",
+    "socket.io": "^4.8.1",
     "uni-response": "^1.0.3",
     "zod": "^3.24.2"
   }

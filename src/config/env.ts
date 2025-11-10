@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default('3000'),
 
   DATABASE_URL: z.string().url(),
+  CORS_ORIGIN: z.string().default('*'),
 
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_ACCESS_EXPIRATION_MINUTES: z.string().transform(Number).default('30'),

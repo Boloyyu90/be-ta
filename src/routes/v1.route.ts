@@ -11,7 +11,6 @@ import { authRouter } from '@/features/auth/routes/participant.route';
 
 // Participant routes
 import { selfRouter } from '@/features/users/routes/participant.route';
-import { participantDashboardRouter } from '@/features/dashboard/routes/participant.route';
 import { participantExamsRouter } from '@/features/exams/routes/participant.route';
 import { participantExamSessionsRouter } from '@/features/exam-sessions/routes/participant.route';
 import { participantResultsRouter } from '@/features/exam-sessions/routes/participant-results.route';
@@ -58,15 +57,6 @@ v1Router.use('/auth', authRouter);
  * - PATCH /api/v1/me (update profile)
  */
 v1Router.use('/me', authenticate, selfRouter);
-
-/**
- * Dashboard routes
- * Base: /api/v1/dashboard
- *
- * Routes:
- * - GET /api/v1/dashboard (overview with stats)
- */
-v1Router.use('/dashboard', authenticate, participantDashboardRouter);
 
 /**
  * Exam browsing routes
@@ -247,9 +237,6 @@ if (process.env.NODE_ENV === 'development') {
           // Self-management
           'GET /api/v1/me',
           'PATCH /api/v1/me',
-
-          // Dashboard
-          'GET /api/v1/dashboard',
 
           // Exams
           'GET /api/v1/exams',

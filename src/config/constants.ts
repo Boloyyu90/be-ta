@@ -183,7 +183,6 @@ export const SUCCESS_MESSAGES = {
   QUESTIONS_RETRIEVED: 'Questions retrieved successfully',
   QUESTIONS_ATTACHED: 'Questions attached to exam successfully',
   QUESTIONS_DETACHED: 'Questions detached from exam successfully',
-  QUESTIONS_BULK_CREATED: 'Questions created successfully',
 
   // ==================== PROCTORING ====================
   PROCTORING_EVENT_LOGGED: 'Proctoring event logged successfully',
