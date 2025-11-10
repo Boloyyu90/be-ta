@@ -159,7 +159,6 @@ export const SUCCESS_MESSAGES = {
   EXAM_RETRIEVED: 'Exam retrieved successfully',
   EXAMS_RETRIEVED: 'Exams retrieved successfully',
   AVAILABLE_EXAMS_RETRIEVED: 'Available exams retrieved successfully',
-  EXAM_CLONED: 'Exam cloned successfully',
   EXAM_STATISTICS_RETRIEVED: 'Exam statistics retrieved successfully',
 
   // ==================== EXAM SESSION ====================
@@ -184,7 +183,6 @@ export const SUCCESS_MESSAGES = {
   QUESTIONS_RETRIEVED: 'Questions retrieved successfully',
   QUESTIONS_ATTACHED: 'Questions attached to exam successfully',
   QUESTIONS_DETACHED: 'Questions detached from exam successfully',
-  QUESTIONS_REORDERED: 'Questions reordered successfully',
   QUESTIONS_BULK_CREATED: 'Questions created successfully',
 
   // ==================== PROCTORING ====================

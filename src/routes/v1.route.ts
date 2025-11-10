@@ -150,11 +150,9 @@ adminRouter.use('/users', adminUsersRouter);
  * - GET /api/v1/admin/exams/:id (get exam details)
  * - PATCH /api/v1/admin/exams/:id (update exam)
  * - DELETE /api/v1/admin/exams/:id (delete exam)
- * - POST /api/v1/admin/exams/:id/clone (clone exam)
  * - GET /api/v1/admin/exams/:id/stats (exam statistics)
  * - POST /api/v1/admin/exams/:id/questions (attach questions)
  * - DELETE /api/v1/admin/exams/:id/questions (detach questions)
- * - PATCH /api/v1/admin/exams/:id/questions/reorder (reorder questions)
  * - GET /api/v1/admin/exams/:id/questions (get questions with answers)
  */
 adminRouter.use('/exams', adminExamsRouter);
@@ -290,11 +288,9 @@ if (process.env.NODE_ENV === 'development') {
           'GET /api/v1/admin/exams/:id',
           'PATCH /api/v1/admin/exams/:id',
           'DELETE /api/v1/admin/exams/:id',
-          'POST /api/v1/admin/exams/:id/clone',
           'GET /api/v1/admin/exams/:id/stats',
           'POST /api/v1/admin/exams/:id/questions',
           'DELETE /api/v1/admin/exams/:id/questions',
-          'PATCH /api/v1/admin/exams/:id/questions/reorder',
           'GET /api/v1/admin/exams/:id/questions',
 
           // Questions
