@@ -2,7 +2,6 @@ import app from './app';
 import { env } from './config/env';
 import { disconnectDatabase } from './config/database';
 import { logger } from './shared/utils/logger';
-import { initializeProctoringSocket } from './shared/websocket/proctoring.socket';
 
 const PORT = env.PORT;
 
@@ -15,9 +14,6 @@ const server = app.listen(PORT, () => {
   logger.info('');
   logger.info('Press CTRL+C to stop');
 });
-
-const io = initializeProctoringSocket(server);
-logger.info('🔌 WebSocket initialized on /proctoring namespace');
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {
