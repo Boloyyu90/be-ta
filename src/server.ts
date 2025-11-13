@@ -1,6 +1,7 @@
 import app from './app';
 import { env } from './config/env';
 import { disconnectDatabase } from './config/database';
+import { runAllCleanupTasks } from '@/features/exam-sessions/exam-sessions.service';
 import { logger } from './shared/utils/logger';
 
 const PORT = env.PORT;
@@ -14,6 +15,14 @@ const server = app.listen(PORT, () => {
   logger.info('');
   logger.info('Press CTRL+C to stop');
 });
+
+setInterval(async () => {
+  try {
+    await runAllCleanupTasks();
+  } catch (error) {
+    logger.error({ error }, 'Cleanup failed');
+  }
+}, 5 * 60 * 1000);
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {

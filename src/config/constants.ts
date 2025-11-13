@@ -225,6 +225,19 @@ export const PROCTORING_SEVERITY = {
   HIGH: 'HIGH',
 } as const;
 
+export const PROCTORING_CONFIG = {
+  // Maximum violations before auto-canceling exam
+  MAX_HIGH_VIOLATIONS: 3,      // 3 high-severity violations = exam cancelled
+  MAX_MEDIUM_VIOLATIONS: 10,   // 10 medium-severity violations = exam cancelled
+
+  // Severity weights for scoring violations
+  SEVERITY_WEIGHTS: {
+    HIGH: 1.0,    // Full weight
+    MEDIUM: 0.5,  // Half weight
+    LOW: 0.0,     // No weight (informational only)
+  },
+} as const;
+
 // ==================== ML ERROR MESSAGES ====================
 
 export const ML_ERROR_MESSAGES = {

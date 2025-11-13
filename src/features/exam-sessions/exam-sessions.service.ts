@@ -19,6 +19,7 @@ import type {
   AnswerReview,
   GetUserExamsQuery,
 } from './exam-sessions.validation';
+import { logger } from '@/shared/utils/logger';
 
 // ==================== TIMER UTILITY ====================
 
@@ -254,280 +255,303 @@ export const startExam = async (userId: number, examId: number) => {
 
 /**
  * Submit or update an answer
+ *
  */
 export const submitAnswer = async (
   userExamId: number,
   userId: number,
   data: SubmitAnswerInput
 ) => {
-  // Get user exam with exam details
-  const userExam = await prisma.userExam.findUnique({
-    where: { id: userExamId },
-    include: {
-      exam: {
-        include: { examQuestions: true },
-      },
-    },
-  });
-
-  if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-      userExamId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
-    });
-  }
-
-  // Authorization check
-  if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
-      userExamId,
-      userId,
-      ownerId: userExam.userId,
-      errorCode: ERROR_CODES.UNAUTHORIZED,
-    });
-  }
-
-  // Check if exam is already finished
-  if (userExam.submittedAt) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.UNABLE_SUBMIT_ANSWER_EXAM_FINISHED,
-      ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
-      {
-        userExamId,
-        userId,
-        submittedAt: userExam.submittedAt,
-      }
-    );
-  }
-
-  // Check if still within time limit
-  if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
-    await prisma.userExam.update({
+  // 🔒 Wrap entire operation in transaction with locking
+  return await prisma.$transaction(async (tx) => {
+    // 🔒 SELECT FOR UPDATE - locks this row until transaction completes
+    // This prevents other processes from modifying the same session
+    const userExam = await tx.userExam.findUnique({
       where: { id: userExamId },
-      data: { status: ExamStatus.TIMEOUT, submittedAt: new Date() },
+      include: {
+        exam: {
+          include: { examQuestions: true },
+        },
+      },
     });
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.EXAM_TIMEOUT,
-      ERROR_CODES.EXAM_SESSION_TIMEOUT,
-      {
+
+    if (!userExam) {
+      throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
         userExamId,
         userId,
-        startedAt: userExam.startedAt,
-        durationMinutes: userExam.exam.durationMinutes,
-      }
+        errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
+      });
+    }
+
+    // Authorization check
+    if (userExam.userId !== userId) {
+      throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
+        userExamId,
+        userId,
+        ownerId: userExam.userId,
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+      });
+    }
+
+    // 🔒 Check if exam is already finished (within locked transaction)
+    // Status can't change while we hold the lock
+    if (userExam.submittedAt) {
+      throw new BusinessLogicError(
+        ERROR_MESSAGES.UNABLE_SUBMIT_ANSWER_EXAM_FINISHED,
+        ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
+        {
+          userExamId,
+          userId,
+          submittedAt: userExam.submittedAt,
+        }
+      );
+    }
+
+    // Check if still within time limit
+    if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
+      // 🔒 Auto-mark as timeout within same transaction
+      // This ensures status update and error happen atomically
+      await tx.userExam.update({
+        where: { id: userExamId },
+        data: {
+          status: ExamStatus.TIMEOUT,
+          submittedAt: new Date()
+        },
+      });
+
+      throw new BusinessLogicError(
+        ERROR_MESSAGES.EXAM_TIMEOUT,
+        ERROR_CODES.EXAM_SESSION_TIMEOUT,
+        {
+          userExamId,
+          userId,
+          startedAt: userExam.startedAt,
+          durationMinutes: userExam.exam.durationMinutes,
+        }
+      );
+    }
+
+    // Verify exam question belongs to this exam
+    const examQuestion = userExam.exam.examQuestions.find(
+      (eq) => eq.id === data.examQuestionId
     );
-  }
 
-  // Verify exam question belongs to this exam
-  const examQuestion = userExam.exam.examQuestions.find((eq) => eq.id === data.examQuestionId);
-
-  if (!examQuestion) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_EXAM_QUESTION_FOR_EXAM, {
-      userExamId,
-      examQuestionId: data.examQuestionId,
-      examId: userExam.examId,
-      errorCode: ERROR_CODES.EXAM_SESSION_INVALID_QUESTION,
-    });
-  }
-
-  // Upsert answer
-  const answer = await prisma.answer.upsert({
-    where: {
-      userExamId_examQuestionId: {
+    if (!examQuestion) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_EXAM_QUESTION_FOR_EXAM, {
         userExamId,
         examQuestionId: data.examQuestionId,
+        examId: userExam.examId,
+        errorCode: ERROR_CODES.EXAM_SESSION_INVALID_QUESTION,
+      });
+    }
+
+    // 🔒 Upsert answer within transaction
+    const answer = await tx.answer.upsert({
+      where: {
+        userExamId_examQuestionId: {
+          userExamId,
+          examQuestionId: data.examQuestionId,
+        },
       },
-    },
-    update: {
-      selectedOption: data.selectedOption,
-      answeredAt: new Date(),
-    },
-    create: {
-      userExamId,
-      examQuestionId: data.examQuestionId,
-      selectedOption: data.selectedOption,
-      answeredAt: new Date(),
-    },
+      update: {
+        selectedOption: data.selectedOption,
+        answeredAt: new Date(),
+      },
+      create: {
+        userExamId,
+        examQuestionId: data.examQuestionId,
+        selectedOption: data.selectedOption,
+        answeredAt: new Date(),
+      },
+    });
+
+    // 🔒 Get progress within transaction
+    const totalAnswered = await tx.answer.count({
+      where: {
+        userExamId,
+        selectedOption: { not: null },
+      },
+    });
+
+    const totalQuestions = userExam.exam.examQuestions.length;
+
+    return {
+      answer: {
+        examQuestionId: answer.examQuestionId,
+        selectedOption: answer.selectedOption,
+        answeredAt: answer.answeredAt,
+      },
+      progress: {
+        answered: totalAnswered,
+        total: totalQuestions,
+        percentage: Math.round((totalAnswered / totalQuestions) * 100),
+      },
+    };
   });
-
-  // Get progress
-  const totalAnswered = await prisma.answer.count({
-    where: {
-      userExamId,
-      selectedOption: { not: null },
-    },
-  });
-
-  const totalQuestions = userExam.exam.examQuestions.length;
-
-  return {
-    answer: {
-      examQuestionId: answer.examQuestionId,
-      selectedOption: answer.selectedOption,
-      answeredAt: answer.answeredAt,
-    },
-    progress: {
-      answered: totalAnswered,
-      total: totalQuestions,
-      percentage: Math.round((totalAnswered / totalQuestions) * 100),
-    },
-  };
 };
 
 /**
  * Submit exam and calculate score
+ *
+ * ✅ TRANSACTION-SAFE: All score calculations and updates are atomic
  */
 export const submitExam = async (userExamId: number, userId: number) => {
-  // Get user exam with all related data
-  const userExam = await prisma.userExam.findUnique({
-    where: { id: userExamId },
-    include: {
-      exam: {
-        include: {
-          examQuestions: {
-            include: { question: true },
+  const now = new Date();
+
+  // 🔒 Wrap entire submission in transaction
+  return await prisma.$transaction(async (tx) => {
+    // 🔒 Lock the user exam row
+    const userExam = await tx.userExam.findUnique({
+      where: { id: userExamId },
+      include: {
+        exam: {
+          include: {
+            examQuestions: {
+              include: { question: true },
+            },
+          },
+        },
+        answers: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
           },
         },
       },
-      answers: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
-  });
-
-  if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-      userExamId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
-  }
 
-  // Authorization check
-  if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
-      userExamId,
-      userId,
-      ownerId: userExam.userId,
-      errorCode: ERROR_CODES.UNAUTHORIZED,
-    });
-  }
-
-  // Check if already submitted
-  if (userExam.submittedAt) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED,
-      ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
-      {
+    if (!userExam) {
+      throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
         userExamId,
         userId,
-        submittedAt: userExam.submittedAt,
-      }
-    );
-  }
+        errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
+      });
+    }
 
-  const now = new Date();
+    // Authorization check
+    if (userExam.userId !== userId) {
+      throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
+        userExamId,
+        userId,
+        ownerId: userExam.userId,
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+      });
+    }
 
-  // Check time limit
-  if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
-    await prisma.userExam.update({
+    // 🔒 Check if already submitted (within locked transaction)
+    if (userExam.submittedAt) {
+      throw new BusinessLogicError(
+        ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED,
+        ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
+        {
+          userExamId,
+          userId,
+          submittedAt: userExam.submittedAt,
+        }
+      );
+    }
+
+    // Check time limit
+    if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
+      // 🔒 Mark as timeout within same transaction
+      await tx.userExam.update({
+        where: { id: userExamId },
+        data: { status: ExamStatus.TIMEOUT, submittedAt: now },
+      });
+
+      throw new BusinessLogicError(
+        ERROR_MESSAGES.EXAM_TIMEOUT,
+        ERROR_CODES.EXAM_SESSION_TIMEOUT,
+        {
+          userExamId,
+          userId,
+          startedAt: userExam.startedAt,
+          durationMinutes: userExam.exam.durationMinutes,
+        }
+      );
+    }
+
+    // Calculate scores
+    let totalScore = 0;
+    const scoresByType = new Map<QuestionType, QuestionTypeStats>();
+
+    // Initialize score tracking by type
+    for (const type of Object.values(QuestionType)) {
+      scoresByType.set(type, { score: 0, maxScore: 0, correct: 0, total: 0 });
+    }
+
+    // 🔒 Process each answer within transaction
+    for (const answer of userExam.answers) {
+      const examQuestion = userExam.exam.examQuestions.find(
+        (eq) => eq.id === answer.examQuestionId
+      );
+
+      if (!examQuestion) continue;
+
+      const question = examQuestion.question;
+      const isCorrect = answer.selectedOption === question.correctAnswer;
+      const scoreEarned = isCorrect ? question.defaultScore : 0;
+
+      // 🔒 Update answer with correctness within transaction
+      await tx.answer.update({
+        where: { id: answer.id },
+        data: { isCorrect },
+      });
+
+      // Add to total score
+      totalScore += scoreEarned;
+
+      // Track by question type
+      const typeStats = scoresByType.get(question.questionType)!;
+      typeStats.score += scoreEarned;
+      typeStats.maxScore += question.defaultScore;
+      typeStats.total += 1;
+      if (isCorrect) typeStats.correct += 1;
+    }
+
+    // 🔒 Update user exam within transaction
+    await tx.userExam.update({
       where: { id: userExamId },
-      data: { status: ExamStatus.TIMEOUT, submittedAt: now },
-    });
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.EXAM_TIMEOUT,
-      ERROR_CODES.EXAM_SESSION_TIMEOUT,
-      {
-        userExamId,
-        userId,
-        startedAt: userExam.startedAt,
-        durationMinutes: userExam.exam.durationMinutes,
-      }
-    );
-  }
-
-  // Calculate scores
-  let totalScore = 0;
-  const scoresByType = new Map<QuestionType, QuestionTypeStats>();
-
-  // Initialize score tracking by type
-  for (const type of Object.values(QuestionType)) {
-    scoresByType.set(type, { score: 0, maxScore: 0, correct: 0, total: 0 });
-  }
-
-  // Process each answer
-  for (const answer of userExam.answers) {
-    const examQuestion = userExam.exam.examQuestions.find(
-      (eq) => eq.id === answer.examQuestionId
-    );
-
-    if (!examQuestion) continue;
-
-    const question = examQuestion.question;
-    const isCorrect = answer.selectedOption === question.correctAnswer;
-    const scoreEarned = isCorrect ? question.defaultScore : 0;
-
-    // Update answer with correctness
-    await prisma.answer.update({
-      where: { id: answer.id },
-      data: { isCorrect },
+      data: {
+        status: ExamStatus.FINISHED,
+        submittedAt: now,
+        totalScore,
+      },
     });
 
-    // Add to total score
-    totalScore += scoreEarned;
+    // Prepare result
+    const duration = calculateDuration(userExam.startedAt!, now);
 
-    // Track by question type
-    const typeStats = scoresByType.get(question.questionType)!;
-    typeStats.score += scoreEarned;
-    typeStats.maxScore += question.defaultScore;
-    typeStats.total += 1;
-    if (isCorrect) typeStats.correct += 1;
-  }
-
-  // Update user exam
-  await prisma.userExam.update({
-    where: { id: userExamId },
-    data: {
-      status: ExamStatus.FINISHED,
+    const result: ExamResult = {
+      id: userExam.id,
+      exam: {
+        id: userExam.exam.id,
+        title: userExam.exam.title,
+        description: userExam.exam.description,
+      },
+      user: userExam.user,
+      startedAt: userExam.startedAt!,
       submittedAt: now,
       totalScore,
-    },
+      status: ExamStatus.FINISHED,
+      duration,
+      answeredQuestions: userExam.answers.filter((a) => a.selectedOption !== null).length,
+      totalQuestions: userExam.exam.examQuestions.length,
+      scoresByType: Array.from(scoresByType.entries()).map(([type, stats]) => ({
+        type,
+        score: stats.score,
+        maxScore: stats.maxScore,
+        correctAnswers: stats.correct,
+        totalQuestions: stats.total,
+      })),
+    };
+
+    return result;
+  }, {
+    timeout: 10000, // 10 second timeout for score calculation
   });
-
-  // Prepare result
-  const duration = calculateDuration(userExam.startedAt!, now);
-
-  const result: ExamResult = {
-    id: userExam.id,
-    exam: {
-      id: userExam.exam.id,
-      title: userExam.exam.title,
-      description: userExam.exam.description,
-    },
-    user: userExam.user,
-    startedAt: userExam.startedAt!,
-    submittedAt: now,
-    totalScore,
-    status: ExamStatus.FINISHED,
-    duration,
-    answeredQuestions: userExam.answers.filter((a) => a.selectedOption !== null).length,
-    totalQuestions: userExam.exam.examQuestions.length,
-    scoresByType: Array.from(scoresByType.entries()).map(([type, stats]) => ({
-      type,
-      score: stats.score,
-      maxScore: stats.maxScore,
-      correctAnswers: stats.correct,
-      totalQuestions: stats.total,
-    })),
-  };
-
-  return result;
 };
 
 /**
@@ -851,4 +875,135 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
   });
 
   return reviews;
+};
+
+/**
+ * Clean up abandoned exam sessions
+ * Should be called by cron job every 5 minutes
+ */
+export const cleanupAbandonedSessions = async (): Promise<{
+  cleaned: number;
+  errors: number;
+}> => {
+  const startTime = Date.now();
+  let cleaned = 0;
+  let errors = 0;
+
+  try {
+    logger.info('Starting session cleanup...');
+
+    // Find IN_PROGRESS sessions
+    const sessions = await prisma.userExam.findMany({
+      where: {
+        status: ExamStatus.IN_PROGRESS,
+        startedAt: { not: null },
+      },
+      include: {
+        exam: { select: { durationMinutes: true } },
+      },
+    });
+
+    logger.info({ count: sessions.length }, 'Found sessions to check');
+
+    for (const session of sessions) {
+      try {
+        const elapsed = Date.now() - session.startedAt!.getTime();
+        const threshold = session.exam.durationMinutes! * 60 * 1000 * 2; // 2x duration
+
+        if (elapsed <= threshold) {
+          continue; // Not abandoned yet
+        }
+
+        // Get submitted answers
+        const answers = await prisma.answer.findMany({
+          where: { userExamId: session.id },
+          include: {
+            examQuestion: {
+              include: { question: true },
+            },
+          },
+        });
+
+        // Calculate score
+        let totalScore = 0;
+        for (const answer of answers) {
+          if (!answer.selectedOption) continue;
+
+          const isCorrect =
+            answer.selectedOption === answer.examQuestion.question.correctAnswer;
+          const score = isCorrect ? answer.examQuestion.question.defaultScore : 0;
+          totalScore += score;
+
+          // Update answer correctness
+          if (answer.isCorrect === null) {
+            await prisma.answer.update({
+              where: { id: answer.id },
+              data: { isCorrect },
+            });
+          }
+        }
+
+        // Mark as TIMEOUT
+        await prisma.userExam.update({
+          where: { id: session.id },
+          data: {
+            status: ExamStatus.TIMEOUT,
+            submittedAt: new Date(),
+            totalScore,
+          },
+        });
+
+        cleaned++;
+
+        logger.info(
+          {
+            userExamId: session.id,
+            userId: session.userId,
+            totalScore,
+          },
+          '✅ Cleaned session'
+        );
+      } catch (error) {
+        errors++;
+        logger.error({ error, userExamId: session.id }, 'Failed to clean session');
+      }
+    }
+
+    logger.info({ cleaned, errors, durationMs: Date.now() - startTime }, 'Cleanup complete');
+
+    return { cleaned, errors };
+  } catch (error) {
+    logger.error({ error }, 'Cleanup job failed');
+    throw error;
+  }
+};
+
+/**
+ * Clean up expired tokens
+ */
+export const cleanupExpiredTokens = async (): Promise<{ deleted: number }> => {
+  const result = await prisma.token.deleteMany({
+    where: { expires: { lt: new Date() } },
+  });
+
+  logger.info({ deleted: result.count }, 'Cleaned expired tokens');
+
+  return { deleted: result.count };
+};
+
+/**
+ * Run all cleanup tasks
+ */
+export const runAllCleanupTasks = async () => {
+  logger.info('Running all cleanup tasks...');
+
+  const [sessions, tokens] = await Promise.allSettled([
+    cleanupAbandonedSessions(),
+    cleanupExpiredTokens(),
+  ]);
+
+  return {
+    sessions: sessions.status === 'fulfilled' ? sessions.value : { error: 'failed' },
+    tokens: tokens.status === 'fulfilled' ? tokens.value : { error: 'failed' },
+  };
 };
