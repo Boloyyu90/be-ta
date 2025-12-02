@@ -1,0 +1,95 @@
+# Docker Compose for Exam Proctoring System
+# Includes: PostgreSQL, Node.js Backend, Python ML Service
+
+version: '3.8'
+
+services:
+  # ==================== DATABASE ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: proctoring_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-proctoring_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-proctoring_pass}
+      POSTGRES_DB: ${DB_NAME:-proctoring_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-proctoring_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proctoring_network
+
+  # ==================== NODE.JS BACKEND ====================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: proctoring_backend
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-proctoring_user}:${DB_PASSWORD:-proctoring_pass}@postgres:5432/${DB_NAME:-proctoring_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
+      JWT_ACCESS_EXPIRATION_MINUTES: 30
+      JWT_REFRESH_EXPIRATION_DAYS: 30
+      CORS_ORIGIN: "*"
+      # ML Configuration
+      YOLO_ENABLED: "true"
+      YOLO_SERVICE_URL: http://ml-service:8000
+      ML_ANALYSIS_TIMEOUT_MS: 5000
+      ML_FALLBACK_TO_MOCK: "true"
+      ML_WARMUP_ON_STARTUP: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+    networks:
+      - proctoring_network
+
+  # ==================== PYTHON ML SERVICE ====================
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: proctoring_ml
+    environment:
+      YOLO_MODEL_PATH: ./models/yolov8n-face.pt
+      CONFIDENCE_THRESHOLD: "0.5"
+      MAX_IMAGE_SIZE: "1280"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml-service/models:/app/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - proctoring_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+# ==================== VOLUMES ====================
+volumes:
+  postgres_data:
+
+# ==================== NETWORKS ====================
+networks:
+  proctoring_network:
+    driver: bridge

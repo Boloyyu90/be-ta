@@ -44,6 +44,10 @@ const envSchema = z.object({
     .optional()
     .default('true')
     .transform((val) => val === 'true'),
+  YOLO_SERVICE_URL: z
+    .string()
+    .optional()
+    .default('http://localhost:8000'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -47,3 +47,15 @@ participantProctoringRouter.get(
   validate(proctoringValidation.getEventsSchema),
   asyncHandler(proctoringController.getEvents)
 );
+
+/**
+ * @route   POST /api/v1/proctoring/exams/:examId/verify-webcam
+ * @desc    Verify webcam before starting exam
+ * @access  Authenticated users
+ */
+participantProctoringRouter.post(
+  '/exams/:examId/verify-webcam',
+  proctoringLimiter,
+  validate(proctoringValidation.verifyWebcamSchema),
+  asyncHandler(proctoringController.verifyWebcam)
+);
