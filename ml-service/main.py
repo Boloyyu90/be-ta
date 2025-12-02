@@ -2,11 +2,11 @@
 YOLO Face Detection Microservice
 ================================
 
-FastAPI service for face detection using YOLOv8-face model.
+FastAPI service for face detection using YOLOv8 model.
 Designed to be called from Node.js backend for proctoring system.
 
 Author: Bala (Thesis Project)
-Model: YOLOv8n-face (lightweight, suitable for real-time detection)
+Model: YOLOv8n (auto-download from Ultralytics)
 """
 
 import os
@@ -15,6 +15,7 @@ import time
 import logging
 from io import BytesIO
 from typing import Optional
+from contextlib import asynccontextmanager
 
 import numpy as np
 from PIL import Image
@@ -33,16 +34,51 @@ logger = logging.getLogger(__name__)
 
 # ==================== CONFIGURATION ====================
 
-MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "./models/yolov8n-face.pt")
+MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")  # ✅ Auto-download
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
 MAX_IMAGE_SIZE = int(os.getenv("MAX_IMAGE_SIZE", "1280"))
+
+# ==================== GLOBAL STATE ====================
+
+yolo_model: Optional[YOLO] = None
+
+# ==================== LIFESPAN EVENT HANDLER ====================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup/shutdown"""
+    global yolo_model
+
+    # STARTUP
+    logger.info(f"🔥 Loading YOLO model from: {MODEL_PATH}")
+
+    try:
+        # ✅ Load model (Ultralytics will auto-download if needed)
+        yolo_model = YOLO(MODEL_PATH)
+
+        # Warmup with dummy inference
+        logger.info("⏳ Warming up model...")
+        dummy_image = np.zeros((640, 640, 3), dtype=np.uint8)
+        yolo_model(dummy_image, verbose=False)
+
+        logger.info("✅ YOLO model loaded and warmed up")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to load model: {e}")
+        logger.info("⚠️ Service will run without model (for testing)")
+
+    yield  # App is running
+
+    # SHUTDOWN
+    logger.info("👋 Shutting down...")
 
 # ==================== APPLICATION ====================
 
 app = FastAPI(
     title="YOLO Face Detection Service",
     description="Microservice for exam proctoring face detection",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan  # ✅ Use lifespan handler
 )
 
 # CORS configuration
@@ -76,10 +112,6 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_path: str
     confidence_threshold: float
-
-# ==================== GLOBAL STATE ====================
-
-yolo_model: Optional[YOLO] = None
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -140,26 +172,6 @@ def estimate_looking_away(boxes: list, image_width: int) -> bool:
 
 # ==================== ENDPOINTS ====================
 
-@app.on_event("startup")
-async def load_model():
-    """Load YOLO model on startup"""
-    global yolo_model
-
-    logger.info(f"Loading YOLO model from: {MODEL_PATH}")
-
-    try:
-        if os.path.exists(MODEL_PATH):
-            yolo_model = YOLO(MODEL_PATH)
-            # Warmup with dummy inference
-            dummy_image = np.zeros((640, 640, 3), dtype=np.uint8)
-            yolo_model(dummy_image, verbose=False)
-            logger.info("✅ YOLO model loaded and warmed up")
-        else:
-            logger.error(f"❌ Model file not found: {MODEL_PATH}")
-            logger.info("Service will run without model (for testing)")
-    except Exception as e:
-        logger.error(f"❌ Failed to load model: {e}")
-
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
@@ -185,7 +197,7 @@ async def analyze_face(request: AnalyzeRequest):
     # Check model availability
     if yolo_model is None:
         # Return mock response if model not loaded (development mode)
-        logger.warning("Model not loaded, returning mock response")
+        logger.warning("⚠️ Model not loaded, returning mock response")
         return AnalyzeResponse(
             success=True,
             face_count=1,
@@ -207,15 +219,17 @@ async def analyze_face(request: AnalyzeRequest):
             verbose=False
         )
 
-        # Extract detections
+        # Extract detections (class 0 = person in COCO dataset)
         boxes = []
         confidences = []
 
         for result in results:
             if result.boxes is not None:
                 for box in result.boxes:
-                    boxes.append(box.xyxy[0].tolist())
-                    confidences.append(float(box.conf[0]))
+                    # Filter for person class (class_id = 0)
+                    if int(box.cls[0]) == 0:  # ✅ Only count "person" detections
+                        boxes.append(box.xyxy[0].tolist())
+                        confidences.append(float(box.conf[0]))
 
         # Calculate metrics
         face_count = len(boxes)
@@ -225,7 +239,7 @@ async def analyze_face(request: AnalyzeRequest):
         processing_time_ms = (time.time() - start_time) * 1000
 
         logger.info(
-            f"Analysis complete: {face_count} faces, "
+            f"✅ Analysis complete: {face_count} faces, "
             f"conf={confidence:.2f}, "
             f"looking_away={looking_away}, "
             f"time={processing_time_ms:.1f}ms"
@@ -241,10 +255,10 @@ async def analyze_face(request: AnalyzeRequest):
         )
 
     except ValueError as e:
-        logger.error(f"Invalid image: {e}")
+        logger.error(f"❌ Invalid image: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
+        logger.error(f"❌ Analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
@@ -253,6 +267,7 @@ async def root():
     return {
         "service": "YOLO Face Detection",
         "version": "1.0.0",
+        "model": "YOLOv8n (standard)",
         "endpoints": {
             "health": "GET /health",
             "analyze": "POST /analyze"
