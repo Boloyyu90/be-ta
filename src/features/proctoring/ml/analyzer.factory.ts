@@ -1,26 +1,24 @@
 /**
- * Face Analyzer Factory - Updated for Iteration 2
+ * Face Analyzer Factory
  *
- * Creates appropriate face analyzer based on environment configuration.
- * Now properly integrates YOLO client for production use.
+ * Factory untuk membuat instance face analyzer berdasarkan environment.
+ * - Production: YOLO client → Python microservice
+ * - Development: Mock analyzer → deterministic responses
  *
- * @module FaceAnalyzerFactory
+ * @module analyzer.factory
  */
-
 import { env } from '@/config/env';
 import { logger } from '@/shared/utils/logger';
 import { MockFaceAnalyzer } from './mock-analyzer.service';
 import { YOLOFaceAnalyzer } from './yolo-client.service';
 
-// ==================== TYPES ====================
-
 /**
- * Analysis status enum
+ * Status hasil analisis wajah
  */
 export type AnalysisStatus = 'success' | 'error' | 'timeout';
 
 /**
- * Violation types detected by analyzer
+ * Jenis pelanggaran yang terdeteksi
  */
 export type ViolationType =
   | 'NO_FACE_DETECTED'
@@ -29,7 +27,7 @@ export type ViolationType =
   | 'FACE_DETECTED'; // Normal state
 
 /**
- * ML-agnostic face analysis result
+ * Hasil analisis wajah (ML-agnostic)
  */
 export interface FaceAnalysisResult {
   status: AnalysisStatus;
@@ -46,7 +44,8 @@ export interface FaceAnalysisResult {
 }
 
 /**
- * Face analyzer interface
+ * Interface Face Analyzer
+ * Semua implementasi analyzer harus mengikuti interface ini
  */
 export interface IFaceAnalyzer {
   analyze(imageBase64: string): Promise<FaceAnalysisResult>;
@@ -54,15 +53,15 @@ export interface IFaceAnalyzer {
   warmup(): Promise<void>;
 }
 
-// ==================== FACTORY ====================
+
 
 /**
- * Create face analyzer instance based on environment
+ * Factory: Buat analyzer berdasarkan environment
  *
  * Decision tree:
- * 1. If YOLO_ENABLED=true → YOLOFaceAnalyzer (calls Python service)
- * 2. If YOLO_ENABLED=false → MockFaceAnalyzer (for development)
- * 3. If YOLO fails and ML_FALLBACK_TO_MOCK=true → Fallback to Mock
+ * 1. YOLO_ENABLED=true → YOLOFaceAnalyzer (production)
+ * 2. YOLO_ENABLED=false → MockFaceAnalyzer (development)
+ * 3. YOLO gagal + ML_FALLBACK_TO_MOCK=true → Fallback ke Mock
  */
 export const createFaceAnalyzer = (): IFaceAnalyzer => {
   if (env.YOLO_ENABLED) {
@@ -77,14 +76,13 @@ export const createFaceAnalyzer = (): IFaceAnalyzer => {
   return new MockFaceAnalyzer();
 };
 
-// ==================== SINGLETON ====================
-
+// Singleton instance
 let analyzerInstance: IFaceAnalyzer | null = null;
 let isWarmingUp = false;
 let warmupPromise: Promise<void> | null = null;
 
 /**
- * Get singleton face analyzer instance
+ * Get analyzer instance (singleton pattern)
  */
 export const getFaceAnalyzer = (): IFaceAnalyzer => {
   if (!analyzerInstance) {
@@ -94,7 +92,10 @@ export const getFaceAnalyzer = (): IFaceAnalyzer => {
 };
 
 /**
- * Warmup face analyzer with fallback support
+ * Warmup analyzer dengan fallback support
+ *
+ * Kalau YOLO service gagal dan ML_FALLBACK_TO_MOCK=true,
+ * otomatis fallback ke mock analyzer.
  */
 export const warmupFaceAnalyzer = async (): Promise<void> => {
   if (isWarmingUp && warmupPromise) {
@@ -130,7 +131,7 @@ export const warmupFaceAnalyzer = async (): Promise<void> => {
         '❌ Face analyzer warmup failed'
       );
 
-      // Fallback to mock if enabled
+      // Fallback ke mock jika enabled
       if (env.ML_FALLBACK_TO_MOCK) {
         logger.warn('⚠️ Falling back to mock analyzer');
         analyzerInstance = new MockFaceAnalyzer();
@@ -148,7 +149,7 @@ export const warmupFaceAnalyzer = async (): Promise<void> => {
 };
 
 /**
- * Check if analyzer is ready
+ * Check apakah analyzer sudah ready
  */
 export const isAnalyzerReady = (): boolean => {
   return analyzerInstance?.isReady() ?? false;

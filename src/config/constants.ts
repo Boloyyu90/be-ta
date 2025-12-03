@@ -2,8 +2,10 @@ export const APP_NAME = 'be-ta';
 export const API_VERSION = 'v1';
 export const SALT_ROUNDS = 10;
 
-// ==================== HTTP STATUS CODES ====================
-
+/**
+ * HTTP Status Codes
+ * Kumpulan status code yang digunakan di seluruh aplikasi
+ */
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
@@ -16,31 +18,31 @@ export const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500,
 } as const;
 
-// ==================== ERROR MESSAGES ====================
-
 /**
- * Centralized error messages for consistency across the application
- * Organized by module/domain for easy maintenance
+ * Error Messages
+ *
+ * Pesan error yang konsisten untuk seluruh aplikasi.
+ * Dikelompokkan berdasarkan modul/domain untuk memudahkan maintenance.
  */
 export const ERROR_MESSAGES = {
-  // ==================== GENERAL ERRORS ====================
+  // Generik
   UNAUTHORIZED: 'Unauthorized',
   FORBIDDEN: 'Forbidden',
   VALIDATION_ERROR: 'Validation error',
 
-  // ==================== AUTH ERRORS ====================
+ // Auth
   INVALID_CREDENTIALS: 'Invalid email or password',
   EMAIL_EXISTS: 'Email already exists',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token',
   TOKEN_NOT_FOUND: 'Token not found',
   TOKEN_EXPIRED: 'Token has expired',
 
-  // ==================== USER ERRORS ====================
+  // User
   USER_NOT_FOUND: 'User not found',
   USER_HAS_EXAM_ATTEMPTS: 'Cannot delete user with exam attempts. This is for data preservation.',
   USER_HAS_CREATED_EXAMS: 'Cannot delete user who created exams. Transfer ownership first.',
 
-  // ==================== EXAM ERRORS ====================
+  // Exam
   EXAM_NOT_FOUND: 'Exam not found',
   EXAM_HAS_NO_QUESTIONS: 'Exam has no questions',
   EXAM_HAS_NO_DURATION_SET: 'Exam duration not set',
@@ -49,7 +51,7 @@ export const ERROR_MESSAGES = {
   CANNOT_DELETE_EXAM_WITH_ATTEMPTS: 'Cannot delete exam with participant attempts',
   CANNOT_UPDATE_ACTIVE_EXAM_DURATION: 'Cannot update duration while exam sessions are active',
 
-  // ==================== EXAM SESSION ERRORS ====================
+  // Exam Session
   EXAM_SESSION_NOT_FOUND: 'Exam session not found',
   EXAM_ALREADY_STARTED: 'You have already started this exam',
   EXAM_TIMEOUT: 'Exam time limit exceeded',
@@ -61,7 +63,7 @@ export const ERROR_MESSAGES = {
   REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT: 'Cannot review answers before submitting exam',
   FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION: 'Failed to create or retrieve exam session',
 
-  // ==================== QUESTION ERRORS ====================
+  // Question
   QUESTION_NOT_FOUND: 'Question not found',
   QUESTIONS_NOT_FOUND: 'One or more questions not found',
   INVALID_OPTIONS_FORMAT: 'Invalid options format. Must have exactly 5 keys: A, B, C, D, E',
@@ -69,36 +71,36 @@ export const ERROR_MESSAGES = {
   CANNOT_DELETE_QUESTION_IN_USE: 'Cannot delete question that is used in exams',
   QUESTION_IN_USE: 'Question is currently used in one or more exams',
 
-  // ==================== PROCTORING ERRORS ====================
+  // Proctoring
   USER_EXAM_NOT_FOUND: 'User exam session not found',
   UNAUTHORIZED_VIEW_EVENTS: 'Unauthorized to view proctoring events',
   FAILED_TO_ANALYZE_IMAGE: 'Failed to analyze image',
 } as const;
 
-// ==================== ERROR CODES ====================
+
 
 /**
- * Error codes for programmatic error handling on the client
+ * Error Codes untuk Client-Side Handling
  * Format: [MODULE]_[NUMBER]
  */
 export const ERROR_CODES = {
-  // ==================== GENERAL ====================
+  // Generik
   VALIDATION_ERROR: 'VALIDATION_001',
   UNAUTHORIZED: 'UNAUTHORIZED_001',
   FORBIDDEN: 'FORBIDDEN_001',
 
-  // ==================== AUTH (AUTH_xxx) ====================
+  // Auth (Auth_xxx)
   AUTH_INVALID_CREDENTIALS: 'AUTH_001',
   AUTH_EMAIL_EXISTS: 'AUTH_002',
   AUTH_INVALID_TOKEN: 'AUTH_003',
   AUTH_TOKEN_EXPIRED: 'AUTH_004',
 
-  // ==================== USER (USER_xxx) ====================
+  // User (User_xxx)
   USER_NOT_FOUND: 'USER_001',
   USER_HAS_EXAM_ATTEMPTS: 'USER_002',
   USER_HAS_CREATED_EXAMS: 'USER_003',
 
-  // ==================== EXAM (EXAM_xxx) ====================
+  // Exam (Exam_xxx)
   EXAM_NOT_FOUND: 'EXAM_001',
   EXAM_NO_QUESTIONS: 'EXAM_002',
   EXAM_NO_DURATION: 'EXAM_003',
@@ -107,7 +109,7 @@ export const ERROR_CODES = {
   EXAM_CANNOT_DELETE: 'EXAM_006',
   EXAM_CANNOT_UPDATE: 'EXAM_007',
 
-  // ==================== EXAM SESSION (EXAM_SESSION_xxx) ====================
+  // Exam Session (Exam Session_XXX)
   EXAM_SESSION_NOT_FOUND: 'EXAM_SESSION_001',
   EXAM_SESSION_ALREADY_STARTED: 'EXAM_SESSION_002',
   EXAM_SESSION_TIMEOUT: 'EXAM_SESSION_003',
@@ -118,31 +120,31 @@ export const ERROR_CODES = {
   EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008',
   EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009',
 
-  // ==================== QUESTION (QUESTION_xxx) ====================
+  // Question (Question_xxx)
   QUESTION_NOT_FOUND: 'QUESTION_001',
   QUESTION_INVALID_OPTIONS: 'QUESTION_002',
   QUESTION_INVALID_ANSWER: 'QUESTION_003',
   QUESTION_IN_USE: 'QUESTION_004',
 
-  // ==================== PROCTORING (PROCTORING_xxx) ====================
+  // Proctoring (Proctoring_xxx)
   PROCTORING_ANALYSIS_FAILED: 'PROCTORING_001',
   PROCTORING_DETECTION_FAILED: 'PROCTORING_002',
 } as const;
 
-// ==================== SUCCESS MESSAGES ====================
-
 /**
- * Centralized success messages for API responses
- * Organized by module/domain
+ * Success Messages
+ *
+ * Pesan success yang konsisten untuk seluruh aplikasi.
+ * Dikelompokkan berdasarkan modul/domain untuk memudahkan maintenance.
  */
 export const SUCCESS_MESSAGES = {
-  // ==================== AUTH ====================
+  // Auth
   REGISTRATION_SUCCESS: 'Registration successful',
   LOGIN_SUCCESS: 'Login successful',
   LOGOUT_SUCCESS: 'Logged out successfully',
   TOKEN_REFRESHED: 'Token refreshed successfully',
 
-  // ==================== USER ====================
+  // User
   USER_CREATED: 'User created successfully',
   USER_UPDATED: 'User updated successfully',
   USER_DELETED: 'User deleted successfully',
@@ -152,7 +154,7 @@ export const SUCCESS_MESSAGES = {
   PROFILE_UPDATED: 'Profile updated successfully',
   USER_STATISTICS_RETRIEVED: 'User statistics retrieved successfully',
 
-  // ==================== EXAM ====================
+  // Exam
   EXAM_CREATED: 'Exam created successfully',
   EXAM_UPDATED: 'Exam updated successfully',
   EXAM_DELETED: 'Exam deleted successfully',
@@ -161,7 +163,7 @@ export const SUCCESS_MESSAGES = {
   AVAILABLE_EXAMS_RETRIEVED: 'Available exams retrieved successfully',
   EXAM_STATISTICS_RETRIEVED: 'Exam statistics retrieved successfully',
 
-  // ==================== EXAM SESSION ====================
+  // Exam Session
   EXAM_STARTED: 'Exam started successfully',
   EXAM_SUBMITTED: 'Exam submitted successfully',
   EXAM_FINISHED: 'Exam finished successfully',
@@ -175,7 +177,7 @@ export const SUCCESS_MESSAGES = {
   ANSWER_SUBMITTED: 'Answer submitted successfully',
   ANSWER_SAVED: 'Answer saved successfully',
 
-  // ==================== QUESTION ====================
+  // Question
   QUESTION_CREATED: 'Question created successfully',
   QUESTION_UPDATED: 'Question updated successfully',
   QUESTION_DELETED: 'Question deleted successfully',
@@ -184,21 +186,19 @@ export const SUCCESS_MESSAGES = {
   QUESTIONS_ATTACHED: 'Questions attached to exam successfully',
   QUESTIONS_DETACHED: 'Questions detached from exam successfully',
 
-  // ==================== PROCTORING ====================
+  // Proctoring
   PROCTORING_EVENT_LOGGED: 'Proctoring event logged successfully',
   PROCTORING_EVENTS_RETRIEVED: 'Proctoring events retrieved successfully',
   PROCTORING_ANALYSIS_COMPLETED: 'Face analysis completed successfully',
 
-  // ==================== DASHBOARD ====================
+  // Dashboard
   DASHBOARD_RETRIEVED: 'Dashboard data retrieved successfully',
   STATISTICS_RETRIEVED: 'Statistics retrieved successfully',
 } as const;
 
 
-// ==================== ML/PROCTORING CONSTANTS ====================
-
 /**
- * ML model configuration and thresholds
+ * Konfigurasi ML/Proctoring
  */
 export const ML_CONFIG = {
   // Detection thresholds
@@ -226,11 +226,11 @@ export const PROCTORING_SEVERITY = {
 } as const;
 
 export const PROCTORING_CONFIG = {
-  // Maximum violations before auto-canceling exam
+  // Maximum violations sebelum auto-canceling exam
   MAX_HIGH_VIOLATIONS: 3,      // 3 high-severity violations = exam cancelled
   MAX_MEDIUM_VIOLATIONS: 10,   // 10 medium-severity violations = exam cancelled
 
-  // Severity weights for scoring violations
+  // Severity weights untuk scoring violations peserta
   SEVERITY_WEIGHTS: {
     HIGH: 1.0,    // Full weight
     MEDIUM: 0.5,  // Half weight
@@ -238,8 +238,7 @@ export const PROCTORING_CONFIG = {
   },
 } as const;
 
-// ==================== ML ERROR MESSAGES ====================
-
+// ML Error Messages
 export const ML_ERROR_MESSAGES = {
   MODEL_NOT_FOUND: 'ML model file not found',
   MODEL_LOAD_FAILED: 'Failed to load ML model',
@@ -249,8 +248,7 @@ export const ML_ERROR_MESSAGES = {
   INVALID_IMAGE: 'Invalid or corrupted image data',
 } as const;
 
-// ==================== ML ERROR CODES ====================
-
+// ML Error Codes (ML_xxx)
 export const ML_ERROR_CODES = {
   MODEL_NOT_FOUND: 'ML_001',
   MODEL_LOAD_FAILED: 'ML_002',

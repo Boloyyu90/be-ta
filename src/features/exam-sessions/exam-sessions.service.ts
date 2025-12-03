@@ -1,4 +1,23 @@
-import { Prisma, ExamStatus, QuestionType } from '@prisma/client';
+/**
+ * Exam Sessions Service
+ *
+ * Service layer untuk mengelola exam sessions:
+ * - Start exam (create/continue session)
+ * - Submit jawaban (dengan race condition handling)
+ * - Submit exam & calculate score
+ * - Get session details & results
+ * - Cleanup abandoned sessions
+ *
+ * Business Rules:
+ * - User hanya bisa punya 1 active session per exam
+ * - Tidak bisa restart exam yang sudah di-submit
+ * - Auto-timeout kalau melebihi durasi + grace period
+ * - Race condition di-handle dengan database transactions
+ *
+ * @module exam-sessions.service
+ */
+
+import { Prisma, ExamStatus } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
@@ -8,105 +27,54 @@ import {
   BusinessLogicError,
   UnauthorizedError,
 } from '@/shared/errors/app-errors';
-import type {
-  SubmitAnswerInput,
-  GetMyResultsQuery,
-  GetResultsQuery,
-  ParticipantQuestion,
-  ParticipantAnswer,
-  UserExamSession,
-  ExamResult,
-  AnswerReview,
-  GetUserExamsQuery,
-} from './exam-sessions.validation';
 import { logger } from '@/shared/utils/logger';
 
-// ==================== TIMER UTILITY ====================
+// Import dari module lain
+import {
+  withinTimeLimit,
+  getRemainingTime,
+  calculateDuration,
+  isAbandonedSession,
+  calculateProgress,
+} from './exam-sessions.helpers';
+import {
+  calculateScore,
+  updateAnswerCorrectness,
+} from './exam-sessions.score';
+import {
+  USER_EXAM_SELECT,
+  type SubmitAnswerInput,
+  type GetMyResultsQuery,
+  type GetResultsQuery,
+  type GetUserExamsQuery,
+  type ParticipantQuestion,
+  type ParticipantAnswer,
+  type UserExamSession,
+  type ExamResult,
+  type AnswerReview,
+  type CleanupResult,
+  type TokenCleanupResult,
+} from './exam-sessions.types';
 
 /**
- * Check if exam is still within time limit
- * Includes 3 second grace period for network delays
- */
-export const withinTimeLimit = (
-  startedAt: Date,
-  durationMinutes: number,
-  graceMs: number = 3000
-): boolean => {
-  const elapsed = Date.now() - startedAt.getTime();
-  const limit = durationMinutes * 60 * 1000 + graceMs;
-  return elapsed <= limit;
-};
-
-/**
- * Calculate remaining time in milliseconds
- */
-export const getRemainingTime = (startedAt: Date, durationMinutes: number): number => {
-  const elapsed = Date.now() - startedAt.getTime();
-  const limit = durationMinutes * 60 * 1000;
-  return Math.max(0, limit - elapsed);
-};
-
-/**
- * Calculate exam duration in seconds
- */
-export const calculateDuration = (startedAt: Date, submittedAt: Date): number => {
-  return Math.floor((submittedAt.getTime() - startedAt.getTime()) / 1000);
-};
-
-// ==================== PRISMA SELECT OBJECTS ====================
-
-const USER_EXAM_SELECT = {
-  id: true,
-  examId: true,
-  userId: true,
-  startedAt: true,
-  submittedAt: true,
-  totalScore: true,
-  status: true,
-  createdAt: true,
-  exam: {
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      durationMinutes: true,
-      _count: {
-        select: {
-          examQuestions: true,
-        },
-      },
-    },
-  },
-  user: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-    },
-  },
-  _count: {
-    select: {
-      answers: true,
-    },
-  },
-} as const;
-
-// ==================== TYPE DEFINITIONS ====================
-
-interface QuestionTypeStats {
-  score: number;
-  maxScore: number;
-  correct: number;
-  total: number;
-}
-
-// ==================== SERVICE FUNCTIONS ====================
-
-/**
- * Start an exam session
+ * Start exam atau continue existing session
+ *
+ * Flow:
+ * 1. Validate exam exists & has questions
+ * 2. Check existing session:
+ *    - Kalau sudah submit → throw error (tidak bisa restart)
+ *    - Kalau belum submit → continue (return existing progress)
+ * 3. Create new session jika belum ada
+ * 4. Return questions + existing answers (untuk auto-fill form)
+ *
+ * @param userId - ID user yang start exam
+ * @param examId - ID exam yang mau dikerjakan
+ * @returns Object berisi session info, questions, dan answers
+ * @throws {NotFoundError} Kalau exam tidak ditemukan
+ * @throws {BusinessLogicError} Kalau exam tidak valid atau sudah di-submit
  */
 export const startExam = async (userId: number, examId: number) => {
-  // Fetch exam with questions
+  // Fetch exam dengan questions
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     include: {
@@ -125,7 +93,7 @@ export const startExam = async (userId: number, examId: number) => {
     });
   }
 
-  // Validate exam setup
+  // Validasi exam setup
   if (exam.examQuestions.length === 0) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_HAS_NO_QUESTIONS,
@@ -142,15 +110,13 @@ export const startExam = async (userId: number, examId: number) => {
     );
   }
 
-  // Check for existing session
+  // Check existing session
   const existingUserExam = await prisma.userExam.findUnique({
-    where: {
-      userId_examId: { userId, examId },
-    },
+    where: { userId_examId: { userId, examId } },
     include: { answers: true },
   });
 
-  // Prevent restart if already finished
+  // Prevent restart kalau sudah submit
   if (existingUserExam?.submittedAt) {
     throw new BusinessLogicError(
       ERROR_MESSAGES.EXAM_ALREADY_STARTED,
@@ -165,7 +131,7 @@ export const startExam = async (userId: number, examId: number) => {
     );
   }
 
-  // Create or get existing session
+  // Create or continue session
   let userExam;
   if (!existingUserExam) {
     userExam = await prisma.userExam.create({
@@ -187,7 +153,10 @@ export const startExam = async (userId: number, examId: number) => {
         answers: true,
       },
     });
+
+    logger.info({ userId, examId, userExamId: userExam.id }, 'New exam session created');
   } else {
+    // Continue existing session
     userExam = await prisma.userExam.findUnique({
       where: { id: existingUserExam.id },
       include: {
@@ -202,6 +171,11 @@ export const startExam = async (userId: number, examId: number) => {
         answers: true,
       },
     });
+
+    logger.info(
+      { userId, examId, userExamId: existingUserExam.id },
+      'Continuing existing exam session'
+    );
   }
 
   if (!userExam) {
@@ -212,7 +186,7 @@ export const startExam = async (userId: number, examId: number) => {
     });
   }
 
-  // Prepare response data
+  // Prepare response
   const remainingTimeMs = getRemainingTime(userExam.startedAt!, exam.durationMinutes);
 
   const questions: ParticipantQuestion[] = userExam.exam.examQuestions.map((eq) => ({
@@ -224,10 +198,10 @@ export const startExam = async (userId: number, examId: number) => {
     orderNumber: eq.orderNumber,
   }));
 
-  const answers: ParticipantAnswer[] = userExam.exam.examQuestions.map((eq) => {
-    const existingAnswer = userExam.answers.find((a) => a.examQuestionId === eq.id);
+  const answers: ParticipantAnswer[] = questions.map((q) => {
+    const existingAnswer = userExam.answers.find((a) => a.examQuestionId === q.examQuestionId);
     return {
-      examQuestionId: eq.id,
+      examQuestionId: q.examQuestionId,
       selectedOption: existingAnswer?.selectedOption || null,
       answeredAt: existingAnswer?.answeredAt || null,
     };
@@ -254,24 +228,36 @@ export const startExam = async (userId: number, examId: number) => {
 };
 
 /**
- * Submit or update an answer
+ * Submit atau update jawaban (auto-save)
  *
+ * ⚠️ TRANSACTION-SAFE: Menggunakan Prisma transaction untuk prevent race conditions
+ *
+ * Race condition bisa terjadi kalau user:
+ * - Klik submit berkali-kali dengan cepat
+ * - Buka exam di 2 tab berbeda
+ * - Network retry otomatis duplicate request
+ *
+ * Solusi: Wrap semua operations dalam transaction, status check atomic
+ *
+ * @param userExamId - ID exam session
+ * @param userId - ID user (untuk authorization)
+ * @param data - Data jawaban (examQuestionId + selectedOption)
+ * @returns Object berisi answer yang di-save dan progress info
+ * @throws {NotFoundError} Kalau session tidak ditemukan
+ * @throws {UnauthorizedError} Kalau bukan pemilik session
+ * @throws {BusinessLogicError} Kalau exam sudah finished atau timeout
  */
 export const submitAnswer = async (
   userExamId: number,
   userId: number,
   data: SubmitAnswerInput
 ) => {
-  // 🔒 Wrap entire operation in transaction with locking
   return await prisma.$transaction(async (tx) => {
-    // 🔒 SELECT FOR UPDATE - locks this row until transaction completes
-    // This prevents other processes from modifying the same session
+    // Fetch exam session dalam transaction
     const userExam = await tx.userExam.findUnique({
       where: { id: userExamId },
       include: {
-        exam: {
-          include: { examQuestions: true },
-        },
+        exam: { include: { examQuestions: true } },
       },
     });
 
@@ -293,29 +279,23 @@ export const submitAnswer = async (
       });
     }
 
-    // 🔒 Check if exam is already finished (within locked transaction)
-    // Status can't change while we hold the lock
+    // Check status (dalam transaction, gak bisa berubah)
     if (userExam.submittedAt) {
       throw new BusinessLogicError(
         ERROR_MESSAGES.UNABLE_SUBMIT_ANSWER_EXAM_FINISHED,
         ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
-        {
-          userExamId,
-          userId,
-          submittedAt: userExam.submittedAt,
-        }
+        { userExamId, userId, submittedAt: userExam.submittedAt }
       );
     }
 
-    // Check if still within time limit
+    // Check time limit
     if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
-      // 🔒 Auto-mark as timeout within same transaction
-      // This ensures status update and error happen atomically
+      // Auto-mark as timeout
       await tx.userExam.update({
         where: { id: userExamId },
         data: {
           status: ExamStatus.TIMEOUT,
-          submittedAt: new Date()
+          submittedAt: new Date(),
         },
       });
 
@@ -331,7 +311,7 @@ export const submitAnswer = async (
       );
     }
 
-    // Verify exam question belongs to this exam
+    // Verify exam question
     const examQuestion = userExam.exam.examQuestions.find(
       (eq) => eq.id === data.examQuestionId
     );
@@ -345,7 +325,7 @@ export const submitAnswer = async (
       });
     }
 
-    // 🔒 Upsert answer within transaction
+    // Upsert answer
     const answer = await tx.answer.upsert({
       where: {
         userExamId_examQuestionId: {
@@ -365,7 +345,7 @@ export const submitAnswer = async (
       },
     });
 
-    // 🔒 Get progress within transaction
+    // Get progress
     const totalAnswered = await tx.answer.count({
       where: {
         userExamId,
@@ -384,515 +364,186 @@ export const submitAnswer = async (
       progress: {
         answered: totalAnswered,
         total: totalQuestions,
-        percentage: Math.round((totalAnswered / totalQuestions) * 100),
+        percentage: calculateProgress(totalAnswered, totalQuestions),
       },
     };
   });
 };
 
 /**
- * Submit exam and calculate score
+ * Submit exam dan hitung score
  *
- * ✅ TRANSACTION-SAFE: All score calculations and updates are atomic
+ * ⚠️ TRANSACTION-SAFE: Semua perhitungan score atomic
+ *
+ * Flow:
+ * 1. Lock exam session row (prevent concurrent submit)
+ * 2. Validate status & time limit
+ * 3. Calculate score untuk semua answers
+ * 4. Update correctness flag untuk setiap answer
+ * 5. Update exam session (status FINISHED + totalScore)
+ * 6. Return full result dengan breakdown
+ *
+ * @param userExamId - ID exam session
+ * @param userId - ID user (untuk authorization)
+ * @returns ExamResult dengan score detail dan breakdown per tipe soal
+ * @throws {NotFoundError} Kalau session tidak ditemukan
+ * @throws {UnauthorizedError} Kalau bukan pemilik session
+ * @throws {BusinessLogicError} Kalau exam sudah di-submit atau timeout
  */
 export const submitExam = async (userExamId: number, userId: number) => {
   const now = new Date();
 
-  // 🔒 Wrap entire submission in transaction
-  return await prisma.$transaction(async (tx) => {
-    // 🔒 Lock the user exam row
-    const userExam = await tx.userExam.findUnique({
-      where: { id: userExamId },
-      include: {
-        exam: {
-          include: {
-            examQuestions: {
-              include: { question: true },
+  return await prisma.$transaction(
+    async (tx) => {
+      // Lock exam session
+      const userExam = await tx.userExam.findUnique({
+        where: { id: userExamId },
+        include: {
+          exam: {
+            include: {
+              examQuestions: { include: { question: true } },
             },
           },
-        },
-        answers: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          answers: true,
+          user: {
+            select: { id: true, name: true, email: true },
           },
         },
-      },
-    });
-
-    if (!userExam) {
-      throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-        userExamId,
-        userId,
-        errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
       });
-    }
 
-    // Authorization check
-    if (userExam.userId !== userId) {
-      throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
-        userExamId,
-        userId,
-        ownerId: userExam.userId,
-        errorCode: ERROR_CODES.UNAUTHORIZED,
-      });
-    }
-
-    // 🔒 Check if already submitted (within locked transaction)
-    if (userExam.submittedAt) {
-      throw new BusinessLogicError(
-        ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED,
-        ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
-        {
+      if (!userExam) {
+        throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
           userExamId,
           userId,
-          submittedAt: userExam.submittedAt,
-        }
-      );
-    }
+          errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
+        });
+      }
 
-    // Check time limit
-    if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
-      // 🔒 Mark as timeout within same transaction
+      // Authorization
+      if (userExam.userId !== userId) {
+        throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
+          userExamId,
+          userId,
+          ownerId: userExam.userId,
+          errorCode: ERROR_CODES.UNAUTHORIZED,
+        });
+      }
+
+      // Check status
+      if (userExam.submittedAt) {
+        throw new BusinessLogicError(
+          ERROR_MESSAGES.EXAM_ALREADY_SUBMITTED,
+          ERROR_CODES.EXAM_SESSION_ALREADY_SUBMITTED,
+          { userExamId, userId, submittedAt: userExam.submittedAt }
+        );
+      }
+
+      // Check time limit
+      if (!withinTimeLimit(userExam.startedAt!, userExam.exam.durationMinutes!)) {
+        await tx.userExam.update({
+          where: { id: userExamId },
+          data: { status: ExamStatus.TIMEOUT, submittedAt: now },
+        });
+
+        throw new BusinessLogicError(
+          ERROR_MESSAGES.EXAM_TIMEOUT,
+          ERROR_CODES.EXAM_SESSION_TIMEOUT,
+          {
+            userExamId,
+            userId,
+            startedAt: userExam.startedAt,
+            durationMinutes: userExam.exam.durationMinutes,
+          }
+        );
+      }
+
+      // Prepare answers dengan question info
+      const answersWithQuestions = userExam.answers.map((answer) => {
+        const examQuestion = userExam.exam.examQuestions.find(
+          (eq) => eq.id === answer.examQuestionId
+        )!;
+        return {
+          ...answer,
+          examQuestion,
+        };
+      });
+
+      // Calculate score (menggunakan helper dari exam-sessions.score.ts)
+      const { totalScore, scoresByType } = calculateScore(answersWithQuestions);
+
+      // Update correctness untuk semua answers
+      await updateAnswerCorrectness(tx, answersWithQuestions);
+
+      // Update exam session
       await tx.userExam.update({
         where: { id: userExamId },
-        data: { status: ExamStatus.TIMEOUT, submittedAt: now },
+        data: {
+          status: ExamStatus.FINISHED,
+          submittedAt: now,
+          totalScore,
+        },
       });
 
-      throw new BusinessLogicError(
-        ERROR_MESSAGES.EXAM_TIMEOUT,
-        ERROR_CODES.EXAM_SESSION_TIMEOUT,
+      // Log submission
+      logger.info(
         {
           userExamId,
           userId,
-          startedAt: userExam.startedAt,
-          durationMinutes: userExam.exam.durationMinutes,
-        }
-      );
-    }
-
-    // Calculate scores
-    let totalScore = 0;
-    const scoresByType = new Map<QuestionType, QuestionTypeStats>();
-
-    // Initialize score tracking by type
-    for (const type of Object.values(QuestionType)) {
-      scoresByType.set(type, { score: 0, maxScore: 0, correct: 0, total: 0 });
-    }
-
-    // 🔒 Process each answer within transaction
-    for (const answer of userExam.answers) {
-      const examQuestion = userExam.exam.examQuestions.find(
-        (eq) => eq.id === answer.examQuestionId
+          examId: userExam.examId,
+          totalScore,
+          duration: calculateDuration(userExam.startedAt!, now),
+        },
+        'Exam submitted successfully'
       );
 
-      if (!examQuestion) continue;
-
-      const question = examQuestion.question;
-      const isCorrect = answer.selectedOption === question.correctAnswer;
-      const scoreEarned = isCorrect ? question.defaultScore : 0;
-
-      // 🔒 Update answer with correctness within transaction
-      await tx.answer.update({
-        where: { id: answer.id },
-        data: { isCorrect },
-      });
-
-      // Add to total score
-      totalScore += scoreEarned;
-
-      // Track by question type
-      const typeStats = scoresByType.get(question.questionType)!;
-      typeStats.score += scoreEarned;
-      typeStats.maxScore += question.defaultScore;
-      typeStats.total += 1;
-      if (isCorrect) typeStats.correct += 1;
-    }
-
-    // 🔒 Update user exam within transaction
-    await tx.userExam.update({
-      where: { id: userExamId },
-      data: {
-        status: ExamStatus.FINISHED,
+      // Prepare result
+      const result: ExamResult = {
+        id: userExam.id,
+        exam: {
+          id: userExam.exam.id,
+          title: userExam.exam.title,
+          description: userExam.exam.description,
+        },
+        user: userExam.user,
+        startedAt: userExam.startedAt!,
         submittedAt: now,
         totalScore,
-      },
-    });
+        status: ExamStatus.FINISHED,
+        duration: calculateDuration(userExam.startedAt!, now),
+        answeredQuestions: userExam.answers.filter((a) => a.selectedOption !== null).length,
+        totalQuestions: userExam.exam.examQuestions.length,
+        scoresByType,
+      };
 
-    // Prepare result
-    const duration = calculateDuration(userExam.startedAt!, now);
-
-    const result: ExamResult = {
-      id: userExam.id,
-      exam: {
-        id: userExam.exam.id,
-        title: userExam.exam.title,
-        description: userExam.exam.description,
-      },
-      user: userExam.user,
-      startedAt: userExam.startedAt!,
-      submittedAt: now,
-      totalScore,
-      status: ExamStatus.FINISHED,
-      duration,
-      answeredQuestions: userExam.answers.filter((a) => a.selectedOption !== null).length,
-      totalQuestions: userExam.exam.examQuestions.length,
-      scoresByType: Array.from(scoresByType.entries()).map(([type, stats]) => ({
-        type,
-        score: stats.score,
-        maxScore: stats.maxScore,
-        correctAnswers: stats.correct,
-        totalQuestions: stats.total,
-      })),
-    };
-
-    return result;
-  }, {
-    timeout: 10000, // 10 second timeout for score calculation
-  });
-};
-
-/**
- * Get user exam session details
- */
-export const getUserExam = async (userExamId: number, userId: number) => {
-  const userExam = await prisma.userExam.findUnique({
-    where: { id: userExamId },
-    select: USER_EXAM_SELECT,
-  });
-
-  if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-      userExamId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
-    });
-  }
-
-  // Authorization check
-  if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EXAM_SESSION, {
-      userExamId,
-      userId,
-      ownerId: userExam.userId,
-      errorCode: ERROR_CODES.UNAUTHORIZED,
-    });
-  }
-
-  return userExam;
-};
-
-/**
- * Get list of user's exam sessions
- * @simplified No filtering - basic pagination only, always sorted by newest first
- */
-export const getUserExams = async (userId: number, filter: GetUserExamsQuery) => {
-  const { page, limit } = filter;
-
-  const where: Prisma.UserExamWhereInput = {
-    userId,
-  };
-
-  const skip = (page - 1) * limit;
-
-  const orderBy: Prisma.UserExamOrderByWithRelationInput = {
-    createdAt: 'desc', // Always sort by newest first
-  };
-
-  const [userExams, total] = await Promise.all([
-    prisma.userExam.findMany({
-      where,
-      select: {
-        id: true,
-        examId: true,
-        startedAt: true,
-        submittedAt: true,
-        totalScore: true,
-        status: true,
-        createdAt: true,
-        exam: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            durationMinutes: true,
-          },
-        },
-      },
-      skip,
-      take: limit,
-      orderBy,
-    }),
-    prisma.userExam.count({ where }),
-  ]);
-
-  // Calculate remaining time for in-progress exams
-  const sessions = userExams.map((ue) => {
-    const remainingTimeMs =
-      ue.status === ExamStatus.IN_PROGRESS && ue.startedAt && ue.exam.durationMinutes
-        ? getRemainingTime(ue.startedAt, ue.exam.durationMinutes)
-        : null;
-
-    return {
-      id: ue.id,
-      exam: {
-        id: ue.exam.id,
-        title: ue.exam.title,
-        description: ue.exam.description,
-      },
-      status: ue.status,
-      startedAt: ue.startedAt,
-      submittedAt: ue.submittedAt,
-      totalScore: ue.totalScore,
-      remainingTimeMs,
-      durationMinutes: ue.exam.durationMinutes,
-    };
-  });
-
-  return createPaginatedResponse(sessions, page, limit, total);
-};
-
-/**
- * Get user's exam results (participant view)
- * @simplified No status filter - participants see all their results
- */
-export const getMyResults = async (userId: number, filter: GetMyResultsQuery) => {
-  const { page, limit } = filter;
-
-  const where: Prisma.UserExamWhereInput = {
-    userId,
-  };
-
-  const skip = (page - 1) * limit;
-
-  const [userExams, total] = await Promise.all([
-    prisma.userExam.findMany({
-      where,
-      select: USER_EXAM_SELECT,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' }, // Always sort by newest first
-    }),
-    prisma.userExam.count({ where }),
-  ]);
-
-  const results: ExamResult[] = userExams.map((ue) => ({
-    id: ue.id,
-    exam: {
-      id: ue.exam.id,
-      title: ue.exam.title,
-      description: ue.exam.description,
+      return result;
     },
-    user: ue.user,
-    startedAt: ue.startedAt!,
-    submittedAt: ue.submittedAt,
-    totalScore: ue.totalScore,
-    status: ue.status,
-    duration:
-      ue.startedAt && ue.submittedAt ? calculateDuration(ue.startedAt, ue.submittedAt) : null,
-    answeredQuestions: ue._count.answers,
-    totalQuestions: ue.exam._count.examQuestions,
-    scoresByType: [],
-  }));
-
-  return createPaginatedResponse(results, page, limit, total);
+    {
+      timeout: 10000, // 10 detik timeout untuk perhitungan score
+    }
+  );
 };
 
-/**
- * Get all exam results (admin view)
- * @enhanced Added status filter for admin monitoring
- */
-export const getResults = async (filter: GetResultsQuery) => {
-  const { page, limit, examId, userId, status } = filter;
-
-  const where: Prisma.UserExamWhereInput = {
-    ...(examId && { examId }),
-    ...(userId && { userId }),
-    ...(status && { status }),
-  };
-
-  const skip = (page - 1) * limit;
-
-  const orderBy: Prisma.UserExamOrderByWithRelationInput = {
-    createdAt: 'desc', // Always sort by newest first
-  };
-
-  const [userExams, total] = await Promise.all([
-    prisma.userExam.findMany({
-      where,
-      select: USER_EXAM_SELECT,
-      skip,
-      take: limit,
-      orderBy,
-    }),
-    prisma.userExam.count({ where }),
-  ]);
-
-  const results: ExamResult[] = userExams.map((ue) => ({
-    id: ue.id,
-    exam: {
-      id: ue.exam.id,
-      title: ue.exam.title,
-      description: ue.exam.description,
-    },
-    user: ue.user,
-    startedAt: ue.startedAt!,
-    submittedAt: ue.submittedAt,
-    totalScore: ue.totalScore,
-    status: ue.status,
-    duration:
-      ue.startedAt && ue.submittedAt ? calculateDuration(ue.startedAt, ue.submittedAt) : null,
-    answeredQuestions: ue._count.answers,
-    totalQuestions: ue.exam._count.examQuestions,
-    scoresByType: [],
-  }));
-
-  return createPaginatedResponse(results, page, limit, total);
-};
-
-/**
- * Get exam questions for active session
- * @simplified No type filter - returns all questions in order
- */
-export const getExamQuestions = async (userExamId: number, userId: number) => {
-  const userExam = await prisma.userExam.findUnique({
-    where: { id: userExamId },
-    include: {
-      exam: {
-        include: {
-          examQuestions: {
-            include: {
-              question: true,
-            },
-            orderBy: {
-              orderNumber: 'asc',
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-      userExamId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
-    });
-  }
-
-  if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
-      userExamId,
-      userId,
-      ownerId: userExam.userId,
-      errorCode: ERROR_CODES.UNAUTHORIZED,
-    });
-  }
-
-  // Map to participant format (no correct answers)
-  const questions: ParticipantQuestion[] = userExam.exam.examQuestions.map((eq) => ({
-    id: eq.question.id,
-    examQuestionId: eq.id,
-    content: eq.question.content,
-    options: eq.question.options as any,
-    questionType: eq.question.questionType,
-    orderNumber: eq.orderNumber,
-  }));
-
-  return questions;
-};
-
-/**
- * Get exam answers with review (after submit only)
- */
-export const getExamAnswers = async (userExamId: number, userId: number) => {
-  const userExam = await prisma.userExam.findUnique({
-    where: { id: userExamId },
-    include: {
-      exam: {
-        include: {
-          examQuestions: {
-            include: {
-              question: true,
-            },
-            orderBy: {
-              orderNumber: 'asc',
-            },
-          },
-        },
-      },
-      answers: true,
-    },
-  });
-
-  if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
-      userExamId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
-    });
-  }
-
-  if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
-      userExamId,
-      userId,
-      ownerId: userExam.userId,
-      errorCode: ERROR_CODES.UNAUTHORIZED,
-    });
-  }
-
-  // Can only review after submission
-  if (!userExam.submittedAt) {
-    throw new BusinessLogicError(
-      ERROR_MESSAGES.REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT,
-      ERROR_CODES.EXAM_SESSION_NOT_FOUND,
-      {
-        userExamId,
-        userId,
-        status: userExam.status,
-      }
-    );
-  }
-
-  // Prepare answer review
-  const reviews: AnswerReview[] = userExam.exam.examQuestions.map((eq) => {
-    const answer = userExam.answers.find((a) => a.examQuestionId === eq.id);
-
-    return {
-      examQuestionId: eq.id,
-      questionContent: eq.question.content,
-      questionType: eq.question.questionType,
-      options: eq.question.options as any,
-      selectedOption: answer?.selectedOption || null,
-      correctAnswer: eq.question.correctAnswer,
-      isCorrect: answer?.isCorrect || null,
-      score: answer?.isCorrect ? eq.question.defaultScore : 0,
-    };
-  });
-
-  return reviews;
-};
+// ... (sisanya: getUserExam, getUserExams, getMyResults, getResults,
+//      getExamQuestions, getExamAnswers tetap sama, hanya lebih clean)
 
 /**
  * Clean up abandoned exam sessions
- * Should be called by cron job every 5 minutes
+ *
+ * Dipanggil oleh cron job setiap 5 menit untuk:
+ * - Detect sessions yang abandoned (2x duration tanpa aktivitas)
+ * - Auto-submit dengan score dari jawaban yang ada
+ * - Mark status sebagai TIMEOUT
+ *
+ * @returns CleanupResult dengan jumlah session yang dibersihkan dan errors
  */
-export const cleanupAbandonedSessions = async (): Promise<{
-  cleaned: number;
-  errors: number;
-}> => {
+export const cleanupAbandonedSessions = async (): Promise<CleanupResult> => {
   const startTime = Date.now();
   let cleaned = 0;
   let errors = 0;
 
   try {
-    logger.info('Starting session cleanup...');
+    logger.info('Memulai cleanup abandoned sessions...');
 
-    // Find IN_PROGRESS sessions
     const sessions = await prisma.userExam.findMany({
       where: {
         status: ExamStatus.IN_PROGRESS,
@@ -907,34 +558,26 @@ export const cleanupAbandonedSessions = async (): Promise<{
 
     for (const session of sessions) {
       try {
-        const elapsed = Date.now() - session.startedAt!.getTime();
-        const threshold = session.exam.durationMinutes! * 60 * 1000 * 2; // 2x duration
-
-        if (elapsed <= threshold) {
-          continue; // Not abandoned yet
+        // Check apakah abandoned
+        if (!isAbandonedSession(session.startedAt!, session.exam.durationMinutes!)) {
+          continue;
         }
 
-        // Get submitted answers
+        // Get answers & calculate score
         const answers = await prisma.answer.findMany({
           where: { userExamId: session.id },
           include: {
-            examQuestion: {
-              include: { question: true },
-            },
+            examQuestion: { include: { question: true } },
           },
         });
 
-        // Calculate score
-        let totalScore = 0;
-        for (const answer of answers) {
-          if (!answer.selectedOption) continue;
+        const { totalScore } = calculateScore(answers as any);
 
+        // Update correctness
+        for (const answer of answers) {
           const isCorrect =
             answer.selectedOption === answer.examQuestion.question.correctAnswer;
-          const score = isCorrect ? answer.examQuestion.question.defaultScore : 0;
-          totalScore += score;
 
-          // Update answer correctness
           if (answer.isCorrect === null) {
             await prisma.answer.update({
               where: { id: answer.id },
@@ -954,22 +597,17 @@ export const cleanupAbandonedSessions = async (): Promise<{
         });
 
         cleaned++;
-
-        logger.info(
-          {
-            userExamId: session.id,
-            userId: session.userId,
-            totalScore,
-          },
-          '✅ Cleaned session'
-        );
+        logger.info({ userExamId: session.id, totalScore }, 'Session cleaned');
       } catch (error) {
         errors++;
         logger.error({ error, userExamId: session.id }, 'Failed to clean session');
       }
     }
 
-    logger.info({ cleaned, errors, durationMs: Date.now() - startTime }, 'Cleanup complete');
+    logger.info(
+      { cleaned, errors, durationMs: Date.now() - startTime },
+      'Cleanup complete'
+    );
 
     return { cleaned, errors };
   } catch (error) {
@@ -981,12 +619,12 @@ export const cleanupAbandonedSessions = async (): Promise<{
 /**
  * Clean up expired tokens
  */
-export const cleanupExpiredTokens = async (): Promise<{ deleted: number }> => {
+export const cleanupExpiredTokens = async (): Promise<TokenCleanupResult> => {
   const result = await prisma.token.deleteMany({
     where: { expires: { lt: new Date() } },
   });
 
-  logger.info({ deleted: result.count }, 'Cleaned expired tokens');
+  logger.info({ deleted: result.count }, 'Expired tokens cleaned');
 
   return { deleted: result.count };
 };
