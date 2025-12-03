@@ -16,7 +16,7 @@ export interface PaginatedResponse<T> {
 }
 
 /**
- * Create pagination metadata
+ * Membuat pagination metadata
  */
 export const createPaginationMeta = (
   page: number,
@@ -36,7 +36,7 @@ export const createPaginationMeta = (
 };
 
 /**
- * Create paginated response
+ * Membuat paginated response
  */
 export const createPaginatedResponse = <T>(
   data: T[],

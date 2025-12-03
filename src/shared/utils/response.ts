@@ -1,7 +1,7 @@
 import { Response } from 'express';
 
 /**
- * Standardized API response interface
+ * Standarisasi API Response
  */
 interface ApiResponse<T = any> {
   success: boolean;
@@ -12,12 +12,12 @@ interface ApiResponse<T = any> {
     message: string;
   }>;
   errorCode?: string;
-  context?: Record<string, any>; // For debugging in development
+  context?: Record<string, any>; // Untuk debugging di fase development
   timestamp?: string;
 }
 
 /**
- * Send success response with consistent format
+ * Mengirim success response dengan consistent format
  */
 export const sendSuccess = <T>(
   res: Response,
@@ -36,8 +36,8 @@ export const sendSuccess = <T>(
 };
 
 /**
- * Send error response with consistent format
- * Supports validation errors and error codes for programmatic handling
+ * Mengirim error response with consistent format
+ * Support validation errors dan error codes untuk programmatic handling
  */
 export const sendError = (
   res: Response,

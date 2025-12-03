@@ -1,3 +1,12 @@
+/**
+ * Express Application
+ *
+ * Main Express app dengan middleware stack (security, parsing, logging).
+ * Mengorganisir routes, health check, dan error handling.
+ *
+ * @module app
+ */
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -5,16 +14,24 @@ import { errorHandler, notFoundHandler } from '@/shared/middleware/error.middlew
 import { globalLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { sendSuccess } from '@/shared/utils/response';
 import { logger } from '@/shared/utils/logger';
-
-// Import version routers
 import { v1Router } from '@/routes/v1.route';
 
 const app = express();
 
-// Security & parsing middleware
+// ==================== SECURITY & PARSING ====================
+
+/**
+ * Helmet untuk security headers.
+ * crossOriginResourcePolicy: "cross-origin" untuk allow images/assets dari CDN.
+ */
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+
+/**
+ * CORS configuration.
+ * Development: allow all origins (*), Production: explicit CORS_ORIGIN dari env.
+ */
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'development' ? '*' : false),
@@ -23,13 +40,26 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
+
+/**
+ * Body parsing dengan 10MB limit.
+ * Untuk support image upload di proctoring (base64).
+ */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
+// ==================== MIDDLEWARE ====================
+
+/**
+ * Global rate limiter (100 req/15min).
+ * Applied to all routes, more specific limiters di routes individual.
+ */
 app.use(globalLimiter);
 
-// Request logging (development only)
+/**
+ * Request logging (development only).
+ * Log method, url, body, query untuk debugging.
+ */
 if (process.env.NODE_ENV === 'development') {
   app.use((req, res, next) => {
     logger.info(
@@ -45,7 +75,12 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Health check (no version)
+// ==================== PUBLIC ENDPOINTS ====================
+
+/**
+ * Health check endpoint (no version).
+ * Returns status, uptime, environment untuk monitoring.
+ */
 app.get('/health', (req, res) => {
   sendSuccess(res, {
     status: 'ok',
@@ -55,7 +90,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Root endpoint
+/**
+ * Root endpoint.
+ * API documentation links untuk quick reference.
+ */
 app.get('/', (req, res) => {
   sendSuccess(res, {
     message: 'Backend Tryout & Proctoring API',
@@ -69,16 +107,29 @@ app.get('/', (req, res) => {
   });
 });
 
-// API version routes
+// ==================== API ROUTES ====================
+
+/**
+ * API version 1 routes.
+ * Semua business logic routes di bawah /api/v1.
+ */
 app.use('/api/v1', v1Router);
 
-// Future versions
+// Future versions support
 // app.use('/api/v2', v2Router);
 
-// 404 handler
+// ==================== ERROR HANDLING ====================
+
+/**
+ * 404 handler untuk undefined routes.
+ * Harus sebelum error handler.
+ */
 app.use(notFoundHandler);
 
-// Error handler (must be last)
+/**
+ * Global error handler.
+ * Harus terakhir untuk catch semua errors dari middleware/routes sebelumnya.
+ */
 app.use(errorHandler);
 
 export default app;

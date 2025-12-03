@@ -1,10 +1,19 @@
+/**
+ * Application Constants
+ *
+ * Kumpulan konstanta untuk HTTP status, error messages, success messages,
+ * dan konfigurasi ML/proctoring yang digunakan di seluruh aplikasi.
+ *
+ * @module config/constants
+ */
+
 export const APP_NAME = 'be-ta';
 export const API_VERSION = 'v1';
 export const SALT_ROUNDS = 10;
 
 /**
  * HTTP Status Codes
- * Kumpulan status code yang digunakan di seluruh aplikasi
+ * Standardized status codes untuk menghindari magic numbers.
  */
 export const HTTP_STATUS = {
   OK: 200,
@@ -20,9 +29,7 @@ export const HTTP_STATUS = {
 
 /**
  * Error Messages
- *
- * Pesan error yang konsisten untuk seluruh aplikasi.
- * Dikelompokkan berdasarkan modul/domain untuk memudahkan maintenance.
+ * Pesan error terstruktur per modul untuk consistency.
  */
 export const ERROR_MESSAGES = {
   // Generik
@@ -30,7 +37,7 @@ export const ERROR_MESSAGES = {
   FORBIDDEN: 'Forbidden',
   VALIDATION_ERROR: 'Validation error',
 
- // Auth
+  // Auth
   INVALID_CREDENTIALS: 'Invalid email or password',
   EMAIL_EXISTS: 'Email already exists',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token',
@@ -77,10 +84,9 @@ export const ERROR_MESSAGES = {
   FAILED_TO_ANALYZE_IMAGE: 'Failed to analyze image',
 } as const;
 
-
-
 /**
- * Error Codes untuk Client-Side Handling
+ * Error Codes
+ * Unique codes untuk programmatic error handling di frontend.
  * Format: [MODULE]_[NUMBER]
  */
 export const ERROR_CODES = {
@@ -89,18 +95,18 @@ export const ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED_001',
   FORBIDDEN: 'FORBIDDEN_001',
 
-  // Auth (Auth_xxx)
+  // Auth
   AUTH_INVALID_CREDENTIALS: 'AUTH_001',
   AUTH_EMAIL_EXISTS: 'AUTH_002',
   AUTH_INVALID_TOKEN: 'AUTH_003',
   AUTH_TOKEN_EXPIRED: 'AUTH_004',
 
-  // User (User_xxx)
+  // User
   USER_NOT_FOUND: 'USER_001',
   USER_HAS_EXAM_ATTEMPTS: 'USER_002',
   USER_HAS_CREATED_EXAMS: 'USER_003',
 
-  // Exam (Exam_xxx)
+  // Exam
   EXAM_NOT_FOUND: 'EXAM_001',
   EXAM_NO_QUESTIONS: 'EXAM_002',
   EXAM_NO_DURATION: 'EXAM_003',
@@ -109,7 +115,7 @@ export const ERROR_CODES = {
   EXAM_CANNOT_DELETE: 'EXAM_006',
   EXAM_CANNOT_UPDATE: 'EXAM_007',
 
-  // Exam Session (Exam Session_XXX)
+  // Exam Session
   EXAM_SESSION_NOT_FOUND: 'EXAM_SESSION_001',
   EXAM_SESSION_ALREADY_STARTED: 'EXAM_SESSION_002',
   EXAM_SESSION_TIMEOUT: 'EXAM_SESSION_003',
@@ -120,22 +126,20 @@ export const ERROR_CODES = {
   EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008',
   EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009',
 
-  // Question (Question_xxx)
+  // Question
   QUESTION_NOT_FOUND: 'QUESTION_001',
   QUESTION_INVALID_OPTIONS: 'QUESTION_002',
   QUESTION_INVALID_ANSWER: 'QUESTION_003',
   QUESTION_IN_USE: 'QUESTION_004',
 
-  // Proctoring (Proctoring_xxx)
+  // Proctoring
   PROCTORING_ANALYSIS_FAILED: 'PROCTORING_001',
   PROCTORING_DETECTION_FAILED: 'PROCTORING_002',
 } as const;
 
 /**
  * Success Messages
- *
- * Pesan success yang konsisten untuk seluruh aplikasi.
- * Dikelompokkan berdasarkan modul/domain untuk memudahkan maintenance.
+ * User-friendly messages untuk successful operations.
  */
 export const SUCCESS_MESSAGES = {
   // Auth
@@ -196,28 +200,22 @@ export const SUCCESS_MESSAGES = {
   STATISTICS_RETRIEVED: 'Statistics retrieved successfully',
 } as const;
 
-
 /**
- * Konfigurasi ML/Proctoring
+ * ML Configuration
+ * Settings untuk face detection dan proctoring thresholds.
  */
 export const ML_CONFIG = {
-  // Detection thresholds
   MIN_FACE_CONFIDENCE: 0.5,
   MAX_FACES_ALLOWED: 1,
-
-  // Performance limits
   DEFAULT_TIMEOUT_MS: 5000,
   MAX_RETRY_ATTEMPTS: 2,
-
-  // Warmup settings
-  WARMUP_IMAGE_SIZE: 640, // pixels
+  WARMUP_IMAGE_SIZE: 640,
   WARMUP_RETRIES: 3,
 } as const;
 
-
-
 /**
- * Proctoring violation severity levels
+ * Proctoring Severity Levels
+ * Digunakan untuk menentukan tingkat pelanggaran.
  */
 export const PROCTORING_SEVERITY = {
   LOW: 'LOW',
@@ -225,20 +223,25 @@ export const PROCTORING_SEVERITY = {
   HIGH: 'HIGH',
 } as const;
 
+/**
+ * Proctoring Configuration
+ * Threshold untuk auto-cancel exam berdasarkan jumlah violations.
+ */
 export const PROCTORING_CONFIG = {
-  // Maximum violations sebelum auto-canceling exam
-  MAX_HIGH_VIOLATIONS: 3,      // 3 high-severity violations = exam cancelled
-  MAX_MEDIUM_VIOLATIONS: 10,   // 10 medium-severity violations = exam cancelled
+  MAX_HIGH_VIOLATIONS: 3,      // 3 high violations = exam cancelled
+  MAX_MEDIUM_VIOLATIONS: 10,   // 10 medium violations = exam cancelled
 
-  // Severity weights untuk scoring violations peserta
   SEVERITY_WEIGHTS: {
     HIGH: 1.0,    // Full weight
     MEDIUM: 0.5,  // Half weight
-    LOW: 0.0,     // No weight (informational only)
+    LOW: 0.0,     // No weight (informational)
   },
 } as const;
 
-// ML Error Messages
+/**
+ * ML Error Messages
+ * Error messages spesifik untuk ML operations.
+ */
 export const ML_ERROR_MESSAGES = {
   MODEL_NOT_FOUND: 'ML model file not found',
   MODEL_LOAD_FAILED: 'Failed to load ML model',
@@ -248,7 +251,10 @@ export const ML_ERROR_MESSAGES = {
   INVALID_IMAGE: 'Invalid or corrupted image data',
 } as const;
 
-// ML Error Codes (ML_xxx)
+/**
+ * ML Error Codes
+ * Error codes untuk ML operations (ML_xxx).
+ */
 export const ML_ERROR_CODES = {
   MODEL_NOT_FOUND: 'ML_001',
   MODEL_LOAD_FAILED: 'ML_002',

@@ -1,22 +1,23 @@
+/**
+ * API v1 Router
+ *
+ * Main router yang mengorganisir routes berdasarkan role (public, participant, admin).
+ * Pattern: Role-based route separation dengan centralized authorization.
+ *
+ * @module routes/v1
+ */
+
 import { Router } from 'express';
 import { UserRole } from '@prisma/client';
 import { authenticate, authorize } from '@/shared/middleware/auth.middleware';
 
-// =================================================================
-// IMPORT ROUTERS
-// =================================================================
-
-// Public routes
+// Import routers by role
 import { authRouter } from '@/features/auth/routes/participant.route';
-
-// Participant routes
 import { selfRouter } from '@/features/users/routes/participant.route';
 import { participantExamsRouter } from '@/features/exams/routes/participant.route';
 import { participantExamSessionsRouter } from '@/features/exam-sessions/routes/participant.route';
 import { participantResultsRouter } from '@/features/exam-sessions/routes/participant-results.route';
 import { participantProctoringRouter } from '@/features/proctoring/routes/participant.route';
-
-// Admin routes
 import { adminUsersRouter } from '@/features/users/routes/admin.route';
 import { adminExamsRouter } from '@/features/exams/routes/admin.route';
 import { adminExamSessionsRouter } from '@/features/exam-sessions/routes/admin.route';
@@ -26,183 +27,102 @@ import { adminProctoringRouter } from '@/features/proctoring/routes/admin.route'
 
 export const v1Router = Router();
 
-// =================================================================
-// 🌐 PUBLIC ROUTES
+// ==================== PUBLIC ROUTES ====================
 // No authentication required
-// =================================================================
 
 /**
- * Authentication routes
- * Base: /api/v1/auth
- *
- * Routes:
- * - POST /api/v1/auth/register
- * - POST /api/v1/auth/login
- * - POST /api/v1/auth/refresh
- * - POST /api/v1/auth/logout
+ * Authentication routes (/auth)
+ * Register, login, refresh token, logout
  */
 v1Router.use('/auth', authRouter);
 
-// =================================================================
-// 👤 PARTICIPANT ROUTES
-// Authorization: authenticate middleware (all authenticated users)
-// =================================================================
+// ==================== PARTICIPANT ROUTES ====================
+// All authenticated users (authenticate middleware)
 
 /**
- * Self-management routes
- * Base: /api/v1/me
- *
- * Routes:
- * - GET /api/v1/me (get profile)
- * - PATCH /api/v1/me (update profile)
+ * Self-management routes (/me)
+ * Get dan update profile sendiri
  */
 v1Router.use('/me', authenticate, selfRouter);
 
 /**
- * Exam browsing routes
- * Base: /api/v1/exams
- *
- * Routes:
- * - GET /api/v1/exams (list published exams)
- * - GET /api/v1/exams/:id (view exam details)
- * - POST /api/v1/exams/:id/start (start exam session)
+ * Exam browsing routes (/exams)
+ * List, view details, dan start exam
  */
 v1Router.use('/exams', authenticate, participantExamsRouter);
 
 /**
- * Exam session management routes
- * Base: /api/v1/exam-sessions
- *
- * Routes:
- * - GET /api/v1/exam-sessions (my sessions)
- * - GET /api/v1/exam-sessions/:id (session details)
- * - GET /api/v1/exam-sessions/:id/questions (get questions)
- * - POST /api/v1/exam-sessions/:id/answers (submit answer)
- * - POST /api/v1/exam-sessions/:id/submit (submit exam)
- * - GET /api/v1/exam-sessions/:id/answers (review after submit)
+ * Exam session management (/exam-sessions)
+ * Submit answers, submit exam, review results
  */
 v1Router.use('/exam-sessions', authenticate, participantExamSessionsRouter);
 
 /**
- * Results viewing routes
- * Base: /api/v1/results
- *
- * Routes:
- * - GET /api/v1/results (my results list)
+ * Results viewing (/results)
+ * View own exam results
  */
 v1Router.use('/results', authenticate, participantResultsRouter);
 
 /**
- * Proctoring routes
- * Base: /api/v1/proctoring
- * Rate Limited: 30 requests/minute (proctoringLimiter)
- *
- * Routes:
- * - POST /api/v1/proctoring/events (log event)
- * - POST /api/v1/proctoring/exam-sessions/:id/analyze-face (face analysis)
- * - GET /api/v1/proctoring/exam-sessions/:id/events (my events)
+ * Proctoring routes (/proctoring)
+ * Log events, analyze face, view own events
  */
 v1Router.use('/proctoring', authenticate, participantProctoringRouter);
 
-// =================================================================
-// 🔒 ADMIN ROUTES
-// Authorization: authenticate + authorize(ADMIN)
-// All routes under /admin require ADMIN role
-// =================================================================
+// ==================== ADMIN ROUTES ====================
+// Admin only (authenticate + authorize(ADMIN))
 
 const adminRouter = Router();
 
-// 🔐 GLOBAL AUTHORIZATION FOR ALL ADMIN ROUTES
-// Applied once here, inherited by all child routers
+// Apply authorization globally untuk semua admin routes
 adminRouter.use(authenticate, authorize(UserRole.ADMIN));
 
 /**
- * User management routes
- * Base: /api/v1/admin/users
- *
- * Routes:
- * - POST /api/v1/admin/users (create user)
- * - GET /api/v1/admin/users (list users)
- * - GET /api/v1/admin/users/:id (get user details)
- * - PATCH /api/v1/admin/users/:id (update user)
- * - DELETE /api/v1/admin/users/:id (delete user)
+ * User management (/admin/users)
+ * CRUD users
  */
 adminRouter.use('/users', adminUsersRouter);
 
 /**
- * Exam management routes
- * Base: /api/v1/admin/exams
- *
- * Routes:
- * - POST /api/v1/admin/exams (create exam)
- * - GET /api/v1/admin/exams (list all exams)
- * - GET /api/v1/admin/exams/:id (get exam details)
- * - PATCH /api/v1/admin/exams/:id (update exam)
- * - DELETE /api/v1/admin/exams/:id (delete exam)
- * - POST /api/v1/admin/exams/:id/questions (attach questions)
- * - DELETE /api/v1/admin/exams/:id/questions (detach questions)
- * - GET /api/v1/admin/exams/:id/questions (get questions with answers)
+ * Exam management (/admin/exams)
+ * CRUD exams, attach/detach questions
  */
 adminRouter.use('/exams', adminExamsRouter);
 
 /**
- * Exam session monitoring routes
- * Base: /api/v1/admin/exam-sessions
- *
- * Routes:
- * - GET /api/v1/admin/exam-sessions (all sessions)
- * - GET /api/v1/admin/exam-sessions/:id (session details)
- * - GET /api/v1/admin/exam-sessions/:id/answers (review answers)
+ * Exam session monitoring (/admin/exam-sessions)
+ * View all sessions dan answers
  */
 adminRouter.use('/exam-sessions', adminExamSessionsRouter);
 
 /**
- * Results monitoring routes
- * Base: /api/v1/admin/results
- *
- * Routes:
- * - GET /api/v1/admin/results (all results with filters)
+ * Results monitoring (/admin/results)
+ * View all results dengan filters
  */
 adminRouter.use('/results', adminResultsRouter);
 
 /**
- * Question bank management routes
- * Base: /api/v1/admin/questions
- *
- * Routes:
- * - POST /api/v1/admin/questions (create question)
- * - GET /api/v1/admin/questions (list questions)
- * - GET /api/v1/admin/questions/:id (get question)
- * - PATCH /api/v1/admin/questions/:id (update question)
- * - DELETE /api/v1/admin/questions/:id (delete question)
+ * Question bank management (/admin/questions)
+ * CRUD questions
  */
 adminRouter.use('/questions', adminQuestionsRouter);
 
 /**
- * Proctoring monitoring routes
- * Base: /api/v1/admin/proctoring
- *
- * Routes:
- * - GET /api/v1/admin/proctoring/events (all events)
- * - GET /api/v1/admin/proctoring/exam-sessions/:id/events (session events)
+ * Proctoring monitoring (/admin/proctoring)
+ * View all proctoring events
  */
 adminRouter.use('/proctoring', adminProctoringRouter);
 
 // Mount admin router
 v1Router.use('/admin', adminRouter);
 
-// =================================================================
-// 🛠️ DEVELOPMENT UTILITIES
-// Only available in development mode
-// =================================================================
+// ==================== DEVELOPMENT UTILITIES ====================
 
+/**
+ * Route map endpoint (development only).
+ * Returns comprehensive API information untuk debugging.
+ */
 if (process.env.NODE_ENV === 'development') {
-  /**
-   * Route map endpoint
-   * GET /api/v1
-   *
-   * Returns comprehensive route information for development
-   */
   v1Router.get('/', (req, res) => {
     res.json({
       version: 'v1',
@@ -231,41 +151,28 @@ if (process.env.NODE_ENV === 'development') {
           'POST /api/v1/auth/logout',
         ],
         participant: [
-          // Self-management
           'GET /api/v1/me',
           'PATCH /api/v1/me',
-
-          // Exams
           'GET /api/v1/exams',
           'GET /api/v1/exams/:id',
           'POST /api/v1/exams/:id/start',
-
-          // Exam Sessions
           'GET /api/v1/exam-sessions',
           'GET /api/v1/exam-sessions/:id',
           'GET /api/v1/exam-sessions/:id/questions',
           'POST /api/v1/exam-sessions/:id/answers',
           'POST /api/v1/exam-sessions/:id/submit',
           'GET /api/v1/exam-sessions/:id/answers',
-
-          // Results
-          'GET /api/v1/results/summary',
           'GET /api/v1/results',
-
-          // Proctoring
           'POST /api/v1/proctoring/events',
           'POST /api/v1/proctoring/exam-sessions/:id/analyze-face',
           'GET /api/v1/proctoring/exam-sessions/:id/events',
         ],
         admin: [
-          // Users
           'POST /api/v1/admin/users',
           'GET /api/v1/admin/users',
           'GET /api/v1/admin/users/:id',
           'PATCH /api/v1/admin/users/:id',
           'DELETE /api/v1/admin/users/:id',
-
-          // Exams
           'POST /api/v1/admin/exams',
           'GET /api/v1/admin/exams',
           'GET /api/v1/admin/exams/:id',
@@ -274,34 +181,24 @@ if (process.env.NODE_ENV === 'development') {
           'POST /api/v1/admin/exams/:id/questions',
           'DELETE /api/v1/admin/exams/:id/questions',
           'GET /api/v1/admin/exams/:id/questions',
-
-          // Questions
           'POST /api/v1/admin/questions',
           'GET /api/v1/admin/questions',
           'GET /api/v1/admin/questions/:id',
           'PATCH /api/v1/admin/questions/:id',
           'DELETE /api/v1/admin/questions/:id',
-
-          // Sessions & Results
           'GET /api/v1/admin/exam-sessions',
           'GET /api/v1/admin/exam-sessions/:id',
           'GET /api/v1/admin/exam-sessions/:id/answers',
           'GET /api/v1/admin/results',
-
-          // Proctoring
           'GET /api/v1/admin/proctoring/events',
           'GET /api/v1/admin/proctoring/exam-sessions/:id/events',
         ],
       },
       statistics: {
-        totalRoutes: 4 + 19 + 27, // public + participant + admin
+        totalRoutes: 50,
         publicRoutes: 4,
-        participantRoutes: 19,
-        adminRoutes: 27,
-      },
-      documentation: {
-        routingGuide: 'See docs/ROUTING_GUIDE.md',
-        postman: 'Import collection from docs/postman/',
+        participantRoutes: 15,
+        adminRoutes: 31,
       },
       tips: {
         testAuth: 'curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/me',
