@@ -9,7 +9,12 @@ Author: Bala (Thesis Project)
 Model: YOLOv8n (auto-download from Ultralytics)
 """
 
+# ==================== PYTORCH COMPATIBILITY FIX ====================
+# ✅ CRITICAL: Set environment variable BEFORE any imports
+# This disables PyTorch 2.6+ weights_only restriction
 import os
+os.environ['TORCH_SERIALIZATION_WEIGHTS_ONLY'] = '0'
+
 import base64
 import time
 import logging
@@ -282,6 +287,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,
         log_level="info"
     )
