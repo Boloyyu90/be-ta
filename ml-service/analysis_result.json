@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "face_count": 1,
+  "confidence": 0.7659348845481873,
+  "looking_away": false,
+  "processing_time_ms": 80.13319969177246,
+  "bounding_boxes": [
+    [
+      497.164794921875,
+      311.929931640625,
+      739.1524658203125,
+      616.7962646484375
+    ]
+  ],
+  "error": null
+}

@@ -66,6 +66,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
+    "backend-tryout-system-with-proctoring": "link:",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",

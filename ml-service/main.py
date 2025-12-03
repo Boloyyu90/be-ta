@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # ==================== CONFIGURATION ====================
 
-MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")  # ✅ Auto-download
+MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8n-face.pt")
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
 MAX_IMAGE_SIZE = int(os.getenv("MAX_IMAGE_SIZE", "1280"))
 
@@ -116,6 +116,7 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     model_path: str
+    model_type: str
     confidence_threshold: float
 
 # ==================== HELPER FUNCTIONS ====================
@@ -184,6 +185,7 @@ async def health_check():
         status="healthy" if yolo_model else "degraded",
         model_loaded=yolo_model is not None,
         model_path=MODEL_PATH,
+        model_type="yolov8-face",
         confidence_threshold=CONFIDENCE_THRESHOLD
     )
 
