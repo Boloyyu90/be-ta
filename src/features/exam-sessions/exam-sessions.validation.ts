@@ -5,13 +5,11 @@ import { ExamStatus, QuestionType } from '@prisma/client';
 
 /**
  * Simplified ID parameter validation using z.coerce
- * Cleaner than regex + transform pattern
  */
 const idParamSchema = z.coerce.number().int().positive();
 
 /**
- * Reusable pagination schema (DRY principle)
- * Used across multiple endpoints
+ * Reusable pagination schema
  */
 const paginationSchema = z.object({
   page: z.coerce.number().int().positive().min(1).default(1),
@@ -23,8 +21,6 @@ const paginationSchema = z.object({
 /**
  * Schema for starting an exam
  * POST /api/v1/exams/:id/start
- *
- * @access Authenticated users
  */
 export const startExamSchema = z.object({
   params: z.object({
@@ -33,11 +29,8 @@ export const startExamSchema = z.object({
 });
 
 /**
- * Schema for getting user's exam sessions (participant)
+ * Schema for getting user's exam sessions
  * GET /api/v1/exam-sessions
- *
- * @access Authenticated users
- * @simplified Basic pagination only, no filtering needed for participants
  */
 export const getUserExamsSchema = z.object({
   query: paginationSchema,
@@ -46,8 +39,6 @@ export const getUserExamsSchema = z.object({
 /**
  * Schema for getting user exam details
  * GET /api/v1/exam-sessions/:id
- *
- * @access Owner only
  */
 export const getUserExamSchema = z.object({
   params: z.object({
@@ -58,9 +49,6 @@ export const getUserExamSchema = z.object({
 /**
  * Schema for getting exam questions
  * GET /api/v1/exam-sessions/:id/questions
- *
- * @access Owner only
- * @simplified Removed type filter - returns all questions in order
  */
 export const getExamQuestionsSchema = z.object({
   params: z.object({
@@ -71,8 +59,6 @@ export const getExamQuestionsSchema = z.object({
 /**
  * Schema for submitting an answer
  * POST /api/v1/exam-sessions/:id/answers
- *
- * @access Owner only
  */
 export const submitAnswerSchema = z.object({
   params: z.object({
@@ -92,8 +78,6 @@ export const submitAnswerSchema = z.object({
 /**
  * Schema for getting exam answers (review after submit)
  * GET /api/v1/exam-sessions/:id/answers
- *
- * @access Owner only
  */
 export const getExamAnswersSchema = z.object({
   params: z.object({
@@ -104,8 +88,6 @@ export const getExamAnswersSchema = z.object({
 /**
  * Schema for submitting exam
  * POST /api/v1/exam-sessions/:id/submit
- *
- * @access Owner only
  */
 export const submitExamSchema = z.object({
   params: z.object({
@@ -114,11 +96,8 @@ export const submitExamSchema = z.object({
 });
 
 /**
- * Schema for getting user's results (participant)
+ * Schema for getting user's results
  * GET /api/v1/results
- *
- * @access Authenticated users
- * @simplified Removed status filter - participants see all their results
  */
 export const getMyResultsSchema = z.object({
   query: paginationSchema,
@@ -127,9 +106,6 @@ export const getMyResultsSchema = z.object({
 /**
  * Schema for getting all results (admin)
  * GET /api/v1/admin/results
- *
- * @access Admin only
- * @enhanced Added status filter for admin monitoring
  */
 export const getResultsSchema = z.object({
   query: paginationSchema.extend({
@@ -213,6 +189,8 @@ export interface UserExamListItem {
   totalScore: number | null;
   remainingTimeMs: number | null;
   durationMinutes: number | null;
+  answeredQuestions: number;
+  totalQuestions: number;
 }
 
 /**
@@ -327,4 +305,61 @@ export interface ResultsListResponse {
     hasNext: boolean;
     hasPrev: boolean;
   };
+}
+
+// ==================== INTERNAL TYPES (Used by service) ====================
+
+/**
+ * Answer with exam question info for scoring
+ */
+export interface AnswerWithQuestion {
+  id: number;
+  selectedOption: string | null;
+  examQuestionId: number;
+  examQuestion: {
+    question: {
+      questionType: QuestionType;
+      correctAnswer: string;
+      defaultScore: number;
+    };
+  };
+}
+
+/**
+ * Stats score by question type
+ */
+export interface QuestionTypeStats {
+  score: number;
+  maxScore: number;
+  correct: number;
+  total: number;
+}
+
+/**
+ * Score calculation result
+ */
+export interface ScoreCalculationResult {
+  totalScore: number;
+  scoresByType: Array<{
+    type: QuestionType;
+    score: number;
+    maxScore: number;
+    correctAnswers: number;
+    totalQuestions: number;
+  }>;
+}
+
+/**
+ * Cleanup task result
+ */
+export interface CleanupResult {
+  cleaned: number;
+  errors: number;
+}
+
+/**
+ * Token cleanup result
+ */
+export interface TokenCleanupResult {
+  deleted: number;
 }

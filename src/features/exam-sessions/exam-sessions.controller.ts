@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import * as examSessionsService from './exam-sessions.service';
 import { sendSuccess } from '@/shared/utils/response';
 import { HTTP_STATUS, SUCCESS_MESSAGES } from '@/config/constants';
+
+// ✅ Import all types from validation (single source of truth)
 import type {
   StartExamParams,
   SubmitAnswerParams,
@@ -76,7 +78,6 @@ export const getUserExam = async (
  * GET /api/v1/exam-sessions/:id/questions
  *
  * @access Private (Owner only)
- * @simplified No query parameter - returns all questions
  */
 export const getExamQuestions = async (
   req: Request<GetExamQuestionsParams>,

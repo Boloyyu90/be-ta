@@ -12,11 +12,13 @@
 
 import { QuestionType, Prisma } from '@prisma/client';
 import { logger } from '@/shared/utils/logger';
+
+// ✅ Import types from validation (single source of truth)
 import type {
   QuestionTypeStats,
   ScoreCalculationResult,
   AnswerWithQuestion
-} from './exam-sessions.types';
+} from './exam-sessions.validation';
 
 /**
  * Hitung score berdasarkan jawaban dan correct answers
