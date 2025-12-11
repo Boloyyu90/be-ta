@@ -24,6 +24,7 @@ const EXAM_PUBLIC_SELECT = {
   startTime: true,
   endTime: true,
   durationMinutes: true,
+  passingScore: true,
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -44,6 +45,7 @@ const EXAM_DETAIL_SELECT = {
   startTime: true,
   endTime: true,
   durationMinutes: true,
+  passingScore: true,
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -66,7 +68,29 @@ const EXAM_DETAIL_SELECT = {
  * Exam with questions
  */
 const EXAM_WITH_QUESTIONS_SELECT = {
-  ...EXAM_DETAIL_SELECT,
+  id: true,
+  title: true,
+  description: true,
+  startTime: true,
+  endTime: true,
+  durationMinutes: true,
+  passingScore: true,      // ← ADD THIS LINE
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  creator: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  _count: {
+    select: {
+      examQuestions: true,
+      userExams: true,
+    },
+  },
   examQuestions: {
     select: {
       id: true,
@@ -87,6 +111,7 @@ const EXAM_WITH_QUESTIONS_SELECT = {
     },
   },
 } as const;
+
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -167,7 +192,6 @@ const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reas
 };
 
 // ==================== SERVICE FUNCTIONS ====================
-
 /**
  * Create a new exam (Admin only)
  *
@@ -177,7 +201,8 @@ const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reas
  * @throws {ConflictError} If exam title already exists for user
  */
 export const createExam = async (userId: number, input: CreateExamInput) => {
-  const { title, description, startTime, endTime, durationMinutes } = input;
+  const { title, description, startTime, endTime, durationMinutes, passingScore } = input;
+  //                                                                 ^^^^^^^^^^^^ ADD THIS
 
   // Check for duplicate title by same creator
   const existingExam = await prisma.exam.findFirst({
@@ -207,6 +232,7 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
       startTime: startTime || null,
       endTime: endTime || null,
       durationMinutes,
+      passingScore: passingScore ?? 0,  // ← ADD THIS LINE
       createdBy: userId,
     },
     select: EXAM_DETAIL_SELECT,

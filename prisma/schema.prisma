@@ -64,6 +64,7 @@ model Exam {
   startTime       DateTime?      @map("start_time")
   endTime         DateTime?      @map("end_time")
   durationMinutes Int            @default(60) @map("duration_minutes")
+  passingScore    Int            @default(0) @map("passing_score")
   createdBy       Int            @map("created_by")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @default(now()) @map("updated_at")

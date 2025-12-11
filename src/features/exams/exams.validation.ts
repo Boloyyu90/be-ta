@@ -1,3 +1,12 @@
+/**
+ * Exam Validation Schemas
+ *
+ * Zod schemas for exam-related request validation.
+ * Updated to include passingScore field.
+ *
+ * @module exams.validation
+ */
+
 import { z } from 'zod';
 import { QuestionType } from '@prisma/client';
 
@@ -32,45 +41,52 @@ const futureDateSchema = z
  * @access Admin only
  */
 export const createExamSchema = z.object({
-  body: z.object({
-    title: z
-      .string({ required_error: 'Title is required' })
-      .min(3, 'Title must be at least 3 characters')
-      .max(200, 'Title must not exceed 200 characters')
-      .trim(),
-    description: z
-      .string()
-      .max(2000, 'Description must not exceed 2000 characters')
-      .trim()
-      .optional(),
-    startTime: z
-      .string()
-      .datetime('Invalid datetime format. Use ISO 8601 format')
-      .transform((val) => new Date(val))
-      .optional(),
-    endTime: z
-      .string()
-      .datetime('Invalid datetime format. Use ISO 8601 format')
-      .transform((val) => new Date(val))
-      .optional(),
-    durationMinutes: z
-      .number({ required_error: 'Duration is required' })
-      .int('Duration must be an integer')
-      .min(1, 'Duration must be at least 1 minute')
-      .max(300, 'Duration must not exceed 300 minutes (5 hours)'),
-  }).refine(
-    (data) => {
-      // If both startTime and endTime provided, endTime must be after startTime
-      if (data.startTime && data.endTime) {
-        return data.endTime > data.startTime;
+  body: z
+    .object({
+      title: z
+        .string({ required_error: 'Title is required' })
+        .min(3, 'Title must be at least 3 characters')
+        .max(200, 'Title must not exceed 200 characters')
+        .trim(),
+      description: z
+        .string()
+        .max(2000, 'Description must not exceed 2000 characters')
+        .trim()
+        .optional(),
+      startTime: z
+        .string()
+        .datetime('Invalid datetime format. Use ISO 8601 format')
+        .transform((val) => new Date(val))
+        .optional(),
+      endTime: z
+        .string()
+        .datetime('Invalid datetime format. Use ISO 8601 format')
+        .transform((val) => new Date(val))
+        .optional(),
+      durationMinutes: z
+        .number({ required_error: 'Duration is required' })
+        .int('Duration must be an integer')
+        .min(1, 'Duration must be at least 1 minute')
+        .max(300, 'Duration must not exceed 300 minutes (5 hours)'),
+      passingScore: z
+        .number()
+        .int('Passing score must be an integer')
+        .min(0, 'Passing score cannot be negative')
+        .default(0),
+    })
+    .refine(
+      (data) => {
+        // If both startTime and endTime provided, endTime must be after startTime
+        if (data.startTime && data.endTime) {
+          return data.endTime > data.startTime;
+        }
+        return true;
+      },
+      {
+        message: 'End time must be after start time',
+        path: ['endTime'],
       }
-      return true;
-    },
-    {
-      message: 'End time must be after start time',
-      path: ['endTime'],
-    }
-  ),
+    ),
 });
 
 /**
@@ -114,6 +130,11 @@ export const updateExamSchema = z.object({
         .int('Duration must be an integer')
         .min(1, 'Duration must be at least 1 minute')
         .max(300, 'Duration must not exceed 300 minutes')
+        .optional(),
+      passingScore: z
+        .number()
+        .int('Passing score must be an integer')
+        .min(0, 'Passing score cannot be negative')
         .optional(),
     })
     .refine((data) => Object.keys(data).length > 0, {
@@ -178,15 +199,14 @@ export const getExamsSchema = z.object({
       .optional()
       .transform((val) => (val ? val.trim() : undefined)),
     sortBy: z
-      .enum(['createdAt', 'startTime', 'title'])
+      .enum(['createdAt', 'updatedAt', 'startTime', 'title'])
       .optional()
       .default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
     createdBy: z
       .string()
       .optional()
-      .transform((val) => (val ? Number(val) : undefined))
-      .pipe(z.number().int().positive().optional()),
+      .transform((val) => (val ? Number(val) : undefined)),
   }),
 });
 
@@ -265,6 +285,7 @@ export interface ExamPublicData {
   startTime: Date | null;
   endTime: Date | null;
   durationMinutes: number;
+  passingScore: number;
   createdAt: Date;
   createdBy: number;
   _count: {
