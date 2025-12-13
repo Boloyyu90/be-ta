@@ -1,0 +1,1497 @@
+openapi: 3.1.0
+info:
+  title: Prestige Academy CPNS Exam System API
+  description: |
+    Backend API for online CPNS tryout system with AI-powered proctoring.
+    
+    ## Authentication
+    This API uses JWT Bearer token authentication. Include the access token 
+    in the Authorization header: `Authorization: Bearer <token>`
+    
+    ## Rate Limits
+    - Global: 100 requests / 15 minutes
+    - Auth: 5 requests / 15 minutes
+    - Proctoring: 30 requests / 1 minute
+  version: 1.0.0
+  contact:
+    name: I Gede Bala Putra
+    email: gede.bala@example.com
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+
+tags:
+  - name: Auth
+    description: Authentication endpoints (public)
+  - name: Users
+    description: User management
+  - name: Questions
+    description: Question bank management (admin)
+  - name: Exams
+    description: Exam CRUD operations
+  - name: Exam Sessions
+    description: Exam taking and submissions
+  - name: Proctoring
+    description: Proctoring and ML face detection
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # === Enums ===
+    UserRole:
+      type: string
+      enum: [ADMIN, PARTICIPANT]
+    
+    ExamStatus:
+      type: string
+      enum: [IN_PROGRESS, FINISHED, CANCELLED, TIMEOUT]
+    
+    QuestionType:
+      type: string
+      enum: [TIU, TKP, TWK]
+    
+    ProctoringEventType:
+      type: string
+      enum: [FACE_DETECTED, NO_FACE_DETECTED, MULTIPLE_FACES, LOOKING_AWAY]
+    
+    AnswerOption:
+      type: string
+      enum: [A, B, C, D, E]
+      nullable: true
+    
+    Severity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    # === Base Entities ===
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        isEmailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - name
+        - role
+        - isEmailVerified
+        - createdAt
+        - updatedAt
+
+    TokensData:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+      required:
+        - accessToken
+        - refreshToken
+
+    QuestionOptions:
+      type: object
+      properties:
+        A:
+          type: string
+        B:
+          type: string
+        C:
+          type: string
+        D:
+          type: string
+        E:
+          type: string
+      required: [A, B, C, D, E]
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        options:
+          $ref: '#/components/schemas/QuestionOptions'
+        correctAnswer:
+          type: string
+          enum: [A, B, C, D, E]
+        questionType:
+          $ref: '#/components/schemas/QuestionType'
+        defaultScore:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - options
+        - correctAnswer
+        - questionType
+        - defaultScore
+        - createdAt
+        - updatedAt
+
+    Exam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+        passingScore:
+          type: integer
+        createdBy:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - durationMinutes
+        - passingScore
+        - createdBy
+        - createdAt
+        - updatedAt
+
+    ExamWithCount:
+      allOf:
+        - $ref: '#/components/schemas/Exam'
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                examQuestions:
+                  type: integer
+
+    ProctoringEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        userExamId:
+          type: integer
+        eventType:
+          $ref: '#/components/schemas/ProctoringEventType'
+        metadata:
+          type: object
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        severity:
+          $ref: '#/components/schemas/Severity'
+      required:
+        - id
+        - userExamId
+        - eventType
+        - timestamp
+        - severity
+
+    # === Pagination ===
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrev:
+          type: boolean
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNext
+        - hasPrev
+
+    # === API Response Wrappers ===
+    ApiSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - timestamp
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+        errorCode:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - message
+        - timestamp
+
+    # === Auth Responses ===
+    AuthPayload:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/TokensData'
+      required:
+        - user
+        - tokens
+
+    # === Exam Session Responses ===
+    ParticipantQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Question bank ID
+        examQuestionId:
+          type: integer
+          description: ExamQuestion ID (use for answers!)
+        content:
+          type: string
+        options:
+          $ref: '#/components/schemas/QuestionOptions'
+        questionType:
+          $ref: '#/components/schemas/QuestionType'
+        orderNumber:
+          type: integer
+      required:
+        - id
+        - examQuestionId
+        - content
+        - options
+        - questionType
+        - orderNumber
+
+    ParticipantAnswer:
+      type: object
+      properties:
+        examQuestionId:
+          type: integer
+        selectedOption:
+          $ref: '#/components/schemas/AnswerOption'
+        answeredAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    UserExamSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        examId:
+          type: integer
+        examTitle:
+          type: string
+        durationMinutes:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ExamStatus'
+        remainingTimeMs:
+          type: integer
+        totalQuestions:
+          type: integer
+        answeredQuestions:
+          type: integer
+      required:
+        - id
+        - examId
+        - examTitle
+        - durationMinutes
+        - startedAt
+        - status
+        - remainingTimeMs
+        - totalQuestions
+        - answeredQuestions
+
+    ScoreByType:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/QuestionType'
+        score:
+          type: integer
+        maxScore:
+          type: integer
+        correctAnswers:
+          type: integer
+        totalQuestions:
+          type: integer
+
+    ExamResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        examId:
+          type: integer
+        examTitle:
+          type: string
+        userId:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+        totalScore:
+          type: integer
+        status:
+          $ref: '#/components/schemas/ExamStatus'
+        duration:
+          type: integer
+          nullable: true
+        answeredQuestions:
+          type: integer
+        totalQuestions:
+          type: integer
+        scoresByType:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreByType'
+
+    # === Face Analysis ===
+    FaceAnalysisResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, timeout, error]
+        violations:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+          format: float
+        message:
+          type: string
+        metadata:
+          type: object
+          properties:
+            processingTimeMs:
+              type: integer
+            error:
+              type: string
+
+  parameters:
+    pageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+    sortOrderParam:
+      name: sortOrder
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+paths:
+  # === AUTH ENDPOINTS ===
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+              required: [email, password, name]
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthPayload'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthPayload'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tokens:
+                            $ref: '#/components/schemas/TokensData'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          success:
+                            type: boolean
+
+  # === USER ENDPOINTS ===
+  /me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+    patch:
+      tags: [Users]
+      summary: Update current user profile
+      operationId: updateMe
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+
+  /admin/users:
+    post:
+      tags: [Users]
+      summary: Create user (admin)
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/UserRole'
+              required: [email, password, name]
+      responses:
+        '201':
+          description: User created
+    get:
+      tags: [Users]
+      summary: List users (admin)
+      operationId: getUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, email, role]
+        - $ref: '#/components/parameters/sortOrderParam'
+      responses:
+        '200':
+          description: Users list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/User'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+
+  /admin/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Users]
+      summary: Get user by ID (admin)
+      operationId: getUserById
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User details
+    patch:
+      tags: [Users]
+      summary: Update user (admin)
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                name:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/UserRole'
+                isEmailVerified:
+                  type: boolean
+      responses:
+        '200':
+          description: User updated
+    delete:
+      tags: [Users]
+      summary: Delete user (admin)
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User deleted
+
+  # === QUESTIONS ENDPOINTS ===
+  /admin/questions:
+    post:
+      tags: [Questions]
+      summary: Create question
+      operationId: createQuestion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  minLength: 10
+                  maxLength: 5000
+                options:
+                  $ref: '#/components/schemas/QuestionOptions'
+                correctAnswer:
+                  type: string
+                  enum: [A, B, C, D, E]
+                questionType:
+                  $ref: '#/components/schemas/QuestionType'
+                defaultScore:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 5
+              required: [content, options, correctAnswer, questionType]
+      responses:
+        '201':
+          description: Question created
+    get:
+      tags: [Questions]
+      summary: List questions
+      operationId: getQuestions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/QuestionType'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, questionType, defaultScore]
+        - $ref: '#/components/parameters/sortOrderParam'
+      responses:
+        '200':
+          description: Questions list
+
+  /admin/questions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Questions]
+      summary: Get question by ID
+      operationId: getQuestionById
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Question details
+    patch:
+      tags: [Questions]
+      summary: Update question
+      operationId: updateQuestion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Question updated
+    delete:
+      tags: [Questions]
+      summary: Delete question
+      operationId: deleteQuestion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Question deleted
+
+  # === EXAMS ENDPOINTS ===
+  /exams:
+    get:
+      tags: [Exams]
+      summary: List available exams (participant)
+      operationId: getAvailableExams
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, startTime, title]
+        - $ref: '#/components/parameters/sortOrderParam'
+      responses:
+        '200':
+          description: Available exams
+
+  /exams/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exams]
+      summary: Get exam details (participant)
+      operationId: getExamById
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam details
+
+  /exams/{id}/start:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exam Sessions]
+      summary: Start or resume exam
+      operationId: startExam
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam started
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userExam:
+                            $ref: '#/components/schemas/UserExamSession'
+                          questions:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ParticipantQuestion'
+                          answers:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ParticipantAnswer'
+
+  /admin/exams:
+    post:
+      tags: [Exams]
+      summary: Create exam (admin)
+      operationId: createExam
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 3
+                  maxLength: 200
+                description:
+                  type: string
+                  maxLength: 2000
+                  nullable: true
+                startTime:
+                  type: string
+                  format: date-time
+                  nullable: true
+                endTime:
+                  type: string
+                  format: date-time
+                  nullable: true
+                durationMinutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 300
+                passingScore:
+                  type: integer
+                  minimum: 0
+              required: [title]
+      responses:
+        '201':
+          description: Exam created
+    get:
+      tags: [Exams]
+      summary: List all exams (admin)
+      operationId: getExams
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exams list
+
+  /admin/exams/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exams]
+      summary: Get exam details (admin)
+      operationId: getExamByIdAdmin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam details
+    patch:
+      tags: [Exams]
+      summary: Update exam (admin)
+      operationId: updateExam
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam updated
+    delete:
+      tags: [Exams]
+      summary: Delete exam (admin)
+      operationId: deleteExam
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam deleted
+
+  /admin/exams/{id}/questions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exams]
+      summary: Attach questions to exam
+      operationId: attachQuestions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                questionIds:
+                  type: array
+                  items:
+                    type: integer
+                  minItems: 1
+                  maxItems: 200
+              required: [questionIds]
+      responses:
+        '200':
+          description: Questions attached
+    get:
+      tags: [Exams]
+      summary: Get exam questions (admin)
+      operationId: getExamQuestions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/QuestionType'
+      responses:
+        '200':
+          description: Exam questions
+    delete:
+      tags: [Exams]
+      summary: Detach questions from exam
+      operationId: detachQuestions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                questionIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [questionIds]
+      responses:
+        '200':
+          description: Questions detached
+
+  # === EXAM SESSIONS ENDPOINTS ===
+  /exam-sessions:
+    get:
+      tags: [Exam Sessions]
+      summary: Get my exam sessions
+      operationId: getUserExams
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+      responses:
+        '200':
+          description: Exam sessions list
+
+  /exam-sessions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get exam session details
+      operationId: getUserExam
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session details
+
+  /exam-sessions/{id}/questions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get questions for active exam
+      operationId: getExamSessionQuestions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Questions without correct answers
+
+  /exam-sessions/{id}/answers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exam Sessions]
+      summary: Submit/update answer (auto-save)
+      operationId: submitAnswer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                examQuestionId:
+                  type: integer
+                  description: ExamQuestion ID, NOT question bank ID!
+                selectedOption:
+                  $ref: '#/components/schemas/AnswerOption'
+              required: [examQuestionId]
+      responses:
+        '200':
+          description: Answer saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          answer:
+                            type: object
+                            properties:
+                              examQuestionId:
+                                type: integer
+                              selectedOption:
+                                $ref: '#/components/schemas/AnswerOption'
+                              answeredAt:
+                                type: string
+                                format: date-time
+                          progress:
+                            type: object
+                            properties:
+                              answered:
+                                type: integer
+                              total:
+                                type: integer
+                              percentage:
+                                type: number
+    get:
+      tags: [Exam Sessions]
+      summary: Get answers for review (after submit)
+      operationId: getExamAnswers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Answers with correct answers
+
+  /exam-sessions/{id}/submit:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exam Sessions]
+      summary: Submit and finalize exam
+      operationId: submitExam
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exam submitted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          message:
+                            type: string
+                          result:
+                            $ref: '#/components/schemas/ExamResult'
+
+  /results:
+    get:
+      tags: [Exam Sessions]
+      summary: Get my exam results
+      operationId: getMyResults
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+      responses:
+        '200':
+          description: Results list
+
+  /admin/exam-sessions:
+    get:
+      tags: [Exam Sessions]
+      summary: Get all exam sessions (admin)
+      operationId: getResults
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: examId
+          in: query
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ExamStatus'
+      responses:
+        '200':
+          description: All sessions
+
+  /admin/results:
+    get:
+      tags: [Exam Sessions]
+      summary: Get all results (admin)
+      operationId: getAllResults
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All results
+
+  # === PROCTORING ENDPOINTS ===
+  /proctoring/events:
+    post:
+      tags: [Proctoring]
+      summary: Log proctoring event
+      operationId: logEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userExamId:
+                  type: integer
+                eventType:
+                  $ref: '#/components/schemas/ProctoringEventType'
+                metadata:
+                  type: object
+              required: [userExamId, eventType]
+      responses:
+        '200':
+          description: Event logged
+
+  /proctoring/exam-sessions/{userExamId}/analyze-face:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Proctoring]
+      summary: Analyze face via YOLO ML
+      description: |
+        **⚠️ CRITICAL: This is the ML integration endpoint for thesis demonstration!**
+        
+        Analyzes webcam frame using YOLO face detection.
+        Rate limited to 30 requests/minute.
+      operationId: analyzeFace
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageBase64:
+                  type: string
+                  minLength: 100
+                  description: Base64 encoded image
+              required: [imageBase64]
+      responses:
+        '200':
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          analysis:
+                            $ref: '#/components/schemas/FaceAnalysisResult'
+                          eventLogged:
+                            type: boolean
+                          eventType:
+                            $ref: '#/components/schemas/ProctoringEventType'
+                            nullable: true
+                          usedFallback:
+                            type: boolean
+
+  /proctoring/exam-sessions/{userExamId}/events:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Proctoring]
+      summary: Get proctoring events for session
+      operationId: getEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: eventType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProctoringEventType'
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/sortOrderParam'
+      responses:
+        '200':
+          description: Proctoring events
+
+  /admin/proctoring/events:
+    get:
+      tags: [Proctoring]
+      summary: Get all proctoring events (admin)
+      operationId: getAdminEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: eventType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProctoringEventType'
+        - name: userExamId
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/sortOrderParam'
+      responses:
+        '200':
+          description: All proctoring events
+
+  /admin/proctoring/exam-sessions/{userExamId}/events:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Proctoring]
+      summary: Get proctoring events for any session (admin)
+      operationId: getAdminSessionEvents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session proctoring events
