@@ -609,7 +609,9 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
   startTime?: string | null,        // ISO datetime
   endTime?: string | null,          // ISO datetime (must be after startTime)
   durationMinutes?: number,         // 1-300 minutes
-  passingScore?: number             // Min 0
+  passingScore?: number,            // Min 0
+  allowRetake?: boolean,            // Default: false - Whether users can retake this exam
+  maxAttempts?: number | null       // Max number of attempts allowed (null = unlimited if retakes enabled)
 }
 ```
 
@@ -624,6 +626,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
   timestamp: string
 }
 ```
+
+**Business Rules:**
+- `allowRetake` defaults to `false` - users get only one attempt
+- `maxAttempts` is only enforced when `allowRetake` is `true`
+- If `allowRetake` is `true` and `maxAttempts` is `null`, unlimited retakes are allowed
 
 ---
 
@@ -680,6 +687,8 @@ Same query parameters and response format as admin, but filtered to show only ex
       endTime: string | null,
       durationMinutes: number,
       passingScore: number,
+      allowRetake: boolean,         // Whether retakes are enabled
+      maxAttempts: number | null,   // Maximum attempts (null = unlimited)
       createdBy: number,
       createdAt: string,
       updatedAt: string,
@@ -719,7 +728,9 @@ Same as admin but without `creator` details and `userExams` count.
   startTime?: string | null,
   endTime?: string | null,
   durationMinutes?: number,
-  passingScore?: number
+  passingScore?: number,
+  allowRetake?: boolean,          // Enable/disable retakes
+  maxAttempts?: number | null     // Set max attempts limit
 }
 ```
 
@@ -734,6 +745,10 @@ Same as admin but without `creator` details and `userExams` count.
   timestamp: string
 }
 ```
+
+**Business Rules:**
+- Changing `allowRetake` to `false` does not affect existing attempts
+- Reducing `maxAttempts` does not retroactively invalidate existing attempts
 
 ---
 
@@ -845,7 +860,7 @@ Get exam questions with correct answers.
 #### POST `/exams/:id/start`
 **Access:** Authenticated
 
-Start an exam session or resume existing one.
+Start an exam session, resume an existing IN_PROGRESS session, or start a new retake attempt.
 
 **Response (200):**
 ```typescript
@@ -862,7 +877,8 @@ Start an exam session or resume existing one.
       status: ExamStatus,
       remainingTimeMs: number,
       totalQuestions: number,
-      answeredQuestions: number
+      answeredQuestions: number,
+      attemptNumber: number       // Which attempt this is (1 = first, 2 = second, etc.)
     },
     questions: Array<{
       id: number,              // Question bank ID
@@ -884,18 +900,26 @@ Start an exam session or resume existing one.
 }
 ```
 
+**Behavior:**
+1. If user has an IN_PROGRESS session → Resume that session
+2. If user has completed attempts and retakes disabled → Error
+3. If user has completed attempts and max attempts reached → Error
+4. Otherwise → Create new attempt with incremented `attemptNumber`
+
 **Errors:**
 - `404` - Exam not found
-- `409` - Exam already submitted
-- `400` - Exam has no questions
-- `400` - Exam duration not set
+- `409` - Exam already submitted (when retakes disabled) (`EXAM_SESSION_ALREADY_STARTED`)
+- `400` - Exam has no questions (`EXAM_NO_QUESTIONS`)
+- `400` - Exam duration not set (`EXAM_NO_DURATION`)
+- `400` - Retakes not allowed for this exam (`EXAM_SESSION_RETAKE_DISABLED`)
+- `400` - Maximum attempts reached (`EXAM_SESSION_MAX_ATTEMPTS`)
 
 ---
 
 #### GET `/exam-sessions`
 **Access:** Authenticated
 
-Get current user's exam sessions.
+Get current user's exam sessions (all attempts).
 
 **Query Parameters:**
 | Param | Type | Default |
@@ -913,7 +937,9 @@ Get current user's exam sessions.
       exam: {
         id: number,
         title: string,
-        description: string | null
+        description: string | null,
+        allowRetake: boolean,       // Whether exam allows retakes
+        maxAttempts: number | null  // Max attempts for this exam
       },
       status: ExamStatus,
       startedAt: string,
@@ -922,7 +948,8 @@ Get current user's exam sessions.
       remainingTimeMs: number | null,
       durationMinutes: number,
       answeredQuestions: number,
-      totalQuestions: number
+      totalQuestions: number,
+      attemptNumber: number         // Which attempt this is
     }>,
     pagination: PaginationMeta
   },
@@ -930,6 +957,8 @@ Get current user's exam sessions.
   timestamp: string
 }
 ```
+
+**Note:** Results are ordered by `startedAt` descending, showing most recent attempts first. The composite index on `[userId, examId, status]` ensures efficient queries.
 
 ---
 
@@ -940,7 +969,10 @@ Get current user's exam sessions.
 ```typescript
 {
   success: true,
-  data: UserExamDetail,
+  data: {
+    ...UserExamDetail,
+    attemptNumber: number          // Which attempt this session represents
+  },
   message: "Exam session retrieved successfully",
   timestamp: string
 }
@@ -1001,9 +1033,9 @@ Submit/update a single answer (auto-save).
 ```
 
 **Errors:**
-- `400` - Exam already submitted
-- `400` - Exam timeout
-- `400` - Invalid examQuestionId for this exam
+- `400` - Exam already submitted (`EXAM_SESSION_ALREADY_SUBMITTED`)
+- `400` - Exam timeout (`EXAM_SESSION_TIMEOUT`)
+- `400` - Invalid examQuestionId for this exam (`EXAM_SESSION_INVALID_QUESTION`)
 
 ---
 
@@ -1030,6 +1062,7 @@ Finalize and submit the exam.
       duration: number | null,        // Seconds taken
       answeredQuestions: number,
       totalQuestions: number,
+      attemptNumber: number,          // Which attempt this was
       scoresByType: Array<{
         type: QuestionType,
         score: number,
@@ -1089,7 +1122,7 @@ Get answers with review (shows correctAnswer after submit).
 #### GET `/results`
 **Access:** Authenticated
 
-Get current user's exam results.
+Get current user's exam results (all attempts).
 
 **Query Parameters:**
 | Param | Type | Default |
@@ -1102,7 +1135,10 @@ Get current user's exam results.
 {
   success: true,
   data: {
-    data: ExamResult[],
+    data: Array<{
+      ...ExamResult,
+      attemptNumber: number       // Which attempt this result is for
+    }>,
     pagination: PaginationMeta
   },
   message: "Results retrieved successfully",
@@ -1126,7 +1162,7 @@ Get all exam sessions.
 | userId | number | Filter by user |
 | status | ExamStatus | Filter by status |
 
-**Response (200):** Same format as participant results.
+**Response (200):** Same format as participant results, includes `attemptNumber` for each session.
 
 ---
 
@@ -1263,6 +1299,7 @@ Get all proctoring events.
         userId: number,
         examId: number,
         status: ExamStatus,
+        attemptNumber: number,      // Which attempt this event belongs to
         user: { id, name, email },
         exam: { id, title }
       }
@@ -1326,6 +1363,8 @@ interface Exam {
   endTime: string | null;
   durationMinutes: number;
   passingScore: number;
+  allowRetake: boolean;           // Whether users can retake this exam
+  maxAttempts: number | null;     // Maximum attempts (null = unlimited when retakes enabled)
   createdBy: number;
   createdAt: string;
   updatedAt: string;
@@ -1343,6 +1382,7 @@ interface UserExam {
   id: number;
   userId: number;
   examId: number;
+  attemptNumber: number;          // Which attempt this is (1, 2, 3, ...)
   startedAt: string;
   submittedAt: string | null;
   totalScore: number | null;
@@ -1433,6 +1473,9 @@ const response = await apiClient.get<UserPayload>('/me');
 | `hasNext` | `hasMore` |
 | `metadata` | `eventData` (proctoring) |
 | `examQuestionId` | `questionId` (for answers) |
+| `attemptNumber` | `attempt`, `attemptNo` |
+| `allowRetake` | `retakeAllowed`, `canRetake` |
+| `maxAttempts` | `attemptsLimit`, `maxRetries` |
 
 ### 5.4 Enum Value Mapping
 
@@ -1490,7 +1533,63 @@ const analyzeFace = useDebouncedCallback(
 );
 ```
 
-### 5.8 Error Code Reference
+### 5.8 Exam Retake Integration
+
+**Check if user can start/retake an exam:**
+
+```typescript
+interface ExamSession {
+  attemptNumber: number;
+  status: ExamStatus;
+  // ...other fields
+}
+
+interface Exam {
+  allowRetake: boolean;
+  maxAttempts: number | null;
+  // ...other fields
+}
+
+function canStartExam(exam: Exam, sessions: ExamSession[]): boolean {
+  const completedAttempts = sessions.filter(s => 
+    s.status !== 'IN_PROGRESS'
+  );
+  
+  // First attempt - always allowed
+  if (completedAttempts.length === 0) return true;
+  
+  // Check if retakes are enabled
+  if (!exam.allowRetake) return false;
+  
+  // Check max attempts
+  if (exam.maxAttempts && completedAttempts.length >= exam.maxAttempts) {
+    return false;
+  }
+  
+  return true;
+}
+
+// Check if user has an in-progress session to resume
+function hasInProgressSession(sessions: ExamSession[]): ExamSession | null {
+  return sessions.find(s => s.status === 'IN_PROGRESS') || null;
+}
+```
+
+**Display attempt information:**
+
+```typescript
+// Show current attempt number during exam
+<div>Attempt {userExam.attemptNumber} of {exam.maxAttempts ?? '∞'}</div>
+
+// Show attempt history in results
+{sessions.map(session => (
+  <div key={session.id}>
+    Attempt #{session.attemptNumber} - Score: {session.totalScore}
+  </div>
+))}
+```
+
+### 5.9 Error Code Reference
 
 | Code | Module | Meaning |
 |------|--------|---------|
@@ -1502,10 +1601,63 @@ const analyzeFace = useDebouncedCallback(
 | `EXAM_NO_QUESTIONS` | Exams | Exam has 0 questions |
 | `EXAM_NO_DURATION` | Exams | Duration not set |
 | `EXAM_SESSION_NOT_FOUND` | Sessions | Session doesn't exist |
-| `EXAM_SESSION_ALREADY_STARTED` | Sessions | Can't restart submitted exam |
+| `EXAM_SESSION_ALREADY_STARTED` | Sessions | Can't restart submitted exam (when retakes disabled) |
 | `EXAM_SESSION_TIMEOUT` | Sessions | Time limit exceeded |
 | `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions | Already finalized |
 | `EXAM_SESSION_INVALID_QUESTION` | Sessions | examQuestionId not in exam |
+| `EXAM_SESSION_RETAKE_DISABLED` | Sessions | Exam does not allow retakes |
+| `EXAM_SESSION_MAX_ATTEMPTS` | Sessions | Maximum attempts reached for this exam |
+
+---
+
+## 6. Exam Retake Business Rules
+
+### 6.1 Database Constraints
+
+The system enforces exam retake rules at the database level:
+
+1. **Unique Constraint:** `UserExam` has a unique constraint on `[userId, examId, attemptNumber]`, allowing multiple attempts per user-exam pair with distinct attempt numbers.
+
+2. **Partial Unique Index:** Only one `IN_PROGRESS` session is allowed per user-exam combination, enforced via:
+   ```sql
+   CREATE UNIQUE INDEX user_exams_one_in_progress_per_user_exam
+   ON user_exams (user_id, exam_id)
+   WHERE status = 'IN_PROGRESS';
+   ```
+
+3. **Performance Index:** Composite index on `[userId, examId, status]` ensures efficient queries for checking existing sessions.
+
+### 6.2 Retake Flow
+
+```
+1. User calls POST /exams/:id/start
+   │
+   ├─► Check for IN_PROGRESS session
+   │   └─► Found? Resume existing session
+   │
+   ├─► No IN_PROGRESS? Check completed attempts
+   │   │
+   │   ├─► No completed attempts? Create first attempt (attemptNumber = 1)
+   │   │
+   │   └─► Has completed attempts?
+   │       │
+   │       ├─► exam.allowRetake = false?
+   │       │   └─► Error: EXAM_SESSION_RETAKE_DISABLED
+   │       │
+   │       ├─► exam.maxAttempts reached?
+   │       │   └─► Error: EXAM_SESSION_MAX_ATTEMPTS
+   │       │
+   │       └─► Create new attempt (attemptNumber = lastAttempt + 1)
+   │
+   └─► Return UserExam with questions and answers
+```
+
+### 6.3 Attempt Tracking
+
+Each `UserExam` record includes:
+- `attemptNumber`: Sequential attempt number (1, 2, 3, ...)
+- All attempts are preserved for audit and analytics
+- Users can view results from all their attempts
 
 ---
 

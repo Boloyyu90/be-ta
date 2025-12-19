@@ -12,6 +12,12 @@ info:
     - Global: 100 requests / 15 minutes
     - Auth: 5 requests / 15 minutes
     - Proctoring: 30 requests / 1 minute
+    
+    ## Exam Retake System
+    The system supports configurable exam retakes:
+    - `allowRetake`: Enable/disable retakes per exam
+    - `maxAttempts`: Limit number of attempts (null = unlimited)
+    - `attemptNumber`: Track which attempt each session represents
   version: 1.0.0
   contact:
     name: I Gede Bala Putra
@@ -159,6 +165,7 @@ components:
 
     Exam:
       type: object
+      description: Exam entity with retake configuration
       properties:
         id:
           type: integer
@@ -179,6 +186,14 @@ components:
           type: integer
         passingScore:
           type: integer
+        allowRetake:
+          type: boolean
+          description: Whether users can retake this exam after completing it
+          default: false
+        maxAttempts:
+          type: integer
+          nullable: true
+          description: Maximum number of attempts allowed (null = unlimited when retakes enabled)
         createdBy:
           type: integer
         createdAt:
@@ -192,6 +207,7 @@ components:
         - title
         - durationMinutes
         - passingScore
+        - allowRetake
         - createdBy
         - createdAt
         - updatedAt
@@ -206,6 +222,40 @@ components:
               properties:
                 examQuestions:
                   type: integer
+
+    UserExam:
+      type: object
+      description: Exam session (attempt) for a user
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        examId:
+          type: integer
+        attemptNumber:
+          type: integer
+          description: Which attempt this is (1 = first, 2 = second, etc.)
+          minimum: 1
+        startedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        totalScore:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ExamStatus'
+      required:
+        - id
+        - userId
+        - examId
+        - attemptNumber
+        - startedAt
+        - status
 
     ProctoringEvent:
       type: object
@@ -283,6 +333,7 @@ components:
           type: string
         errorCode:
           type: string
+          description: Machine-readable error code
         errors:
           type: array
           items:
@@ -292,6 +343,9 @@ components:
                 type: string
               message:
                 type: string
+        context:
+          type: object
+          description: Additional error context (e.g., maxAttempts, currentAttempts)
         timestamp:
           type: string
           format: date-time
@@ -315,6 +369,7 @@ components:
     # === Exam Session Responses ===
     ParticipantQuestion:
       type: object
+      description: Question as seen by participant (no correct answer)
       properties:
         id:
           type: integer
@@ -352,6 +407,7 @@ components:
 
     UserExamSession:
       type: object
+      description: Active exam session with attempt tracking
       properties:
         id:
           type: integer
@@ -372,10 +428,15 @@ components:
           $ref: '#/components/schemas/ExamStatus'
         remainingTimeMs:
           type: integer
+          description: Remaining time in milliseconds
         totalQuestions:
           type: integer
         answeredQuestions:
           type: integer
+        attemptNumber:
+          type: integer
+          description: Which attempt this is (1 = first, 2 = second, etc.)
+          minimum: 1
       required:
         - id
         - examId
@@ -386,6 +447,62 @@ components:
         - remainingTimeMs
         - totalQuestions
         - answeredQuestions
+        - attemptNumber
+
+    UserExamListItem:
+      type: object
+      description: Exam session in list view with attempt information
+      properties:
+        id:
+          type: integer
+        exam:
+          type: object
+          properties:
+            id:
+              type: integer
+            title:
+              type: string
+            description:
+              type: string
+              nullable: true
+            allowRetake:
+              type: boolean
+            maxAttempts:
+              type: integer
+              nullable: true
+        status:
+          $ref: '#/components/schemas/ExamStatus'
+        startedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        totalScore:
+          type: integer
+          nullable: true
+        remainingTimeMs:
+          type: integer
+          nullable: true
+        durationMinutes:
+          type: integer
+        answeredQuestions:
+          type: integer
+        totalQuestions:
+          type: integer
+        attemptNumber:
+          type: integer
+          description: Which attempt this is
+      required:
+        - id
+        - exam
+        - status
+        - startedAt
+        - durationMinutes
+        - answeredQuestions
+        - totalQuestions
+        - attemptNumber
 
     ScoreByType:
       type: object
@@ -403,6 +520,7 @@ components:
 
     ExamResult:
       type: object
+      description: Exam result with attempt tracking
       properties:
         id:
           type: integer
@@ -425,14 +543,32 @@ components:
         duration:
           type: integer
           nullable: true
+          description: Time taken in seconds
         answeredQuestions:
           type: integer
         totalQuestions:
           type: integer
+        attemptNumber:
+          type: integer
+          description: Which attempt this result is for
+          minimum: 1
         scoresByType:
           type: array
           items:
             $ref: '#/components/schemas/ScoreByType'
+      required:
+        - id
+        - examId
+        - examTitle
+        - userId
+        - startedAt
+        - submittedAt
+        - totalScore
+        - status
+        - answeredQuestions
+        - totalQuestions
+        - attemptNumber
+        - scoresByType
 
     # === Face Analysis ===
     FaceAnalysisResult:
@@ -458,6 +594,79 @@ components:
             error:
               type: string
 
+    # === Exam Create/Update DTOs ===
+    CreateExamRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+          minimum: 1
+          maximum: 300
+        passingScore:
+          type: integer
+          minimum: 0
+        allowRetake:
+          type: boolean
+          default: false
+          description: Whether users can retake this exam after completing it
+        maxAttempts:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Maximum attempts allowed (only enforced when allowRetake is true)
+      required: [title]
+
+    UpdateExamRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+          minimum: 1
+          maximum: 300
+        passingScore:
+          type: integer
+          minimum: 0
+        allowRetake:
+          type: boolean
+          description: Enable/disable retakes for this exam
+        maxAttempts:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Set maximum attempts limit
+
   parameters:
     pageParam:
       name: page
@@ -481,6 +690,48 @@ components:
         type: string
         enum: [asc, desc]
         default: desc
+
+  responses:
+    RetakeDisabledError:
+      description: Exam does not allow retakes
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ApiErrorResponse'
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    enum: [EXAM_SESSION_RETAKE_DISABLED]
+                  context:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: "This exam does not allow retakes"
+
+    MaxAttemptsError:
+      description: Maximum attempts reached for this exam
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ApiErrorResponse'
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    enum: [EXAM_SESSION_MAX_ATTEMPTS]
+                  context:
+                    type: object
+                    properties:
+                      maxAttempts:
+                        type: integer
+                        description: Maximum attempts allowed
+                      currentAttempts:
+                        type: integer
+                        description: Current number of attempts made
 
 paths:
   # === AUTH ENDPOINTS ===
@@ -732,27 +983,10 @@ paths:
           in: query
           schema:
             type: string
-            enum: [createdAt, name, email, role]
         - $ref: '#/components/parameters/sortOrderParam'
       responses:
         '200':
           description: Users list
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          data:
-                            type: array
-                            items:
-                              $ref: '#/components/schemas/User'
-                          pagination:
-                            $ref: '#/components/schemas/PaginationMeta'
 
   /admin/users/{id}:
     parameters:
@@ -776,22 +1010,6 @@ paths:
       operationId: updateUser
       security:
         - bearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
-                name:
-                  type: string
-                role:
-                  $ref: '#/components/schemas/UserRole'
-                isEmailVerified:
-                  type: boolean
       responses:
         '200':
           description: User updated
@@ -835,7 +1053,6 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 100
-                  default: 5
               required: [content, options, correctAnswer, questionType]
       responses:
         '201':
@@ -861,7 +1078,6 @@ paths:
           in: query
           schema:
             type: string
-            enum: [createdAt, questionType, defaultScore]
         - $ref: '#/components/parameters/sortOrderParam'
       responses:
         '200':
@@ -925,7 +1141,7 @@ paths:
         - $ref: '#/components/parameters/sortOrderParam'
       responses:
         '200':
-          description: Available exams
+          description: Available exams (includes allowRetake and maxAttempts fields)
 
   /exams/{id}:
     parameters:
@@ -942,7 +1158,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Exam details
+          description: Exam details with retake configuration
 
   /exams/{id}/start:
     parameters:
@@ -954,12 +1170,20 @@ paths:
     post:
       tags: [Exam Sessions]
       summary: Start or resume exam
+      description: |
+        Start a new exam session, resume an existing IN_PROGRESS session, or start a new retake attempt.
+        
+        **Behavior:**
+        1. If user has an IN_PROGRESS session → Resume that session
+        2. If user has completed attempts and retakes disabled → Error (EXAM_SESSION_RETAKE_DISABLED)
+        3. If user has completed attempts and max attempts reached → Error (EXAM_SESSION_MAX_ATTEMPTS)
+        4. Otherwise → Create new attempt with incremented attemptNumber
       operationId: startExam
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Exam started
+          description: Exam started or resumed
           content:
             application/json:
               schema:
@@ -980,11 +1204,41 @@ paths:
                             type: array
                             items:
                               $ref: '#/components/schemas/ParticipantAnswer'
+        '400':
+          description: |
+            Business rule violation:
+            - EXAM_NO_QUESTIONS: Exam has no questions
+            - EXAM_NO_DURATION: Duration not set
+            - EXAM_SESSION_RETAKE_DISABLED: Retakes not allowed
+            - EXAM_SESSION_MAX_ATTEMPTS: Maximum attempts reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+              examples:
+                retakeDisabled:
+                  summary: Retakes not allowed
+                  value:
+                    success: false
+                    message: "This exam does not allow retakes"
+                    errorCode: "EXAM_SESSION_RETAKE_DISABLED"
+                    timestamp: "2025-01-15T10:30:00.000Z"
+                maxAttempts:
+                  summary: Max attempts reached
+                  value:
+                    success: false
+                    message: "Maximum attempts reached for this exam"
+                    errorCode: "EXAM_SESSION_MAX_ATTEMPTS"
+                    context:
+                      maxAttempts: 3
+                      currentAttempts: 3
+                    timestamp: "2025-01-15T10:30:00.000Z"
 
   /admin/exams:
     post:
       tags: [Exams]
       summary: Create exam (admin)
+      description: Create a new exam with optional retake configuration
       operationId: createExam
       security:
         - bearerAuth: []
@@ -993,35 +1247,48 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  minLength: 3
-                  maxLength: 200
-                description:
-                  type: string
-                  maxLength: 2000
-                  nullable: true
-                startTime:
-                  type: string
-                  format: date-time
-                  nullable: true
-                endTime:
-                  type: string
-                  format: date-time
-                  nullable: true
-                durationMinutes:
-                  type: integer
-                  minimum: 1
-                  maximum: 300
-                passingScore:
-                  type: integer
-                  minimum: 0
-              required: [title]
+              $ref: '#/components/schemas/CreateExamRequest'
+            examples:
+              basicExam:
+                summary: Basic exam (no retakes)
+                value:
+                  title: "CPNS TIU Practice Test"
+                  description: "Practice test for TIU section"
+                  durationMinutes: 90
+                  passingScore: 70
+              retakeableExam:
+                summary: Exam with limited retakes
+                value:
+                  title: "CPNS Full Simulation"
+                  description: "Full simulation with 3 attempts"
+                  durationMinutes: 180
+                  passingScore: 60
+                  allowRetake: true
+                  maxAttempts: 3
+              unlimitedRetakes:
+                summary: Exam with unlimited retakes
+                value:
+                  title: "Practice Quiz"
+                  description: "Practice as many times as you want"
+                  durationMinutes: 30
+                  passingScore: 50
+                  allowRetake: true
+                  maxAttempts: null
       responses:
         '201':
           description: Exam created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          exam:
+                            $ref: '#/components/schemas/Exam'
     get:
       tags: [Exams]
       summary: List all exams (admin)
@@ -1030,7 +1297,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Exams list
+          description: Exams list (includes allowRetake and maxAttempts)
 
   /admin/exams/{id}:
     parameters:
@@ -1047,13 +1314,65 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Exam details
+          description: Exam details with retake configuration
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          exam:
+                            allOf:
+                              - $ref: '#/components/schemas/Exam'
+                              - type: object
+                                properties:
+                                  creator:
+                                    type: object
+                                    properties:
+                                      id:
+                                        type: integer
+                                      name:
+                                        type: string
+                                      email:
+                                        type: string
+                                  _count:
+                                    type: object
+                                    properties:
+                                      examQuestions:
+                                        type: integer
+                                      userExams:
+                                        type: integer
     patch:
       tags: [Exams]
       summary: Update exam (admin)
+      description: |
+        Update exam settings including retake configuration.
+        
+        **Business Rules:**
+        - Changing `allowRetake` to `false` does not affect existing attempts
+        - Reducing `maxAttempts` does not retroactively invalidate existing attempts
       operationId: updateExam
       security:
         - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExamRequest'
+            examples:
+              enableRetakes:
+                summary: Enable retakes with limit
+                value:
+                  allowRetake: true
+                  maxAttempts: 3
+              disableRetakes:
+                summary: Disable retakes
+                value:
+                  allowRetake: false
       responses:
         '200':
           description: Exam updated
@@ -1138,6 +1457,7 @@ paths:
     get:
       tags: [Exam Sessions]
       summary: Get my exam sessions
+      description: Get all exam sessions (attempts) for the current user
       operationId: getUserExams
       security:
         - bearerAuth: []
@@ -1146,7 +1466,23 @@ paths:
         - $ref: '#/components/parameters/limitParam'
       responses:
         '200':
-          description: Exam sessions list
+          description: Exam sessions list with attempt information
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/UserExamListItem'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
 
   /exam-sessions/{id}:
     parameters:
@@ -1163,7 +1499,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Session details
+          description: Session details with attemptNumber
 
   /exam-sessions/{id}/questions:
     parameters:
@@ -1285,6 +1621,7 @@ paths:
     get:
       tags: [Exam Sessions]
       summary: Get my exam results
+      description: Get results for all exam attempts
       operationId: getMyResults
       security:
         - bearerAuth: []
@@ -1293,7 +1630,7 @@ paths:
         - $ref: '#/components/parameters/limitParam'
       responses:
         '200':
-          description: Results list
+          description: Results list (includes attemptNumber for each result)
 
   /admin/exam-sessions:
     get:
@@ -1319,7 +1656,7 @@ paths:
             $ref: '#/components/schemas/ExamStatus'
       responses:
         '200':
-          description: All sessions
+          description: All sessions with attemptNumber
 
   /admin/results:
     get:
@@ -1450,6 +1787,7 @@ paths:
     get:
       tags: [Proctoring]
       summary: Get all proctoring events (admin)
+      description: Get all proctoring events with attempt information
       operationId: getAdminEvents
       security:
         - bearerAuth: []
@@ -1477,7 +1815,7 @@ paths:
         - $ref: '#/components/parameters/sortOrderParam'
       responses:
         '200':
-          description: All proctoring events
+          description: All proctoring events (includes attemptNumber in userExam)
 
   /admin/proctoring/exam-sessions/{userExamId}/events:
     parameters:
