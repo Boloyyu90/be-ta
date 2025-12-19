@@ -63,6 +63,8 @@ export const ERROR_MESSAGES = {
   EXAM_ALREADY_STARTED: 'You have already started this exam',
   EXAM_TIMEOUT: 'Exam time limit exceeded',
   EXAM_ALREADY_SUBMITTED: 'Exam already submitted',
+  EXAM_RETAKE_DISABLED: 'Retake is not allowed for this exam',
+  EXAM_MAX_ATTEMPTS_REACHED: 'Maximum number of attempts reached for this exam',
   UNAUTHORIZED_EXAM_SESSION: 'Unauthorized to access this exam session',
   UNAUTHORIZED_VIEW_EXAM_SESSION: 'Unauthorized to view this exam session',
   UNABLE_SUBMIT_ANSWER_EXAM_FINISHED: 'Cannot submit answer - exam already finished',
@@ -125,6 +127,8 @@ export const ERROR_CODES = {
   EXAM_SESSION_CREATE_FAILED: 'EXAM_SESSION_007',
   EXAM_SESSION_NOT_FOUND_ALT: 'EXAM_SESSION_008',
   EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009',
+  EXAM_SESSION_RETAKE_DISABLED: 'EXAM_SESSION_010',
+  EXAM_SESSION_MAX_ATTEMPTS: 'EXAM_SESSION_011',
 
   // Question
   QUESTION_NOT_FOUND: 'QUESTION_001',

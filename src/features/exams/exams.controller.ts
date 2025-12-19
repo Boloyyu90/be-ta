@@ -67,7 +67,7 @@ export const getExams = async (
 /**
  * Get single exam controller
  * GET /api/v1/admin/exams/:id (admin - full details)
- * GET /api/v1/exams/:id (participant - basic info)
+ * GET /api/v1/exams/:id (participant - basic info + attempts)
  *
  * @access Private (All authenticated users)
  */
@@ -77,13 +77,14 @@ export const getExamById = async (
   next: NextFunction
 ): Promise<void> => {
   const { id } = req.params;
+  const userId = req.user!.id;
   const isAdmin = req.user!.role === 'ADMIN';
 
-  const exam = await examsService.getExamById(id, isAdmin);
+  const result = await examsService.getExamById(id, isAdmin, userId);
 
   sendSuccess(
     res,
-    { exam },
+    result,
     SUCCESS_MESSAGES.EXAM_RETRIEVED,
     HTTP_STATUS.OK
   );

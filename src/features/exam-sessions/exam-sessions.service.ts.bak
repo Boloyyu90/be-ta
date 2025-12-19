@@ -167,13 +167,12 @@ const EXAM_RESULT_SELECT = {
  *
  * Flow:
  * 1. Validate exam exists & has questions
- * 2. Check for IN_PROGRESS session (allow resume)
- * 3. If no IN_PROGRESS session, check previous attempts and retake rules
- * 4. Create new attempt or throw error if not allowed
- * 5. Return questions + existing answers
+ * 2. Check existing session (prevent restart if submitted)
+ * 3. Create new or continue existing session
+ * 4. Return questions + existing answers
  */
 export const startExam = async (userId: number, examId: number) => {
-  // Fetch exam with questions and retake settings
+  // Fetch exam with questions
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
     include: {
@@ -209,20 +208,54 @@ export const startExam = async (userId: number, examId: number) => {
     );
   }
 
-  // Check for IN_PROGRESS session (allow resume)
-  const inProgressSession = await prisma.userExam.findFirst({
-    where: {
-      userId,
-      examId,
-      status: ExamStatus.IN_PROGRESS,
-    },
+  // Check existing session
+  const existingUserExam = await prisma.userExam.findUnique({
+    where: { userId_examId: { userId, examId } },
     include: { answers: true },
   });
 
-  // Resume existing IN_PROGRESS session
-  if (inProgressSession) {
-    const userExam = await prisma.userExam.findUnique({
-      where: { id: inProgressSession.id },
+  // Prevent restart if already submitted
+  if (existingUserExam?.submittedAt) {
+    throw new BusinessLogicError(
+      ERROR_MESSAGES.EXAM_ALREADY_STARTED,
+      ERROR_CODES.EXAM_SESSION_ALREADY_STARTED,
+      {
+        examId,
+        userId,
+        userExamId: existingUserExam.id,
+        submittedAt: existingUserExam.submittedAt,
+        status: existingUserExam.status,
+      }
+    );
+  }
+
+  // Create or continue session
+  let userExam;
+  if (!existingUserExam) {
+    userExam = await prisma.userExam.create({
+      data: {
+        userId,
+        examId,
+        startedAt: new Date(),
+        status: ExamStatus.IN_PROGRESS,
+      },
+      include: {
+        exam: {
+          include: {
+            examQuestions: {
+              include: { question: true },
+              orderBy: { orderNumber: 'asc' },
+            },
+          },
+        },
+        answers: true,
+      },
+    });
+
+    logger.info({ userId, examId, userExamId: userExam.id }, 'New exam session created');
+  } else {
+    userExam = await prisma.userExam.findUnique({
+      where: { id: existingUserExam.id },
       include: {
         exam: {
           include: {
@@ -237,132 +270,10 @@ export const startExam = async (userId: number, examId: number) => {
     });
 
     logger.info(
-      { userId, examId, userExamId: inProgressSession.id, attemptNumber: inProgressSession.attemptNumber },
-      'Resuming existing exam session'
+      { userId, examId, userExamId: existingUserExam.id },
+      'Continuing existing exam session'
     );
-
-    if (!userExam) {
-      throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, {
-        examId,
-        userId,
-        errorCode: ERROR_CODES.EXAM_SESSION_CREATE_FAILED,
-      });
-    }
-
-    // Prepare and return session response
-    const remainingTimeMs = getRemainingTime(userExam.startedAt!, exam.durationMinutes);
-    const questions: ParticipantQuestion[] = userExam.exam.examQuestions.map((eq) => ({
-      id: eq.question.id,
-      examQuestionId: eq.id,
-      content: eq.question.content,
-      options: eq.question.options as any,
-      questionType: eq.question.questionType,
-      orderNumber: eq.orderNumber,
-    }));
-
-    const answers: ParticipantAnswer[] = questions.map((q) => {
-      const existingAnswer = userExam.answers.find((a) => a.examQuestionId === q.examQuestionId);
-      return {
-        examQuestionId: q.examQuestionId,
-        selectedOption: existingAnswer?.selectedOption || null,
-        answeredAt: existingAnswer?.answeredAt || null,
-      };
-    });
-
-    const session: UserExamSession = {
-      id: userExam.id,
-      examId: userExam.examId,
-      examTitle: userExam.exam.title,
-      durationMinutes: exam.durationMinutes,
-      startedAt: userExam.startedAt!,
-      submittedAt: userExam.submittedAt,
-      status: userExam.status,
-      remainingTimeMs,
-      totalQuestions: questions.length,
-      answeredQuestions: answers.filter((a) => a.selectedOption !== null).length,
-    };
-
-    return {
-      userExam: session,
-      questions,
-      answers,
-    };
   }
-
-  // No IN_PROGRESS session - check previous attempts
-  const previousAttempts = await prisma.userExam.findMany({
-    where: {
-      userId,
-      examId,
-      status: { in: [ExamStatus.FINISHED, ExamStatus.TIMEOUT, ExamStatus.CANCELLED] },
-    },
-    orderBy: { attemptNumber: 'desc' },
-    take: 1,
-  });
-
-  let newAttemptNumber = 1;
-
-  // If there are previous attempts, validate retake rules
-  if (previousAttempts.length > 0) {
-    const lastAttempt = previousAttempts[0];
-    newAttemptNumber = lastAttempt.attemptNumber + 1;
-
-    // Check if retakes are allowed
-    if (!exam.allowRetake) {
-      throw new BusinessLogicError(
-        ERROR_MESSAGES.EXAM_RETAKE_DISABLED,
-        ERROR_CODES.EXAM_SESSION_RETAKE_DISABLED,
-        {
-          examId,
-          userId,
-          previousAttempts: lastAttempt.attemptNumber,
-          message: 'This exam does not allow retakes',
-        }
-      );
-    }
-
-    // Check max attempts limit
-    if (exam.maxAttempts && lastAttempt.attemptNumber >= exam.maxAttempts) {
-      throw new BusinessLogicError(
-        ERROR_MESSAGES.EXAM_MAX_ATTEMPTS_REACHED,
-        ERROR_CODES.EXAM_SESSION_MAX_ATTEMPTS,
-        {
-          examId,
-          userId,
-          maxAttempts: exam.maxAttempts,
-          currentAttempts: lastAttempt.attemptNumber,
-          message: `Maximum ${exam.maxAttempts} attempts allowed`,
-        }
-      );
-    }
-  }
-
-  // Create new attempt
-  const userExam = await prisma.userExam.create({
-    data: {
-      userId,
-      examId,
-      attemptNumber: newAttemptNumber,
-      startedAt: new Date(),
-      status: ExamStatus.IN_PROGRESS,
-    },
-    include: {
-      exam: {
-        include: {
-          examQuestions: {
-            include: { question: true },
-            orderBy: { orderNumber: 'asc' },
-          },
-        },
-      },
-      answers: true,
-    },
-  });
-
-  logger.info(
-    { userId, examId, userExamId: userExam.id, attemptNumber: newAttemptNumber },
-    'New exam session created'
-  );
 
   if (!userExam) {
     throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, {
@@ -685,11 +596,10 @@ export const submitExam = async (userExamId: number, userId: number) => {
  * Get user's exam sessions with pagination
  */
 export const getUserExams = async (userId: number, query: GetUserExamsQuery) => {
-  const { page, limit, status } = query;
+  const { page, limit } = query;
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    ...(status && { status }),
   };
 
   const skip = (page - 1) * limit;

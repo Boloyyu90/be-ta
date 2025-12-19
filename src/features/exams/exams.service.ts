@@ -201,8 +201,7 @@ const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reas
  * @throws {ConflictError} If exam title already exists for user
  */
 export const createExam = async (userId: number, input: CreateExamInput) => {
-  const { title, description, startTime, endTime, durationMinutes, passingScore } = input;
-  //                                                                 ^^^^^^^^^^^^ ADD THIS
+  const { title, description, startTime, endTime, durationMinutes, passingScore, allowRetake, maxAttempts } = input;
 
   // Check for duplicate title by same creator
   const existingExam = await prisma.exam.findFirst({
@@ -232,7 +231,9 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
       startTime: startTime || null,
       endTime: endTime || null,
       durationMinutes,
-      passingScore: passingScore ?? 0,  // ← ADD THIS LINE
+      passingScore: passingScore ?? 0,
+      allowRetake: allowRetake ?? false,
+      maxAttempts: maxAttempts || null,
       createdBy: userId,
     },
     select: EXAM_DETAIL_SELECT,
@@ -293,11 +294,12 @@ export const getExams = async (filter: GetExamsQuery, isAdmin: boolean = false, 
  * Get single exam by ID with full details
  *
  * @param id - Exam ID
- * @param includeQuestions - Whether to include questions
- * @returns Exam data
+ * @param includeQuestions - Whether to include questions (admin view)
+ * @param userId - Current user ID (for participant attempts info)
+ * @returns Exam data with attempts info for participants
  * @throws {NotFoundError} If exam not found
  */
-export const getExamById = async (id: number, includeQuestions: boolean = false) => {
+export const getExamById = async (id: number, includeQuestions: boolean = false, userId?: number) => {
   const exam = await prisma.exam.findUnique({
     where: { id },
     select: includeQuestions ? EXAM_WITH_QUESTIONS_SELECT : EXAM_DETAIL_SELECT,
@@ -310,7 +312,40 @@ export const getExamById = async (id: number, includeQuestions: boolean = false)
     });
   }
 
-  return exam;
+  // For participants, include attempts information
+  if (!includeQuestions && userId) {
+    const attempts = await prisma.userExam.findMany({
+      where: {
+        userId,
+        examId: id,
+        status: { in: ['FINISHED', 'TIMEOUT', 'CANCELLED'] },
+      },
+      orderBy: {
+        attemptNumber: 'asc',
+      },
+      select: {
+        id: true,
+        attemptNumber: true,
+        totalScore: true,
+        status: true,
+        startedAt: true,
+        submittedAt: true,
+      },
+    });
+
+    const attemptsCount = attempts.length;
+    const firstAttempt = attempts.length > 0 ? attempts[0] : null;
+    const latestAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+
+    return {
+      exam,
+      attemptsCount,
+      firstAttempt,
+      latestAttempt,
+    };
+  }
+
+  return { exam };
 };
 
 /**

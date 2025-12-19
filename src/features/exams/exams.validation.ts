@@ -73,6 +73,15 @@ export const createExamSchema = z.object({
         .int('Passing score must be an integer')
         .min(0, 'Passing score cannot be negative')
         .default(0),
+      allowRetake: z
+        .boolean()
+        .default(false),
+      maxAttempts: z
+        .number()
+        .int('Max attempts must be an integer')
+        .min(1, 'Max attempts must be at least 1')
+        .optional()
+        .nullable(),
     })
     .refine(
       (data) => {
@@ -85,6 +94,19 @@ export const createExamSchema = z.object({
       {
         message: 'End time must be after start time',
         path: ['endTime'],
+      }
+    )
+    .refine(
+      (data) => {
+        // If maxAttempts is set, allowRetake must be true
+        if (data.maxAttempts && !data.allowRetake) {
+          return false;
+        }
+        return true;
+      },
+      {
+        message: 'allowRetake must be true when maxAttempts is set',
+        path: ['maxAttempts'],
       }
     ),
 });
@@ -136,6 +158,15 @@ export const updateExamSchema = z.object({
         .int('Passing score must be an integer')
         .min(0, 'Passing score cannot be negative')
         .optional(),
+      allowRetake: z
+        .boolean()
+        .optional(),
+      maxAttempts: z
+        .number()
+        .int('Max attempts must be an integer')
+        .min(1, 'Max attempts must be at least 1')
+        .optional()
+        .nullable(),
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided for update',
