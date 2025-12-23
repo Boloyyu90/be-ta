@@ -1621,13 +1621,19 @@ paths:
     get:
       tags: [Exam Sessions]
       summary: Get my exam results
-      description: Get results for all exam attempts
+      description: Get results for all exam attempts. By default, only FINISHED sessions are returned. Other statuses can be requested explicitly.
       operationId: getMyResults
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/pageParam'
         - $ref: '#/components/parameters/limitParam'
+        - name: status
+          in: query
+          description: Filter by exam session status
+          schema:
+            $ref: '#/components/schemas/ExamStatus'
+            default: FINISHED
       responses:
         '200':
           description: Results list (includes attemptNumber for each result)
@@ -1657,7 +1663,142 @@ paths:
       responses:
         '200':
           description: All sessions with attemptNumber
+  /admin/exam-sessions/{id}:
+    get:
+      tags: [ Exam Sessions ]
+      summary: Get specific exam session (admin)
+      description: Retrieve details of any exam session. Admin access only.
+      operationId: getAdminExamSessionById
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UserExam session ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Session details including attemptNumber
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      examId:
+                        type: integer
+                      userId:
+                        type: integer
+                      status:
+                        $ref: '#/components/schemas/ExamStatus'
+                      startedAt:
+                        type: string
+                        format: date-time
+                      submittedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      totalScore:
+                        type: integer
+                        nullable: true
+                      attemptNumber:
+                        type: integer
+                        minimum: 1
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          name:
+                            type: string
+                          email:
+                            type: string
+                      exam:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          title:
+                            type: string
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '404':
+          description: Session not found
 
+    /admin/exam-sessions/{id}/answers:
+      get:
+        tags: [ Exam Sessions ]
+        summary: Get answers for any exam session (admin)
+        description: Retrieve all answers with review data for any session. Admin access only.
+        operationId: getAdminExamSessionAnswers
+        security:
+          - bearerAuth: [ ]
+        parameters:
+          - name: id
+            in: path
+            required: true
+            description: UserExam session ID
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: All answers with correct answer visibility
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                      example: true
+                    data:
+                      type: object
+                      properties:
+                        answers:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              examQuestionId:
+                                type: integer
+                              selectedOption:
+                                $ref: '#/components/schemas/AnswerOption'
+                              isCorrect:
+                                type: boolean
+                              answeredAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                              examQuestion:
+                                type: object
+                                properties:
+                                  orderNumber:
+                                    type: integer
+                                  question:
+                                    $ref: '#/components/schemas/Question'
+                        total:
+                          type: integer
+                    message:
+                      type: string
+                    timestamp:
+                      type: string
+                      format: date-time
+          '404':
+            description: Session not found
   /admin/results:
     get:
       tags: [Exam Sessions]

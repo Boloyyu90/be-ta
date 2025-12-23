@@ -102,7 +102,9 @@ export const submitExamSchema = z.object({
  * GET /api/v1/results
  */
 export const getMyResultsSchema = z.object({
-  query: paginationSchema,
+  query: paginationSchema.extend({
+    status: z.nativeEnum(ExamStatus).default(ExamStatus.FINISHED),
+  }),
 });
 
 /**

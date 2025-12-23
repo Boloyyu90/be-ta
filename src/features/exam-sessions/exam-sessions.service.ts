@@ -873,11 +873,11 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
  * Get user's exam results (participant view)
  */
 export const getMyResults = async (userId: number, query: GetMyResultsQuery) => {
-  const { page, limit } = query;
+  const { page, limit, status } = query;
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    status: { in: [ExamStatus.FINISHED, ExamStatus.TIMEOUT, ExamStatus.CANCELLED] },
+    status,
   };
 
   const skip = (page - 1) * limit;
