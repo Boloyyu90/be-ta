@@ -69,12 +69,18 @@ const USER_EXAM_LIST_SELECT = {
   submittedAt: true,
   totalScore: true,
   status: true,
+  attemptNumber: true,
   exam: {
     select: {
       id: true,
       title: true,
       description: true,
       durationMinutes: true,
+      _count: {
+        select: {
+          examQuestions: true,
+        },
+      },
     },
   },
   _count: {
@@ -101,6 +107,9 @@ const USER_EXAM_DETAIL_SELECT = {
       title: true,
       description: true,
       durationMinutes: true,
+      passingScore: true,
+      allowRetake: true,
+      maxAttempts: true,
       examQuestions: {
         select: {
           id: true,
@@ -118,6 +127,18 @@ const USER_EXAM_DETAIL_SELECT = {
           orderNumber: 'asc' as const,
         },
       },
+    },
+  },
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  _count: {
+    select: {
+      answers: true,
     },
   },
 } as const;
@@ -710,6 +731,8 @@ export const getUserExams = async (userId: number, query: GetUserExamsQuery) => 
   // Map to response format with remaining time
   const data: UserExamListItem[] = userExams.map((ue) => ({
     id: ue.id,
+    examId: ue.examId,
+    attemptNumber: ue.attemptNumber,
     exam: {
       id: ue.exam.id,
       title: ue.exam.title,
@@ -725,7 +748,7 @@ export const getUserExams = async (userId: number, query: GetUserExamsQuery) => 
         : null,
     durationMinutes: ue.exam.durationMinutes,
     answeredQuestions: ue._count.answers,
-    totalQuestions: 0, // Will be populated if needed
+    totalQuestions: (ue.exam as any)._count?.examQuestions ?? 0,
   }));
 
   return createPaginatedResponse(data, page, limit, total);

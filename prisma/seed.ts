@@ -1,14 +1,20 @@
 /**
  * Prisma Seed File - Prestige Academy CPNS Exam System
  *
- * This seed file creates minimum essential data for Iteration-1 end-to-end testing:
- * - 1 Admin + 2 Participants with known credentials
- * - 2 Exams (one allows retakes, one doesn't)
+ * This seed file creates comprehensive test data for all exam flows:
+ * - 1 Admin + 3 Participants with known credentials
+ * - 3 Exams (retakes allowed, no retakes, max attempts limited)
  * - 15+ Questions spanning TIU/TKP/TWK
- * - Exam sessions (1 active, 1 finished) with answers
+ * - Multiple exam sessions covering all scenarios:
+ *   - IN_PROGRESS (resume flow)
+ *   - FINISHED (view results flow)
+ *   - FINISHED with retakes allowed (retake flow)
+ *   - FINISHED with retakes disabled (error flow)
+ *   - Max attempts exhausted (error flow)
+ *   - TIMEOUT (edge case)
  * - Proctoring events for demonstration
  *
- * IDEMPOTENT: Safe to run multiple times using upsert and deterministic IDs
+ * IDEMPOTENT: Safe to run multiple times using upsert and deterministic lookups
  *
  * @author I Gede Bala Putra
  * @thesis Universitas Atma Jaya Yogyakarta
@@ -48,6 +54,11 @@ const TEST_CREDENTIALS = {
     password: 'Siti1234!',
     name: 'Siti Rahayu',
   },
+  participant3: {
+    email: 'andi@example.com',
+    password: 'Andi1234!',
+    name: 'Andi Wijaya',
+  },
 };
 
 // ============================================================================
@@ -62,6 +73,12 @@ function log(message: string): void {
   console.log(`[SEED] ${message}`);
 }
 
+function getWrongOption(correctAnswer: string): string {
+  const options = ['A', 'B', 'C', 'D', 'E'];
+  const wrongOptions = options.filter((o) => o !== correctAnswer);
+  return wrongOptions[Math.floor(Math.random() * wrongOptions.length)];
+}
+
 // ============================================================================
 // SEED: USERS
 // ============================================================================
@@ -72,6 +89,7 @@ async function seedUsers() {
   const adminPassword = await hashPassword(TEST_CREDENTIALS.admin.password);
   const participant1Password = await hashPassword(TEST_CREDENTIALS.participant1.password);
   const participant2Password = await hashPassword(TEST_CREDENTIALS.participant2.password);
+  const participant3Password = await hashPassword(TEST_CREDENTIALS.participant3.password);
 
   // Admin user
   const admin = await prisma.user.upsert({
@@ -91,7 +109,10 @@ async function seedUsers() {
     },
   });
 
-  // Participant 1 - will have active exam session
+  // Participant 1 - will have:
+  // - IN_PROGRESS session on Exam 1 (resume flow)
+  // - FINISHED session on Exam 2 (retake disabled error)
+  // - 2/2 attempts exhausted on Exam 3 (max attempts error)
   const participant1 = await prisma.user.upsert({
     where: { email: TEST_CREDENTIALS.participant1.email },
     update: {
@@ -109,7 +130,10 @@ async function seedUsers() {
     },
   });
 
-  // Participant 2 - will have finished exam session
+  // Participant 2 - will have:
+  // - FINISHED session on Exam 1 (can retake - "Ulangi Ujian" button)
+  // - FINISHED session on Exam 2 (view results)
+  // - TIMEOUT session for edge case
   const participant2 = await prisma.user.upsert({
     where: { email: TEST_CREDENTIALS.participant2.email },
     update: {
@@ -127,11 +151,31 @@ async function seedUsers() {
     },
   });
 
+  // Participant 3 - Fresh user with NO exam history
+  // Perfect for testing first-time exam flow ("Mulai Ujian")
+  const participant3 = await prisma.user.upsert({
+    where: { email: TEST_CREDENTIALS.participant3.email },
+    update: {
+      name: TEST_CREDENTIALS.participant3.name,
+      password: participant3Password,
+      role: UserRole.PARTICIPANT,
+      isEmailVerified: true,
+    },
+    create: {
+      email: TEST_CREDENTIALS.participant3.email,
+      name: TEST_CREDENTIALS.participant3.name,
+      password: participant3Password,
+      role: UserRole.PARTICIPANT,
+      isEmailVerified: true,
+    },
+  });
+
   log(`  ✓ Admin: ${admin.email} (ID: ${admin.id})`);
   log(`  ✓ Participant 1: ${participant1.email} (ID: ${participant1.id})`);
   log(`  ✓ Participant 2: ${participant2.email} (ID: ${participant2.id})`);
+  log(`  ✓ Participant 3: ${participant3.email} (ID: ${participant3.id}) [FRESH - no exams]`);
 
-  return { admin, participant1, participant2 };
+  return { admin, participant1, participant2, participant3 };
 }
 
 // ============================================================================
@@ -258,8 +302,7 @@ async function seedQuestions() {
   // TKP Questions (5) - Tes Karakteristik Pribadi
   const tkpQuestions = [
     {
-      content:
-        'Ketika menghadapi deadline yang sangat ketat, Anda akan...',
+      content: 'Ketika menghadapi deadline yang sangat ketat, Anda akan...',
       options: {
         A: 'Panik dan mengeluh kepada rekan kerja',
         B: 'Meminta perpanjangan waktu',
@@ -272,8 +315,7 @@ async function seedQuestions() {
       defaultScore: 5,
     },
     {
-      content:
-        'Ketika rekan kerja meminta bantuan saat Anda sedang sibuk, Anda akan...',
+      content: 'Ketika rekan kerja meminta bantuan saat Anda sedang sibuk, Anda akan...',
       options: {
         A: 'Menolak dengan tegas',
         B: 'Membantu meski pekerjaan sendiri tertunda',
@@ -286,8 +328,7 @@ async function seedQuestions() {
       defaultScore: 5,
     },
     {
-      content:
-        'Jika Anda menemukan kesalahan pada pekerjaan atasan, Anda akan...',
+      content: 'Jika Anda menemukan kesalahan pada pekerjaan atasan, Anda akan...',
       options: {
         A: 'Diam saja karena takut',
         B: 'Memberitahu teman-teman tentang kesalahan tersebut',
@@ -300,8 +341,7 @@ async function seedQuestions() {
       defaultScore: 5,
     },
     {
-      content:
-        'Sikap Anda ketika mendapat kritik dari atasan adalah...',
+      content: 'Sikap Anda ketika mendapat kritik dari atasan adalah...',
       options: {
         A: 'Marah dan membela diri',
         B: 'Diam dan tidak merespons',
@@ -314,8 +354,7 @@ async function seedQuestions() {
       defaultScore: 5,
     },
     {
-      content:
-        'Ketika terjadi konflik antar rekan kerja, Anda akan...',
+      content: 'Ketika terjadi konflik antar rekan kerja, Anda akan...',
       options: {
         A: 'Memihak salah satu pihak',
         B: 'Tidak peduli dan fokus pada pekerjaan sendiri',
@@ -334,7 +373,6 @@ async function seedQuestions() {
 
   for (const q of allQuestions) {
     // Use content as unique identifier for upsert
-    // First, try to find existing question by content
     const existing = await prisma.questionBank.findFirst({
       where: { content: q.content },
     });
@@ -389,7 +427,10 @@ async function seedExams(adminId: number) {
     orderBy: [{ questionType: 'asc' }, { id: 'asc' }],
   });
 
-  // Exam 1: Active exam with retakes allowed
+  // -------------------------------------------------------------------------
+  // Exam 1: Active exam with RETAKES ALLOWED (max 3 attempts)
+  // Test scenarios: Resume, Retake button, Multiple attempts history
+  // -------------------------------------------------------------------------
   const exam1Title = 'Tryout CPNS 2025 - Paket A';
   let exam1 = await prisma.exam.findFirst({
     where: { title: exam1Title },
@@ -400,7 +441,7 @@ async function seedExams(adminId: number) {
       data: {
         title: exam1Title,
         description:
-          'Tryout CPNS lengkap mencakup TIU, TWK, dan TKP. Durasi 90 menit dengan 15 soal pilihan ganda.',
+          'Tryout CPNS lengkap mencakup TIU, TWK, dan TKP. Durasi 90 menit dengan 15 soal pilihan ganda. Dapat diulang hingga 3 kali.',
         durationMinutes: 90,
         passingScore: 50,
         allowRetake: true,
@@ -415,7 +456,7 @@ async function seedExams(adminId: number) {
       where: { id: exam1.id },
       data: {
         description:
-          'Tryout CPNS lengkap mencakup TIU, TWK, dan TKP. Durasi 90 menit dengan 15 soal pilihan ganda.',
+          'Tryout CPNS lengkap mencakup TIU, TWK, dan TKP. Durasi 90 menit dengan 15 soal pilihan ganda. Dapat diulang hingga 3 kali.',
         durationMinutes: 90,
         passingScore: 50,
         allowRetake: true,
@@ -426,7 +467,10 @@ async function seedExams(adminId: number) {
     });
   }
 
-  // Exam 2: Exam without retakes (one-shot)
+  // -------------------------------------------------------------------------
+  // Exam 2: Exam with NO RETAKES (one-shot)
+  // Test scenarios: Retake disabled error
+  // -------------------------------------------------------------------------
   const exam2Title = 'Simulasi CPNS 2025 - Final';
   let exam2 = await prisma.exam.findFirst({
     where: { title: exam2Title },
@@ -437,7 +481,7 @@ async function seedExams(adminId: number) {
       data: {
         title: exam2Title,
         description:
-          'Simulasi ujian CPNS final. Tidak dapat diulang setelah selesai. Persiapkan diri dengan baik!',
+          'Simulasi ujian CPNS final. TIDAK DAPAT DIULANG setelah selesai. Persiapkan diri dengan baik!',
         durationMinutes: 60,
         passingScore: 60,
         allowRetake: false,
@@ -452,7 +496,7 @@ async function seedExams(adminId: number) {
       where: { id: exam2.id },
       data: {
         description:
-          'Simulasi ujian CPNS final. Tidak dapat diulang setelah selesai. Persiapkan diri dengan baik!',
+          'Simulasi ujian CPNS final. TIDAK DAPAT DIULANG setelah selesai. Persiapkan diri dengan baik!',
         durationMinutes: 60,
         passingScore: 60,
         allowRetake: false,
@@ -461,9 +505,46 @@ async function seedExams(adminId: number) {
     });
   }
 
-  // Assign questions to exams
-  // For each exam, clear existing questions and re-assign
-  for (const exam of [exam1, exam2]) {
+  // -------------------------------------------------------------------------
+  // Exam 3: Exam with LIMITED RETAKES (max 2 attempts)
+  // Test scenarios: Max attempts reached error
+  // -------------------------------------------------------------------------
+  const exam3Title = 'Tryout CPNS 2025 - Paket B (Limited)';
+  let exam3 = await prisma.exam.findFirst({
+    where: { title: exam3Title },
+  });
+
+  if (!exam3) {
+    exam3 = await prisma.exam.create({
+      data: {
+        title: exam3Title,
+        description:
+          'Tryout CPNS dengan maksimal 2 percobaan. Gunakan kesempatan dengan bijak!',
+        durationMinutes: 45,
+        passingScore: 55,
+        allowRetake: true,
+        maxAttempts: 2, // Only 2 attempts allowed
+        startTime: new Date('2025-01-01T00:00:00Z'),
+        endTime: new Date('2025-12-31T23:59:59Z'),
+        createdBy: adminId,
+      },
+    });
+  } else {
+    exam3 = await prisma.exam.update({
+      where: { id: exam3.id },
+      data: {
+        description:
+          'Tryout CPNS dengan maksimal 2 percobaan. Gunakan kesempatan dengan bijak!',
+        durationMinutes: 45,
+        passingScore: 55,
+        allowRetake: true,
+        maxAttempts: 2,
+      },
+    });
+  }
+
+  // Assign questions to all exams
+  for (const exam of [exam1, exam2, exam3]) {
     // Delete existing exam questions
     await prisma.examQuestion.deleteMany({
       where: { examId: exam.id },
@@ -481,22 +562,27 @@ async function seedExams(adminId: number) {
     }
   }
 
-  log(`  ✓ Exam 1: "${exam1.title}" (ID: ${exam1.id}) - Retakes: ${exam1.allowRetake}`);
-  log(`  ✓ Exam 2: "${exam2.title}" (ID: ${exam2.id}) - Retakes: ${exam2.allowRetake}`);
+  log(`  ✓ Exam 1: "${exam1.title}" (ID: ${exam1.id})`);
+  log(`    - Retakes: ✅ Allowed, Max: ${exam1.maxAttempts} attempts`);
+  log(`  ✓ Exam 2: "${exam2.title}" (ID: ${exam2.id})`);
+  log(`    - Retakes: ❌ Disabled`);
+  log(`  ✓ Exam 3: "${exam3.title}" (ID: ${exam3.id})`);
+  log(`    - Retakes: ✅ Allowed, Max: ${exam3.maxAttempts} attempts`);
   log(`  ✓ Assigned ${allQuestions.length} questions to each exam`);
 
-  return { exam1, exam2 };
+  return { exam1, exam2, exam3 };
 }
 
 // ============================================================================
-// SEED: EXAM SESSIONS (UserExam)
+// SEED: EXAM SESSIONS (UserExam) - ALL SCENARIOS
 // ============================================================================
 
 async function seedExamSessions(
   participant1Id: number,
   participant2Id: number,
   exam1Id: number,
-  exam2Id: number
+  exam2Id: number,
+  exam3Id: number
 ) {
   log('Seeding exam sessions...');
 
@@ -513,11 +599,20 @@ async function seedExamSessions(
     include: { question: true },
   });
 
-  // -------------------------------------------------------------------------
-  // Session 1: Participant 1 with IN_PROGRESS session on Exam 1
-  // -------------------------------------------------------------------------
+  const exam3Questions = await prisma.examQuestion.findMany({
+    where: { examId: exam3Id },
+    orderBy: { orderNumber: 'asc' },
+    include: { question: true },
+  });
 
-  // Find or create the session
+  const sessions: Record<string, any> = {};
+
+  // =========================================================================
+  // SCENARIO 1: IN_PROGRESS Session (Resume Flow)
+  // Participant 1 on Exam 1 - Active session with partial answers
+  // =========================================================================
+  log('  Creating Scenario 1: IN_PROGRESS session (Resume Flow)...');
+
   let session1 = await prisma.userExam.findFirst({
     where: {
       userId: participant1Id,
@@ -537,7 +632,6 @@ async function seedExamSessions(
       },
     });
   } else {
-    // Update to ensure it's in progress
     session1 = await prisma.userExam.update({
       where: { id: session1.id },
       data: {
@@ -549,7 +643,7 @@ async function seedExamSessions(
     });
   }
 
-  // Clear existing answers and add partial answers (simulating in-progress)
+  // Clear existing answers and add partial answers
   await prisma.answer.deleteMany({
     where: { userExamId: session1.id },
   });
@@ -561,20 +655,172 @@ async function seedExamSessions(
       data: {
         userExamId: session1.id,
         examQuestionId: eq.id,
-        selectedOption: eq.question.correctAnswer, // Answer correctly for demo
+        selectedOption: eq.question.correctAnswer,
         isCorrect: true,
       },
     });
   }
 
-  log(`  ✓ Session 1 (IN_PROGRESS): Participant 1 on Exam 1 (ID: ${session1.id})`);
-  log(`    - 5 of ${exam1Questions.length} questions answered`);
+  sessions.inProgress = session1;
+  log(`    ✓ Session ID: ${session1.id} - Participant 1 on Exam 1`);
+  log(`      5/${exam1Questions.length} questions answered`);
 
-  // -------------------------------------------------------------------------
-  // Session 2: Participant 2 with FINISHED session on Exam 2
-  // -------------------------------------------------------------------------
+  // =========================================================================
+  // SCENARIO 2: FINISHED Session with Retakes Allowed (Retake Flow)
+  // Participant 2 on Exam 1 - Completed, can click "Ulangi Ujian"
+  // =========================================================================
+  log('  Creating Scenario 2: FINISHED session with retakes allowed...');
+
+  const completedTime2 = new Date();
+  completedTime2.setHours(completedTime2.getHours() - 3); // 3 hours ago
+  const startTime2 = new Date(completedTime2);
+  startTime2.setMinutes(startTime2.getMinutes() - 75); // 75 min before submit
 
   let session2 = await prisma.userExam.findFirst({
+    where: {
+      userId: participant2Id,
+      examId: exam1Id,
+      attemptNumber: 1,
+    },
+  });
+
+  if (!session2) {
+    session2 = await prisma.userExam.create({
+      data: {
+        userId: participant2Id,
+        examId: exam1Id,
+        attemptNumber: 1,
+        startedAt: startTime2,
+        submittedAt: completedTime2,
+        status: ExamStatus.FINISHED,
+        totalScore: 45, // Below passing (50) to motivate retake
+      },
+    });
+  } else {
+    session2 = await prisma.userExam.update({
+      where: { id: session2.id },
+      data: {
+        startedAt: startTime2,
+        submittedAt: completedTime2,
+        status: ExamStatus.FINISHED,
+        totalScore: 45,
+      },
+    });
+  }
+
+  // Clear and add answers
+  await prisma.answer.deleteMany({
+    where: { userExamId: session2.id },
+  });
+
+  let score2 = 0;
+  for (let i = 0; i < exam1Questions.length; i++) {
+    const eq = exam1Questions[i];
+    const isCorrect = i < 9; // 9/15 correct = 60% but score = 45 (9*5)
+    await prisma.answer.create({
+      data: {
+        userExamId: session2.id,
+        examQuestionId: eq.id,
+        selectedOption: isCorrect ? eq.question.correctAnswer : getWrongOption(eq.question.correctAnswer),
+        isCorrect,
+      },
+    });
+    if (isCorrect) score2 += eq.question.defaultScore;
+  }
+
+  // Update with calculated score
+  await prisma.userExam.update({
+    where: { id: session2.id },
+    data: { totalScore: score2 },
+  });
+
+  sessions.retakeAllowed = session2;
+  log(`    ✓ Session ID: ${session2.id} - Participant 2 on Exam 1`);
+  log(`      Score: ${score2} (can retake up to 3 attempts)`);
+
+  // =========================================================================
+  // SCENARIO 3: FINISHED Session with Retakes DISABLED (Error Flow)
+  // Participant 1 on Exam 2 - Completed, will get error if tries to retake
+  // =========================================================================
+  log('  Creating Scenario 3: FINISHED session with retakes DISABLED...');
+
+  const completedTime3 = new Date();
+  completedTime3.setHours(completedTime3.getHours() - 5); // 5 hours ago
+  const startTime3 = new Date(completedTime3);
+  startTime3.setMinutes(startTime3.getMinutes() - 55);
+
+  let session3 = await prisma.userExam.findFirst({
+    where: {
+      userId: participant1Id,
+      examId: exam2Id,
+      attemptNumber: 1,
+    },
+  });
+
+  if (!session3) {
+    session3 = await prisma.userExam.create({
+      data: {
+        userId: participant1Id,
+        examId: exam2Id,
+        attemptNumber: 1,
+        startedAt: startTime3,
+        submittedAt: completedTime3,
+        status: ExamStatus.FINISHED,
+        totalScore: 70,
+      },
+    });
+  } else {
+    session3 = await prisma.userExam.update({
+      where: { id: session3.id },
+      data: {
+        startedAt: startTime3,
+        submittedAt: completedTime3,
+        status: ExamStatus.FINISHED,
+        totalScore: 70,
+      },
+    });
+  }
+
+  await prisma.answer.deleteMany({
+    where: { userExamId: session3.id },
+  });
+
+  let score3 = 0;
+  for (let i = 0; i < exam2Questions.length; i++) {
+    const eq = exam2Questions[i];
+    const isCorrect = i < 14; // 14/15 correct
+    await prisma.answer.create({
+      data: {
+        userExamId: session3.id,
+        examQuestionId: eq.id,
+        selectedOption: isCorrect ? eq.question.correctAnswer : getWrongOption(eq.question.correctAnswer),
+        isCorrect,
+      },
+    });
+    if (isCorrect) score3 += eq.question.defaultScore;
+  }
+
+  await prisma.userExam.update({
+    where: { id: session3.id },
+    data: { totalScore: score3 },
+  });
+
+  sessions.retakeDisabled = session3;
+  log(`    ✓ Session ID: ${session3.id} - Participant 1 on Exam 2`);
+  log(`      Score: ${score3} (NO retakes allowed - will get error)`);
+
+  // =========================================================================
+  // SCENARIO 4: FINISHED Session for viewing results
+  // Participant 2 on Exam 2 - Standard completed exam
+  // =========================================================================
+  log('  Creating Scenario 4: FINISHED session for results viewing...');
+
+  const completedTime4 = new Date();
+  completedTime4.setHours(completedTime4.getHours() - 1);
+  const startTime4 = new Date(completedTime4);
+  startTime4.setMinutes(startTime4.getMinutes() - 45);
+
+  let session4 = await prisma.userExam.findFirst({
     where: {
       userId: participant2Id,
       examId: exam2Id,
@@ -582,196 +828,341 @@ async function seedExamSessions(
     },
   });
 
-  const submittedTime = new Date();
-  submittedTime.setHours(submittedTime.getHours() - 1); // 1 hour ago
-
-  const startedTime = new Date(submittedTime);
-  startedTime.setMinutes(startedTime.getMinutes() - 45); // Started 45 min before submit
-
-  if (!session2) {
-    session2 = await prisma.userExam.create({
+  if (!session4) {
+    session4 = await prisma.userExam.create({
       data: {
         userId: participant2Id,
         examId: exam2Id,
         attemptNumber: 1,
-        startedAt: startedTime,
-        submittedAt: submittedTime,
+        startedAt: startTime4,
+        submittedAt: completedTime4,
         status: ExamStatus.FINISHED,
-        totalScore: 65, // Will calculate properly below
+        totalScore: 65,
       },
     });
   } else {
-    session2 = await prisma.userExam.update({
-      where: { id: session2.id },
+    session4 = await prisma.userExam.update({
+      where: { id: session4.id },
       data: {
-        startedAt: startedTime,
-        submittedAt: submittedTime,
+        startedAt: startTime4,
+        submittedAt: completedTime4,
         status: ExamStatus.FINISHED,
       },
     });
   }
 
-  // Clear existing answers and add all answers
   await prisma.answer.deleteMany({
-    where: { userExamId: session2.id },
+    where: { userExamId: session4.id },
   });
 
-  let totalScore = 0;
+  let score4 = 0;
   for (let i = 0; i < exam2Questions.length; i++) {
     const eq = exam2Questions[i];
-    // Simulate: correct on ~60% (9 of 15 questions)
     const isCorrect = i < 9 || i === 12;
-    const selectedOption = isCorrect
-      ? eq.question.correctAnswer
-      : getWrongOption(eq.question.correctAnswer);
-
     await prisma.answer.create({
       data: {
-        userExamId: session2.id,
+        userExamId: session4.id,
         examQuestionId: eq.id,
-        selectedOption,
+        selectedOption: isCorrect ? eq.question.correctAnswer : getWrongOption(eq.question.correctAnswer),
         isCorrect,
       },
     });
-
-    if (isCorrect) {
-      totalScore += eq.question.defaultScore;
-    }
+    if (isCorrect) score4 += eq.question.defaultScore;
   }
 
-  // Update total score
   await prisma.userExam.update({
-    where: { id: session2.id },
-    data: { totalScore },
+    where: { id: session4.id },
+    data: { totalScore: score4 },
   });
 
-  log(`  ✓ Session 2 (FINISHED): Participant 2 on Exam 2 (ID: ${session2.id})`);
-  log(`    - All ${exam2Questions.length} questions answered, Score: ${totalScore}`);
+  sessions.viewResults = session4;
+  log(`    ✓ Session ID: ${session4.id} - Participant 2 on Exam 2`);
+  log(`      Score: ${score4}`);
 
-  return { session1, session2 };
-}
+  // =========================================================================
+  // SCENARIO 5: MAX ATTEMPTS EXHAUSTED (Error Flow)
+  // Participant 1 on Exam 3 - Has 2/2 attempts completed
+  // =========================================================================
+  log('  Creating Scenario 5: MAX ATTEMPTS exhausted...');
 
-function getWrongOption(correctAnswer: string): string {
-  const options = ['A', 'B', 'C', 'D', 'E'];
-  const wrongOptions = options.filter((o) => o !== correctAnswer);
-  return wrongOptions[Math.floor(Math.random() * wrongOptions.length)];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const attemptStart = new Date();
+    attemptStart.setDate(attemptStart.getDate() - attempt);
+    const attemptEnd = new Date(attemptStart);
+    attemptEnd.setMinutes(attemptEnd.getMinutes() + 40);
+
+    let existingAttempt = await prisma.userExam.findFirst({
+      where: {
+        userId: participant1Id,
+        examId: exam3Id,
+        attemptNumber: attempt,
+      },
+    });
+
+    if (!existingAttempt) {
+      existingAttempt = await prisma.userExam.create({
+        data: {
+          userId: participant1Id,
+          examId: exam3Id,
+          attemptNumber: attempt,
+          startedAt: attemptStart,
+          submittedAt: attemptEnd,
+          status: ExamStatus.FINISHED,
+          totalScore: 45 + attempt * 10, // Scores: 55, 65
+        },
+      });
+    } else {
+      existingAttempt = await prisma.userExam.update({
+        where: { id: existingAttempt.id },
+        data: {
+          startedAt: attemptStart,
+          submittedAt: attemptEnd,
+          status: ExamStatus.FINISHED,
+          totalScore: 45 + attempt * 10,
+        },
+      });
+    }
+
+    await prisma.answer.deleteMany({
+      where: { userExamId: existingAttempt.id },
+    });
+
+    for (let i = 0; i < exam3Questions.length; i++) {
+      const eq = exam3Questions[i];
+      const isCorrect = i < (9 + attempt * 2); // Improvement on each attempt
+      await prisma.answer.create({
+        data: {
+          userExamId: existingAttempt.id,
+          examQuestionId: eq.id,
+          selectedOption: isCorrect ? eq.question.correctAnswer : getWrongOption(eq.question.correctAnswer),
+          isCorrect,
+        },
+      });
+    }
+
+    if (attempt === 1) sessions.maxAttemptsFirst = existingAttempt;
+    if (attempt === 2) sessions.maxAttemptsSecond = existingAttempt;
+
+    log(`    ✓ Attempt #${attempt} - Session ID: ${existingAttempt.id}`);
+    log(`      Score: ${existingAttempt.totalScore}`);
+  }
+  log(`      Participant 1 has exhausted 2/2 attempts on Exam 3`);
+
+  // =========================================================================
+  // SCENARIO 6: TIMEOUT Session (Edge Case)
+  // Participant 2 on Exam 3 - Auto-submitted due to timeout
+  // =========================================================================
+  log('  Creating Scenario 6: TIMEOUT session (edge case)...');
+
+  const timeoutStart = new Date();
+  timeoutStart.setHours(timeoutStart.getHours() - 4);
+  const timeoutEnd = new Date(timeoutStart);
+  timeoutEnd.setMinutes(timeoutEnd.getMinutes() + 45); // Exactly at duration limit
+
+  let session6 = await prisma.userExam.findFirst({
+    where: {
+      userId: participant2Id,
+      examId: exam3Id,
+      attemptNumber: 1,
+    },
+  });
+
+  if (!session6) {
+    session6 = await prisma.userExam.create({
+      data: {
+        userId: participant2Id,
+        examId: exam3Id,
+        attemptNumber: 1,
+        startedAt: timeoutStart,
+        submittedAt: timeoutEnd,
+        status: ExamStatus.TIMEOUT,
+        totalScore: 30,
+      },
+    });
+  } else {
+    session6 = await prisma.userExam.update({
+      where: { id: session6.id },
+      data: {
+        startedAt: timeoutStart,
+        submittedAt: timeoutEnd,
+        status: ExamStatus.TIMEOUT,
+        totalScore: 30,
+      },
+    });
+  }
+
+  await prisma.answer.deleteMany({
+    where: { userExamId: session6.id },
+  });
+
+  // Only partial answers (simulating timeout before completion)
+  for (let i = 0; i < 8; i++) {
+    const eq = exam3Questions[i];
+    const isCorrect = i < 6;
+    await prisma.answer.create({
+      data: {
+        userExamId: session6.id,
+        examQuestionId: eq.id,
+        selectedOption: isCorrect ? eq.question.correctAnswer : getWrongOption(eq.question.correctAnswer),
+        isCorrect,
+      },
+    });
+  }
+
+  sessions.timeout = session6;
+  log(`    ✓ Session ID: ${session6.id} - Participant 2 on Exam 3`);
+  log(`      Status: TIMEOUT, Score: 30 (partial answers)`);
+
+  return sessions;
 }
 
 // ============================================================================
 // SEED: PROCTORING EVENTS
 // ============================================================================
 
-async function seedProctoringEvents(
-  session1Id: number,
-  session2Id: number
-) {
+async function seedProctoringEvents(sessions: Record<string, any>) {
   log('Seeding proctoring events...');
 
-  // Clear existing events
+  // Get session IDs
+  const sessionIds = Object.values(sessions)
+    .filter((s) => s && s.id)
+    .map((s) => s.id);
+
+  // Clear existing events for these sessions
   await prisma.proctoringEvent.deleteMany({
     where: {
-      userExamId: { in: [session1Id, session2Id] },
+      userExamId: { in: sessionIds },
     },
   });
 
   const now = new Date();
 
-  // Session 1: Active session - recent events
-  const session1Events = [
-    {
-      userExamId: session1Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(now.getTime() - 5 * 60 * 1000), // 5 min ago
-      metadata: { confidence: 0.98, faces: 1 },
-    },
-    {
-      userExamId: session1Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(now.getTime() - 3 * 60 * 1000), // 3 min ago
-      metadata: { confidence: 0.95, faces: 1 },
-    },
-    {
-      userExamId: session1Id,
-      eventType: ProctoringEventType.LOOKING_AWAY,
-      severity: 'MEDIUM',
-      timestamp: new Date(now.getTime() - 2 * 60 * 1000), // 2 min ago
-      metadata: { confidence: 0.87, deviation: 'left' },
-    },
-    {
-      userExamId: session1Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(now.getTime() - 1 * 60 * 1000), // 1 min ago
-      metadata: { confidence: 0.96, faces: 1 },
-    },
-  ];
+  // IN_PROGRESS session: Recent events (for demo)
+  if (sessions.inProgress) {
+    const events = [
+      {
+        userExamId: sessions.inProgress.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(now.getTime() - 5 * 60 * 1000),
+        metadata: { confidence: 0.98, faces: 1 },
+      },
+      {
+        userExamId: sessions.inProgress.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(now.getTime() - 3 * 60 * 1000),
+        metadata: { confidence: 0.95, faces: 1 },
+      },
+      {
+        userExamId: sessions.inProgress.id,
+        eventType: ProctoringEventType.LOOKING_AWAY,
+        severity: 'MEDIUM',
+        timestamp: new Date(now.getTime() - 2 * 60 * 1000),
+        metadata: { confidence: 0.87, deviation: 'left' },
+      },
+      {
+        userExamId: sessions.inProgress.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(now.getTime() - 1 * 60 * 1000),
+        metadata: { confidence: 0.96, faces: 1 },
+      },
+    ];
 
-  // Session 2: Finished session - historical events with some violations
-  const session2StartTime = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago
-  const session2Events = [
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(session2StartTime.getTime() + 1 * 60 * 1000),
-      metadata: { confidence: 0.97, faces: 1 },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(session2StartTime.getTime() + 5 * 60 * 1000),
-      metadata: { confidence: 0.94, faces: 1 },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.NO_FACE_DETECTED,
-      severity: 'HIGH',
-      timestamp: new Date(session2StartTime.getTime() + 10 * 60 * 1000),
-      metadata: { confidence: 0.12, message: 'User may have left frame' },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(session2StartTime.getTime() + 11 * 60 * 1000),
-      metadata: { confidence: 0.91, faces: 1 },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.MULTIPLE_FACES,
-      severity: 'HIGH',
-      timestamp: new Date(session2StartTime.getTime() + 20 * 60 * 1000),
-      metadata: { confidence: 0.88, faces: 2, message: 'Two faces detected' },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(session2StartTime.getTime() + 25 * 60 * 1000),
-      metadata: { confidence: 0.95, faces: 1 },
-    },
-    {
-      userExamId: session2Id,
-      eventType: ProctoringEventType.FACE_DETECTED,
-      severity: 'LOW',
-      timestamp: new Date(session2StartTime.getTime() + 40 * 60 * 1000),
-      metadata: { confidence: 0.93, faces: 1 },
-    },
-  ];
-
-  // Create all events
-  for (const event of [...session1Events, ...session2Events]) {
-    await prisma.proctoringEvent.create({
-      data: event,
-    });
+    for (const event of events) {
+      await prisma.proctoringEvent.create({ data: event });
+    }
+    log(`  ✓ IN_PROGRESS session: ${events.length} events`);
   }
 
-  log(`  ✓ Session 1: ${session1Events.length} proctoring events`);
-  log(`  ✓ Session 2: ${session2Events.length} proctoring events`);
-  log(`    - Including HIGH severity violations for demo`);
+  // View Results session: Historical events with violations
+  if (sessions.viewResults) {
+    const sessionStartTime = new Date(now.getTime() - 60 * 60 * 1000);
+    const events = [
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(sessionStartTime.getTime() + 1 * 60 * 1000),
+        metadata: { confidence: 0.97, faces: 1 },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(sessionStartTime.getTime() + 5 * 60 * 1000),
+        metadata: { confidence: 0.94, faces: 1 },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.NO_FACE_DETECTED,
+        severity: 'HIGH',
+        timestamp: new Date(sessionStartTime.getTime() + 10 * 60 * 1000),
+        metadata: { confidence: 0.12, message: 'User may have left frame' },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(sessionStartTime.getTime() + 11 * 60 * 1000),
+        metadata: { confidence: 0.91, faces: 1 },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.MULTIPLE_FACES,
+        severity: 'HIGH',
+        timestamp: new Date(sessionStartTime.getTime() + 20 * 60 * 1000),
+        metadata: { confidence: 0.88, faces: 2, message: 'Two faces detected' },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.LOOKING_AWAY,
+        severity: 'MEDIUM',
+        timestamp: new Date(sessionStartTime.getTime() + 30 * 60 * 1000),
+        metadata: { confidence: 0.82, deviation: 'right' },
+      },
+      {
+        userExamId: sessions.viewResults.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(sessionStartTime.getTime() + 40 * 60 * 1000),
+        metadata: { confidence: 0.93, faces: 1 },
+      },
+    ];
+
+    for (const event of events) {
+      await prisma.proctoringEvent.create({ data: event });
+    }
+    log(`  ✓ View Results session: ${events.length} events (includes HIGH severity)`);
+  }
+
+  // Retake Allowed session: Clean session with minimal violations
+  if (sessions.retakeAllowed) {
+    const events = [
+      {
+        userExamId: sessions.retakeAllowed.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(now.getTime() - 180 * 60 * 1000),
+        metadata: { confidence: 0.99, faces: 1 },
+      },
+      {
+        userExamId: sessions.retakeAllowed.id,
+        eventType: ProctoringEventType.FACE_DETECTED,
+        severity: 'LOW',
+        timestamp: new Date(now.getTime() - 120 * 60 * 1000),
+        metadata: { confidence: 0.97, faces: 1 },
+      },
+    ];
+
+    for (const event of events) {
+      await prisma.proctoringEvent.create({ data: event });
+    }
+    log(`  ✓ Retake Allowed session: ${events.length} events (clean session)`);
+  }
+
+  log('  ✓ Proctoring events seeded for demo purposes');
 }
 
 // ============================================================================
@@ -779,57 +1170,85 @@ async function seedProctoringEvents(
 // ============================================================================
 
 async function main() {
-  console.log('\n' + '='.repeat(60));
-  console.log('PRESTIGE ACADEMY CPNS - DATABASE SEEDING');
-  console.log('='.repeat(60) + '\n');
+  console.log('\n' + '='.repeat(70));
+  console.log('PRESTIGE ACADEMY CPNS - COMPREHENSIVE DATABASE SEEDING');
+  console.log('='.repeat(70) + '\n');
 
   try {
     // Step 1: Users
-    const { admin, participant1, participant2 } = await seedUsers();
+    const { admin, participant1, participant2, participant3 } = await seedUsers();
 
     // Step 2: Questions
     await seedQuestions();
 
-    // Step 3: Exams
-    const { exam1, exam2 } = await seedExams(admin.id);
+    // Step 3: Exams (3 different configurations)
+    const { exam1, exam2, exam3 } = await seedExams(admin.id);
 
-    // Step 4: Exam Sessions
-    const { session1, session2 } = await seedExamSessions(
+    // Step 4: Exam Sessions (All scenarios)
+    const sessions = await seedExamSessions(
       participant1.id,
       participant2.id,
       exam1.id,
-      exam2.id
+      exam2.id,
+      exam3.id
     );
 
     // Step 5: Proctoring Events
-    await seedProctoringEvents(session1.id, session2.id);
+    await seedProctoringEvents(sessions);
 
     // Summary
-    console.log('\n' + '='.repeat(60));
+    console.log('\n' + '='.repeat(70));
     console.log('SEEDING COMPLETE! ✓');
-    console.log('='.repeat(60));
+    console.log('='.repeat(70));
+
     console.log('\n📋 TEST CREDENTIALS:');
-    console.log('─'.repeat(40));
-    console.log(`ADMIN:        ${TEST_CREDENTIALS.admin.email}`);
-    console.log(`              Password: ${TEST_CREDENTIALS.admin.password}`);
+    console.log('─'.repeat(50));
+    console.log(`ADMIN:         ${TEST_CREDENTIALS.admin.email}`);
+    console.log(`               Password: ${TEST_CREDENTIALS.admin.password}`);
     console.log('');
     console.log(`PARTICIPANT 1: ${TEST_CREDENTIALS.participant1.email}`);
-    console.log(`              Password: ${TEST_CREDENTIALS.participant1.password}`);
-    console.log(`              Has IN_PROGRESS exam session`);
+    console.log(`               Password: ${TEST_CREDENTIALS.participant1.password}`);
+    console.log(`               ├─ Exam 1: IN_PROGRESS (resume flow)`);
+    console.log(`               ├─ Exam 2: FINISHED (retake disabled)`);
+    console.log(`               └─ Exam 3: 2/2 attempts (max attempts error)`);
     console.log('');
     console.log(`PARTICIPANT 2: ${TEST_CREDENTIALS.participant2.email}`);
-    console.log(`              Password: ${TEST_CREDENTIALS.participant2.password}`);
-    console.log(`              Has FINISHED exam session with score`);
-    console.log('─'.repeat(40) + '\n');
+    console.log(`               Password: ${TEST_CREDENTIALS.participant2.password}`);
+    console.log(`               ├─ Exam 1: FINISHED (can retake)`);
+    console.log(`               ├─ Exam 2: FINISHED (view results)`);
+    console.log(`               └─ Exam 3: TIMEOUT (edge case)`);
+    console.log('');
+    console.log(`PARTICIPANT 3: ${TEST_CREDENTIALS.participant3.email}`);
+    console.log(`               Password: ${TEST_CREDENTIALS.participant3.password}`);
+    console.log(`               └─ NO EXAMS (fresh start flow)`);
+    console.log('─'.repeat(50));
 
-    console.log('📊 DATA SUMMARY:');
-    console.log('─'.repeat(40));
-    console.log(`Users:              3 (1 admin, 2 participants)`);
+    console.log('\n📊 DATA SUMMARY:');
+    console.log('─'.repeat(50));
+    console.log(`Users:              4 (1 admin, 3 participants)`);
     console.log(`Questions:          15 (5 TIU, 5 TWK, 5 TKP)`);
-    console.log(`Exams:              2 (1 with retakes, 1 without)`);
-    console.log(`Exam Sessions:      2 (1 in-progress, 1 finished)`);
-    console.log(`Proctoring Events:  11 (with violations for demo)`);
-    console.log('─'.repeat(40) + '\n');
+    console.log(`Exams:              3`);
+    console.log(`  ├─ Exam 1:        Retakes ✅ (max 3)`);
+    console.log(`  ├─ Exam 2:        Retakes ❌`);
+    console.log(`  └─ Exam 3:        Retakes ✅ (max 2)`);
+    console.log(`Exam Sessions:      7`);
+    console.log(`  ├─ IN_PROGRESS:   1 (resume flow)`);
+    console.log(`  ├─ FINISHED:      5 (various scenarios)`);
+    console.log(`  └─ TIMEOUT:       1 (edge case)`);
+    console.log(`Proctoring Events:  13+ (with HIGH severity violations)`);
+    console.log('─'.repeat(50));
+
+    console.log('\n🧪 TESTABLE SCENARIOS:');
+    console.log('─'.repeat(50));
+    console.log('1. First Start     → Login as Participant 3, start any exam');
+    console.log('2. Resume Exam     → Login as Participant 1, continue Exam 1');
+    console.log('3. Retake Exam     → Login as Participant 2, retake Exam 1');
+    console.log('4. Retake Disabled → Login as Participant 1, try Exam 2 again');
+    console.log('5. Max Attempts    → Login as Participant 1, try Exam 3 again');
+    console.log('6. View Results    → Login as Participant 2, view Exam 2 results');
+    console.log('7. View History    → Login as Participant 1, view Exam 3 attempts');
+    console.log('8. Proctoring Demo → Any active session shows ML events');
+    console.log('─'.repeat(50) + '\n');
   } catch (error) {
     console.error('\n❌ SEEDING FAILED:', error);
     throw error;
