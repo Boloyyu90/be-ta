@@ -66,17 +66,17 @@ All responses follow this structure:
 
 ### 1.4 HTTP Status Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | OK - Request succeeded |
-| 201 | Created - Resource created |
-| 204 | No Content - Success with no body |
-| 400 | Bad Request - Validation error |
-| 401 | Unauthorized - Invalid/missing token |
-| 403 | Forbidden - Insufficient permissions |
-| 404 | Not Found - Resource doesn't exist |
-| 409 | Conflict - Resource already exists |
-| 500 | Internal Server Error |
+| Code | Meaning                              |
+| ---- | ------------------------------------ |
+| 200  | OK - Request succeeded               |
+| 201  | Created - Resource created           |
+| 204  | No Content - Success with no body    |
+| 400  | Bad Request - Validation error       |
+| 401  | Unauthorized - Invalid/missing token |
+| 403  | Forbidden - Insufficient permissions |
+| 404  | Not Found - Resource doesn't exist   |
+| 409  | Conflict - Resource already exists   |
+| 500  | Internal Server Error                |
 
 ### 1.5 Pagination Format
 
@@ -97,12 +97,14 @@ All paginated endpoints return:
 ```
 
 **Query Parameters:**
+
 - `page` - Page number (default: 1, min: 1)
 - `limit` - Items per page (default: 10, max: 100)
 
 ### 1.6 Date Format
 
 All dates are **ISO 8601** strings:
+
 ```
 "2025-01-15T10:30:00.000Z"
 ```
@@ -111,39 +113,39 @@ All dates are **ISO 8601** strings:
 
 ```typescript
 // User Roles (Prisma: UserRole)
-type UserRole = 'ADMIN' | 'PARTICIPANT';
+type UserRole = "ADMIN" | "PARTICIPANT";
 
 // Exam Session Status (Prisma: ExamStatus)
-type ExamStatus = 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED' | 'TIMEOUT';
+type ExamStatus = "IN_PROGRESS" | "FINISHED" | "CANCELLED" | "TIMEOUT";
 
 // Question Types (Prisma: QuestionType)
-type QuestionType = 'TIU' | 'TKP' | 'TWK';
+type QuestionType = "TIU" | "TKP" | "TWK";
 
 // Token Types (Prisma: TokenType)
-type TokenType = 'ACCESS' | 'REFRESH';
+type TokenType = "ACCESS" | "REFRESH";
 
 // Proctoring Event Types (Prisma: ProctoringEventType)
-type ProctoringEventType = 
-  | 'FACE_DETECTED' 
-  | 'NO_FACE_DETECTED' 
-  | 'MULTIPLE_FACES' 
-  | 'LOOKING_AWAY';
+type ProctoringEventType =
+  | "FACE_DETECTED"
+  | "NO_FACE_DETECTED"
+  | "MULTIPLE_FACES"
+  | "LOOKING_AWAY";
 
 // Answer Options
-type AnswerOption = 'A' | 'B' | 'C' | 'D' | 'E' | null;
+type AnswerOption = "A" | "B" | "C" | "D" | "E" | null;
 
 // Severity Levels
-type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
+type Severity = "LOW" | "MEDIUM" | "HIGH";
 ```
 
 ### 1.8 Rate Limits
 
-| Endpoint Group | Limit | Window |
-|----------------|-------|--------|
-| Global | 100 requests | 15 minutes |
-| Auth (login/register) | 5 requests | 15 minutes |
-| Token Refresh | 10 requests | 15 minutes |
-| Proctoring | 30 requests | 1 minute |
+| Endpoint Group        | Limit        | Window     |
+| --------------------- | ------------ | ---------- |
+| Global                | 100 requests | 15 minutes |
+| Auth (login/register) | 5 requests   | 15 minutes |
+| Token Refresh         | 10 requests  | 15 minutes |
+| Proctoring            | 30 requests  | 1 minute   |
 
 ---
 
@@ -159,15 +161,15 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 
 ### 2.2 Role-Based Access
 
-| Route Pattern | Required Role |
-|---------------|---------------|
-| `/api/v1/auth/*` | Public (no auth) |
-| `/api/v1/me/*` | Authenticated |
-| `/api/v1/exams/*` | Authenticated |
-| `/api/v1/exam-sessions/*` | Authenticated |
-| `/api/v1/results/*` | Authenticated |
-| `/api/v1/proctoring/*` | Authenticated |
-| `/api/v1/admin/*` | ADMIN only |
+| Route Pattern             | Required Role    |
+| ------------------------- | ---------------- |
+| `/api/v1/auth/*`          | Public (no auth) |
+| `/api/v1/me/*`            | Authenticated    |
+| `/api/v1/exams/*`         | Authenticated    |
+| `/api/v1/exam-sessions/*` | Authenticated    |
+| `/api/v1/results/*`       | Authenticated    |
+| `/api/v1/proctoring/*`    | Authenticated    |
+| `/api/v1/admin/*`         | ADMIN only       |
 
 ---
 
@@ -176,9 +178,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ### 3.1 Auth Module
 
 #### POST `/auth/register`
+
 **Access:** Public
 
 **Request Body:**
+
 ```typescript
 {
   email: string,      // Valid email, lowercase, trimmed
@@ -188,6 +192,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (201):**
+
 ```typescript
 {
   success: true,
@@ -212,14 +217,17 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Errors:**
+
 - `409` - Email already exists (`AUTH_EMAIL_EXISTS`)
 
 ---
 
 #### POST `/auth/login`
+
 **Access:** Public
 
 **Request Body:**
+
 ```typescript
 {
   email: string,
@@ -228,6 +236,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -241,21 +250,25 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Errors:**
+
 - `401` - Invalid credentials (`AUTH_INVALID_CREDENTIALS`)
 
 ---
 
 #### POST `/auth/refresh`
+
 **Access:** Public
 
 **Request Body:**
+
 ```typescript
 {
-  refreshToken: string
+  refreshToken: string;
 }
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -271,21 +284,25 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Errors:**
+
 - `401` - Invalid/expired refresh token (`AUTH_INVALID_TOKEN`)
 
 ---
 
 #### POST `/auth/logout`
+
 **Access:** Public
 
 **Request Body:**
+
 ```typescript
 {
-  refreshToken: string
+  refreshToken: string;
 }
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -300,9 +317,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ### 3.2 Users Module
 
 #### GET `/me`
+
 **Access:** Authenticated
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -317,9 +336,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### PATCH `/me`
+
 **Access:** Authenticated
 
 **Request Body:**
+
 ```typescript
 {
   name?: string,      // 2-100 characters
@@ -328,6 +349,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -342,9 +364,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### POST `/admin/users`
+
 **Access:** ADMIN only
 
 **Request Body:**
+
 ```typescript
 {
   email: string,
@@ -355,6 +379,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (201):**
+
 ```typescript
 {
   success: true,
@@ -369,6 +394,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/admin/users`
+
 **Access:** ADMIN only
 
 **Query Parameters:**
@@ -382,6 +408,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 | sortOrder | 'asc'/'desc' | 'desc' | Sort direction |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -397,9 +424,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/admin/users/:id`
+
 **Access:** ADMIN only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -420,9 +449,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### PATCH `/admin/users/:id`
+
 **Access:** ADMIN only
 
 **Request Body:**
+
 ```typescript
 {
   email?: string,
@@ -434,6 +465,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -448,9 +480,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### DELETE `/admin/users/:id`
+
 **Access:** ADMIN only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -461,9 +495,42 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
   message: "User deleted successfully",
   timestamp: string
 }
+
+```
+
+---
+
+#### GET `/admin/users/:id/stats`
+
+**Access:** ADMIN only
+
+Get statistics for a specific user.
+
+**Response (200):**
+
+```typescript
+{
+  success: true,
+  data: {
+    totalExamsTaken: number,
+    averageScore: number,
+    passRate: number,
+    totalViolations: number,
+    examHistory: Array<{
+      examId: number,
+      examTitle: string,
+      attemptNumber: number,
+      score: number,
+      status: ExamStatus
+    }>
+  },
+  message: "User statistics retrieved successfully",
+  timestamp: string
+}
 ```
 
 **Errors:**
+
 - `409` - User has exam attempts (`USER_HAS_EXAM_ATTEMPTS`)
 - `409` - User has created exams (`USER_HAS_CREATED_EXAMS`)
 
@@ -472,9 +539,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ### 3.3 Questions Module
 
 #### POST `/admin/questions`
+
 **Access:** ADMIN only
 
 **Request Body:**
+
 ```typescript
 {
   content: string,           // 10-5000 characters (can include HTML/images)
@@ -492,6 +561,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (201):**
+
 ```typescript
 {
   success: true,
@@ -506,6 +576,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/admin/questions`
+
 **Access:** ADMIN only
 
 **Query Parameters:**
@@ -519,6 +590,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 | sortOrder | 'asc'/'desc' | 'desc' | Sort direction |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -534,9 +606,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/admin/questions/:id`
+
 **Access:** ADMIN only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -551,9 +625,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### PATCH `/admin/questions/:id`
+
 **Access:** ADMIN only
 
 **Request Body:**
+
 ```typescript
 {
   content?: string,
@@ -565,6 +641,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -579,9 +656,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### DELETE `/admin/questions/:id`
+
 **Access:** ADMIN only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -599,9 +678,11 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ### 3.4 Exams Module
 
 #### POST `/admin/exams`
+
 **Access:** ADMIN only
 
 **Request Body:**
+
 ```typescript
 {
   title: string,                    // 3-200 characters
@@ -616,6 +697,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Response (201):**
+
 ```typescript
 {
   success: true,
@@ -628,6 +710,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ```
 
 **Business Rules:**
+
 - `allowRetake` defaults to `false` - users get only one attempt
 - `maxAttempts` is only enforced when `allowRetake` is `true`
 - If `allowRetake` is `true` and `maxAttempts` is `null`, unlimited retakes are allowed
@@ -635,6 +718,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/admin/exams`
+
 **Access:** ADMIN only (shows ALL exams including drafts)
 
 **Query Parameters:**
@@ -648,6 +732,7 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 | createdBy | number | - | Filter by creator ID |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -663,18 +748,22 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH';
 ---
 
 #### GET `/exams`
+
 **Access:** Authenticated (shows only available exams with questions)
 
 Same query parameters and response format as admin, but filtered to show only exams that:
+
 - Have at least 1 question attached
 - Are within valid time window (if startTime/endTime set)
 
 ---
 
 #### GET `/admin/exams/:id`
+
 **Access:** ADMIN only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -711,6 +800,7 @@ Same query parameters and response format as admin, but filtered to show only ex
 ---
 
 #### GET `/exams/:id`
+
 **Access:** Authenticated
 
 Same as admin but without `creator` details and `userExams` count.
@@ -718,9 +808,11 @@ Same as admin but without `creator` details and `userExams` count.
 ---
 
 #### PATCH `/admin/exams/:id`
+
 **Access:** ADMIN only (creator only)
 
 **Request Body:**
+
 ```typescript
 {
   title?: string,
@@ -735,6 +827,7 @@ Same as admin but without `creator` details and `userExams` count.
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -747,15 +840,18 @@ Same as admin but without `creator` details and `userExams` count.
 ```
 
 **Business Rules:**
+
 - Changing `allowRetake` to `false` does not affect existing attempts
 - Reducing `maxAttempts` does not retroactively invalidate existing attempts
 
 ---
 
 #### DELETE `/admin/exams/:id`
+
 **Access:** ADMIN only (creator only)
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -768,16 +864,19 @@ Same as admin but without `creator` details and `userExams` count.
 ```
 
 **Errors:**
+
 - `409` - Exam has participant attempts
 
 ---
 
 #### POST `/admin/exams/:id/questions`
+
 **Access:** ADMIN only
 
 Attach questions to exam.
 
 **Request Body:**
+
 ```typescript
 {
   questionIds: number[]    // 1-200 question IDs
@@ -785,6 +884,7 @@ Attach questions to exam.
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -800,11 +900,13 @@ Attach questions to exam.
 ---
 
 #### DELETE `/admin/exams/:id/questions`
+
 **Access:** ADMIN only
 
 Detach questions from exam.
 
 **Request Body:**
+
 ```typescript
 {
   questionIds: number[]
@@ -812,6 +914,7 @@ Detach questions from exam.
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -827,6 +930,7 @@ Detach questions from exam.
 ---
 
 #### GET `/admin/exams/:id/questions`
+
 **Access:** ADMIN only
 
 Get exam questions with correct answers.
@@ -837,6 +941,7 @@ Get exam questions with correct answers.
 | type | QuestionType | Filter by question type |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -858,11 +963,13 @@ Get exam questions with correct answers.
 ### 3.5 Exam Sessions Module
 
 #### POST `/exams/:id/start`
+
 **Access:** Authenticated
 
 Start an exam session, resume an existing IN_PROGRESS session, or start a new retake attempt.
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -901,12 +1008,14 @@ Start an exam session, resume an existing IN_PROGRESS session, or start a new re
 ```
 
 **Behavior:**
+
 1. If user has an IN_PROGRESS session → Resume that session
 2. If user has completed attempts and retakes disabled → Error
 3. If user has completed attempts and max attempts reached → Error
 4. Otherwise → Create new attempt with incremented `attemptNumber`
 
 **Errors:**
+
 - `404` - Exam not found
 - `409` - Exam already submitted (when retakes disabled) (`EXAM_SESSION_ALREADY_STARTED`)
 - `400` - Exam has no questions (`EXAM_NO_QUESTIONS`)
@@ -917,6 +1026,7 @@ Start an exam session, resume an existing IN_PROGRESS session, or start a new re
 ---
 
 #### GET `/exam-sessions`
+
 **Access:** Authenticated
 
 Get current user's exam sessions (all attempts).
@@ -928,6 +1038,7 @@ Get current user's exam sessions (all attempts).
 | limit | number | 10 |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -963,9 +1074,11 @@ Get current user's exam sessions (all attempts).
 ---
 
 #### GET `/exam-sessions/:id`
+
 **Access:** Session owner only
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -981,9 +1094,11 @@ Get current user's exam sessions (all attempts).
 ---
 
 #### GET `/exam-sessions/:id/questions`
+
 **Access:** Session owner only (active exam only)
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -999,11 +1114,13 @@ Get current user's exam sessions (all attempts).
 ---
 
 #### POST `/exam-sessions/:id/answers`
+
 **Access:** Session owner only
 
 Submit/update a single answer (auto-save).
 
 **Request Body:**
+
 ```typescript
 {
   examQuestionId: number,              // ExamQuestion ID, NOT question ID!
@@ -1012,6 +1129,7 @@ Submit/update a single answer (auto-save).
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1033,6 +1151,7 @@ Submit/update a single answer (auto-save).
 ```
 
 **Errors:**
+
 - `400` - Exam already submitted (`EXAM_SESSION_ALREADY_SUBMITTED`)
 - `400` - Exam timeout (`EXAM_SESSION_TIMEOUT`)
 - `400` - Invalid examQuestionId for this exam (`EXAM_SESSION_INVALID_QUESTION`)
@@ -1040,11 +1159,13 @@ Submit/update a single answer (auto-save).
 ---
 
 #### POST `/exam-sessions/:id/submit`
+
 **Access:** Session owner only
 
 Finalize and submit the exam.
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1080,11 +1201,13 @@ Finalize and submit the exam.
 ---
 
 #### GET `/exam-sessions/:id/answers`
+
 **Access:** Session owner only (after submission)
 
 Get answers with review (shows correctAnswer after submit).
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1115,11 +1238,13 @@ Get answers with review (shows correctAnswer after submit).
 ```
 
 **Errors:**
+
 - `400` - Cannot review before submitting
 
 ---
 
 #### GET `/results`
+
 **Access:** Authenticated
 
 Get current user's exam results (all attempts).
@@ -1131,6 +1256,7 @@ Get current user's exam results (all attempts).
 | limit | number | 10 |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1149,6 +1275,7 @@ Get current user's exam results (all attempts).
 ---
 
 #### GET `/admin/exam-sessions`
+
 **Access:** ADMIN only
 
 Get all exam sessions.
@@ -1167,6 +1294,7 @@ Get all exam sessions.
 ---
 
 #### GET `/admin/results`
+
 **Access:** ADMIN only
 
 Same as `/admin/exam-sessions`.
@@ -1176,11 +1304,13 @@ Same as `/admin/exam-sessions`.
 ### 3.6 Proctoring Module
 
 #### POST `/proctoring/events`
+
 **Access:** Authenticated
 
 Log a proctoring event manually.
 
 **Request Body:**
+
 ```typescript
 {
   userExamId: number,
@@ -1190,6 +1320,7 @@ Log a proctoring event manually.
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1211,6 +1342,7 @@ Log a proctoring event manually.
 ---
 
 #### POST `/proctoring/exam-sessions/:userExamId/analyze-face`
+
 **Access:** Session owner only
 
 **⚠️ CRITICAL: This is the ML integration endpoint for thesis demonstration!**
@@ -1218,13 +1350,15 @@ Log a proctoring event manually.
 Analyze webcam frame via YOLO face detection.
 
 **Request Body:**
+
 ```typescript
 {
-  imageBase64: string    // Base64 encoded image (min 100 chars)
+  imageBase64: string; // Base64 encoded image (min 100 chars)
 }
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1251,6 +1385,7 @@ Analyze webcam frame via YOLO face detection.
 ---
 
 #### GET `/proctoring/exam-sessions/:userExamId/events`
+
 **Access:** Session owner only
 
 Get proctoring events for a session.
@@ -1266,6 +1401,7 @@ Get proctoring events for a session.
 | sortOrder | 'asc'/'desc' | 'desc' | Sort direction |
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1280,7 +1416,33 @@ Get proctoring events for a session.
 
 ---
 
+#### GET `/proctoring/exam-sessions/:userExamId/violations-count`
+
+**Access:** Session owner only
+
+Get aggregated violation counts for the session.
+
+**Response (200):**
+
+```typescript
+{
+  success: true,
+  data: {
+    counts: {
+      high: number,        // HIGH severity violations
+      medium: number,      // MEDIUM severity violations
+      low: number,         // LOW severity violations
+      total: number,       // Total violations
+      weightedScore: number // Weighted score (HIGH=1.0, MEDIUM=0.5, LOW=0.0)
+    }
+  },
+  message: "Violation counts retrieved successfully",
+  timestamp: string
+}
+```
+
 #### GET `/admin/proctoring/events`
+
 **Access:** ADMIN only
 
 Get all proctoring events.
@@ -1288,6 +1450,7 @@ Get all proctoring events.
 **Query Parameters:** Same as participant + `userExamId` filter.
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -1314,6 +1477,7 @@ Get all proctoring events.
 ---
 
 #### GET `/admin/proctoring/exam-sessions/:userExamId/events`
+
 **Access:** ADMIN only
 
 Get proctoring events for any session. Same format as participant endpoint.
@@ -1363,8 +1527,8 @@ interface Exam {
   endTime: string | null;
   durationMinutes: number;
   passingScore: number;
-  allowRetake: boolean;           // Whether users can retake this exam
-  maxAttempts: number | null;     // Maximum attempts (null = unlimited when retakes enabled)
+  allowRetake: boolean; // Whether users can retake this exam
+  maxAttempts: number | null; // Maximum attempts (null = unlimited when retakes enabled)
   createdBy: number;
   createdAt: string;
   updatedAt: string;
@@ -1382,7 +1546,7 @@ interface UserExam {
   id: number;
   userId: number;
   examId: number;
-  attemptNumber: number;          // Which attempt this is (1, 2, 3, ...)
+  attemptNumber: number; // Which attempt this is (1, 2, 3, ...)
   startedAt: string;
   submittedAt: string | null;
   totalScore: number | null;
@@ -1447,6 +1611,7 @@ const response = await apiClient.get<UserPayload>('/me');
 ### 5.2 List Endpoints Pattern
 
 **All list endpoints return:**
+
 ```typescript
 {
   data: T[],           // Array of items
@@ -1455,6 +1620,7 @@ const response = await apiClient.get<UserPayload>('/me');
 ```
 
 **NOT this:**
+
 ```typescript
 {
   items: T[],  // ❌ Wrong
@@ -1464,18 +1630,18 @@ const response = await apiClient.get<UserPayload>('/me');
 
 ### 5.3 Critical Field Names
 
-| Correct | Wrong |
-|---------|-------|
-| `data` | `items`, `users`, `exams` |
-| `page` | `currentPage` |
-| `limit` | `pageSize`, `perPage` |
-| `total` | `totalItems`, `count` |
-| `hasNext` | `hasMore` |
-| `metadata` | `eventData` (proctoring) |
-| `examQuestionId` | `questionId` (for answers) |
-| `attemptNumber` | `attempt`, `attemptNo` |
-| `allowRetake` | `retakeAllowed`, `canRetake` |
-| `maxAttempts` | `attemptsLimit`, `maxRetries` |
+| Correct          | Wrong                         |
+| ---------------- | ----------------------------- |
+| `data`           | `items`, `users`, `exams`     |
+| `page`           | `currentPage`                 |
+| `limit`          | `pageSize`, `perPage`         |
+| `total`          | `totalItems`, `count`         |
+| `hasNext`        | `hasMore`                     |
+| `metadata`       | `eventData` (proctoring)      |
+| `examQuestionId` | `questionId` (for answers)    |
+| `attemptNumber`  | `attempt`, `attemptNo`        |
+| `allowRetake`    | `retakeAllowed`, `canRetake`  |
+| `maxAttempts`    | `attemptsLimit`, `maxRetries` |
 
 ### 5.4 Enum Value Mapping
 
@@ -1483,10 +1649,10 @@ const response = await apiClient.get<UserPayload>('/me');
 
 ```typescript
 // ✅ Correct
-type ExamStatus = 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED' | 'TIMEOUT';
+type ExamStatus = "IN_PROGRESS" | "FINISHED" | "CANCELLED" | "TIMEOUT";
 
 // ❌ Wrong
-type ExamStatus = 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'TIMEOUT';
+type ExamStatus = "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "TIMEOUT";
 ```
 
 ### 5.5 Date Handling
@@ -1505,14 +1671,14 @@ const date = new Date(response.createdAt);
 ```typescript
 // ✅ Correct
 await api.post(`/exam-sessions/${sessionId}/answers`, {
-  examQuestionId: 123,  // From startExam response
-  selectedOption: 'A'
+  examQuestionId: 123, // From startExam response
+  selectedOption: "A",
 });
 
 // ❌ Wrong - will fail
 await api.post(`/exam-sessions/${sessionId}/answers`, {
-  questionId: 123,      // This is the question bank ID!
-  selectedOption: 'A'
+  questionId: 123, // This is the question bank ID!
+  selectedOption: "A",
 });
 ```
 
@@ -1529,7 +1695,7 @@ const analyzeFace = useDebouncedCallback(
       // Show warning to user
     }
   },
-  3000  // 3 seconds
+  3000 // 3 seconds
 );
 ```
 
@@ -1551,27 +1717,25 @@ interface Exam {
 }
 
 function canStartExam(exam: Exam, sessions: ExamSession[]): boolean {
-  const completedAttempts = sessions.filter(s => 
-    s.status !== 'IN_PROGRESS'
-  );
-  
+  const completedAttempts = sessions.filter((s) => s.status !== "IN_PROGRESS");
+
   // First attempt - always allowed
   if (completedAttempts.length === 0) return true;
-  
+
   // Check if retakes are enabled
   if (!exam.allowRetake) return false;
-  
+
   // Check max attempts
   if (exam.maxAttempts && completedAttempts.length >= exam.maxAttempts) {
     return false;
   }
-  
+
   return true;
 }
 
 // Check if user has an in-progress session to resume
 function hasInProgressSession(sessions: ExamSession[]): ExamSession | null {
-  return sessions.find(s => s.status === 'IN_PROGRESS') || null;
+  return sessions.find((s) => s.status === "IN_PROGRESS") || null;
 }
 ```
 
@@ -1579,34 +1743,40 @@ function hasInProgressSession(sessions: ExamSession[]): ExamSession | null {
 
 ```typescript
 // Show current attempt number during exam
-<div>Attempt {userExam.attemptNumber} of {exam.maxAttempts ?? '∞'}</div>
+<div>
+  Attempt {userExam.attemptNumber} of {exam.maxAttempts ?? "∞"}
+</div>;
 
 // Show attempt history in results
-{sessions.map(session => (
-  <div key={session.id}>
-    Attempt #{session.attemptNumber} - Score: {session.totalScore}
-  </div>
-))}
+{
+  sessions.map((session) => (
+    <div key={session.id}>
+      Attempt #{session.attemptNumber} - Score: {session.totalScore}
+    </div>
+  ));
+}
 ```
 
 ### 5.9 Error Code Reference
 
-| Code | Module | Meaning |
-|------|--------|---------|
-| `AUTH_EMAIL_EXISTS` | Auth | Email already registered |
-| `AUTH_INVALID_CREDENTIALS` | Auth | Wrong email/password |
-| `AUTH_INVALID_TOKEN` | Auth | Token expired/invalid |
-| `USER_NOT_FOUND` | Users | User ID doesn't exist |
-| `EXAM_NOT_FOUND` | Exams | Exam ID doesn't exist |
-| `EXAM_NO_QUESTIONS` | Exams | Exam has 0 questions |
-| `EXAM_NO_DURATION` | Exams | Duration not set |
-| `EXAM_SESSION_NOT_FOUND` | Sessions | Session doesn't exist |
-| `EXAM_SESSION_ALREADY_STARTED` | Sessions | Can't restart submitted exam (when retakes disabled) |
-| `EXAM_SESSION_TIMEOUT` | Sessions | Time limit exceeded |
-| `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions | Already finalized |
-| `EXAM_SESSION_INVALID_QUESTION` | Sessions | examQuestionId not in exam |
-| `EXAM_SESSION_RETAKE_DISABLED` | Sessions | Exam does not allow retakes |
-| `EXAM_SESSION_MAX_ATTEMPTS` | Sessions | Maximum attempts reached for this exam |
+| Code                             | Module     | Meaning                                              |
+| -------------------------------- | ---------- | ---------------------------------------------------- |
+| `AUTH_EMAIL_EXISTS`              | Auth       | Email already registered                             |
+| `AUTH_INVALID_CREDENTIALS`       | Auth       | Wrong email/password                                 |
+| `AUTH_INVALID_TOKEN`             | Auth       | Token expired/invalid                                |
+| `USER_NOT_FOUND`                 | Users      | User ID doesn't exist                                |
+| `EXAM_NOT_FOUND`                 | Exams      | Exam ID doesn't exist                                |
+| `EXAM_NO_QUESTIONS`              | Exams      | Exam has 0 questions                                 |
+| `EXAM_NO_DURATION`               | Exams      | Duration not set                                     |
+| `EXAM_SESSION_NOT_FOUND`         | Sessions   | Session doesn't exist                                |
+| `EXAM_SESSION_ALREADY_STARTED`   | Sessions   | Can't restart submitted exam (when retakes disabled) |
+| `EXAM_SESSION_TIMEOUT`           | Sessions   | Time limit exceeded                                  |
+| `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions   | Already finalized                                    |
+| `EXAM_SESSION_INVALID_QUESTION`  | Sessions   | examQuestionId not in exam                           |
+| `EXAM_SESSION_RETAKE_DISABLED`   | Sessions   | Exam does not allow retakes                          |
+| `EXAM_SESSION_MAX_ATTEMPTS`      | Sessions   | Maximum attempts reached for this exam               |
+| `EXAM_CANCELLED_VIOLATIONS`      | Proctoring | Exam auto-cancelled due to violations                |
+| `VIOLATION_THRESHOLD_EXCEEDED`   | Proctoring | Too many violations detected                         |
 
 ---
 
@@ -1619,6 +1789,7 @@ The system enforces exam retake rules at the database level:
 1. **Unique Constraint:** `UserExam` has a unique constraint on `[userId, examId, attemptNumber]`, allowing multiple attempts per user-exam pair with distinct attempt numbers.
 
 2. **Partial Unique Index:** Only one `IN_PROGRESS` session is allowed per user-exam combination, enforced via:
+
    ```sql
    CREATE UNIQUE INDEX user_exams_one_in_progress_per_user_exam
    ON user_exams (user_id, exam_id)
@@ -1655,6 +1826,7 @@ The system enforces exam retake rules at the database level:
 ### 6.3 Attempt Tracking
 
 Each `UserExam` record includes:
+
 - `attemptNumber`: Sequential attempt number (1, 2, 3, ...)
 - All attempts are preserved for audit and analytics
 - Users can view results from all their attempts
@@ -1664,6 +1836,7 @@ Each `UserExam` record includes:
 ## Appendix: Complete Route Map
 
 ### Public Routes (No Auth)
+
 ```
 POST /api/v1/auth/register
 POST /api/v1/auth/login
@@ -1672,6 +1845,7 @@ POST /api/v1/auth/logout
 ```
 
 ### Participant Routes (Authenticated)
+
 ```
 GET  /api/v1/me
 PATCH /api/v1/me
@@ -1691,6 +1865,7 @@ GET  /api/v1/proctoring/exam-sessions/:id/events
 ```
 
 ### Admin Routes (ADMIN Role)
+
 ```
 POST   /api/v1/admin/users
 GET    /api/v1/admin/users
@@ -1720,7 +1895,8 @@ GET    /api/v1/admin/proctoring/exam-sessions/:id/events
 
 ---
 
-**Total Routes:** 50
+**Total Routes:** 45
+
 - Public: 4
-- Participant: 15  
-- Admin: 31
+- Participant: 14
+- Admin: 27

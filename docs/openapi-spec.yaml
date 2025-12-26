@@ -3,16 +3,16 @@ info:
   title: Prestige Academy CPNS Exam System API
   description: |
     Backend API for online CPNS tryout system with AI-powered proctoring.
-    
+
     ## Authentication
     This API uses JWT Bearer token authentication. Include the access token 
     in the Authorization header: `Authorization: Bearer <token>`
-    
+
     ## Rate Limits
     - Global: 100 requests / 15 minutes
     - Auth: 5 requests / 15 minutes
     - Proctoring: 30 requests / 1 minute
-    
+
     ## Exam Retake System
     The system supports configurable exam retakes:
     - `allowRetake`: Enable/disable retakes per exam
@@ -53,24 +53,24 @@ components:
     UserRole:
       type: string
       enum: [ADMIN, PARTICIPANT]
-    
+
     ExamStatus:
       type: string
       enum: [IN_PROGRESS, FINISHED, CANCELLED, TIMEOUT]
-    
+
     QuestionType:
       type: string
       enum: [TIU, TKP, TWK]
-    
+
     ProctoringEventType:
       type: string
       enum: [FACE_DETECTED, NO_FACE_DETECTED, MULTIPLE_FACES, LOOKING_AWAY]
-    
+
     AnswerOption:
       type: string
       enum: [A, B, C, D, E]
       nullable: true
-    
+
     Severity:
       type: string
       enum: [LOW, MEDIUM, HIGH]
@@ -87,7 +87,7 @@ components:
         name:
           type: string
         role:
-          $ref: '#/components/schemas/UserRole'
+          $ref: "#/components/schemas/UserRole"
         isEmailVerified:
           type: boolean
         createdAt:
@@ -139,12 +139,12 @@ components:
         content:
           type: string
         options:
-          $ref: '#/components/schemas/QuestionOptions'
+          $ref: "#/components/schemas/QuestionOptions"
         correctAnswer:
           type: string
           enum: [A, B, C, D, E]
         questionType:
-          $ref: '#/components/schemas/QuestionType'
+          $ref: "#/components/schemas/QuestionType"
         defaultScore:
           type: integer
         createdAt:
@@ -214,7 +214,7 @@ components:
 
     ExamWithCount:
       allOf:
-        - $ref: '#/components/schemas/Exam'
+        - $ref: "#/components/schemas/Exam"
         - type: object
           properties:
             _count:
@@ -248,7 +248,7 @@ components:
           type: integer
           nullable: true
         status:
-          $ref: '#/components/schemas/ExamStatus'
+          $ref: "#/components/schemas/ExamStatus"
       required:
         - id
         - userId
@@ -265,7 +265,7 @@ components:
         userExamId:
           type: integer
         eventType:
-          $ref: '#/components/schemas/ProctoringEventType'
+          $ref: "#/components/schemas/ProctoringEventType"
         metadata:
           type: object
           nullable: true
@@ -273,7 +273,7 @@ components:
           type: string
           format: date-time
         severity:
-          $ref: '#/components/schemas/Severity'
+          $ref: "#/components/schemas/Severity"
       required:
         - id
         - userExamId
@@ -359,9 +359,9 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         tokens:
-          $ref: '#/components/schemas/TokensData'
+          $ref: "#/components/schemas/TokensData"
       required:
         - user
         - tokens
@@ -380,9 +380,9 @@ components:
         content:
           type: string
         options:
-          $ref: '#/components/schemas/QuestionOptions'
+          $ref: "#/components/schemas/QuestionOptions"
         questionType:
-          $ref: '#/components/schemas/QuestionType'
+          $ref: "#/components/schemas/QuestionType"
         orderNumber:
           type: integer
       required:
@@ -399,7 +399,7 @@ components:
         examQuestionId:
           type: integer
         selectedOption:
-          $ref: '#/components/schemas/AnswerOption'
+          $ref: "#/components/schemas/AnswerOption"
         answeredAt:
           type: string
           format: date-time
@@ -425,7 +425,7 @@ components:
           format: date-time
           nullable: true
         status:
-          $ref: '#/components/schemas/ExamStatus'
+          $ref: "#/components/schemas/ExamStatus"
         remainingTimeMs:
           type: integer
           description: Remaining time in milliseconds
@@ -471,7 +471,7 @@ components:
               type: integer
               nullable: true
         status:
-          $ref: '#/components/schemas/ExamStatus'
+          $ref: "#/components/schemas/ExamStatus"
         startedAt:
           type: string
           format: date-time
@@ -508,7 +508,7 @@ components:
       type: object
       properties:
         type:
-          $ref: '#/components/schemas/QuestionType'
+          $ref: "#/components/schemas/QuestionType"
         score:
           type: integer
         maxScore:
@@ -539,7 +539,7 @@ components:
         totalScore:
           type: integer
         status:
-          $ref: '#/components/schemas/ExamStatus'
+          $ref: "#/components/schemas/ExamStatus"
         duration:
           type: integer
           nullable: true
@@ -555,7 +555,7 @@ components:
         scoresByType:
           type: array
           items:
-            $ref: '#/components/schemas/ScoreByType'
+            $ref: "#/components/schemas/ScoreByType"
       required:
         - id
         - examId
@@ -698,7 +698,7 @@ components:
         application/json:
           schema:
             allOf:
-              - $ref: '#/components/schemas/ApiErrorResponse'
+              - $ref: "#/components/schemas/ApiErrorResponse"
               - type: object
                 properties:
                   errorCode:
@@ -717,7 +717,7 @@ components:
         application/json:
           schema:
             allOf:
-              - $ref: '#/components/schemas/ApiErrorResponse'
+              - $ref: "#/components/schemas/ApiErrorResponse"
               - type: object
                 properties:
                   errorCode:
@@ -733,6 +733,25 @@ components:
                         type: integer
                         description: Current number of attempts made
 
+    ExamCancelledError:
+      description: Exam was cancelled due to proctoring violations
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ApiErrorResponse"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    enum: [EXAM_CANCELLED_VIOLATIONS]
+                  context:
+                    type: object
+                    properties:
+                      userExamId:
+                        type: integer
+                      cancelReason:
+                        type: string
 paths:
   # === AUTH ENDPOINTS ===
   /auth/register:
@@ -759,23 +778,23 @@ paths:
                   maxLength: 100
               required: [email, password, name]
       responses:
-        '201':
+        "201":
           description: Registration successful
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/AuthPayload'
-        '409':
+                        $ref: "#/components/schemas/AuthPayload"
+        "409":
           description: Email already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiErrorResponse'
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /auth/login:
     post:
@@ -796,23 +815,23 @@ paths:
                   type: string
               required: [email, password]
       responses:
-        '200':
+        "200":
           description: Login successful
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/AuthPayload'
-        '401':
+                        $ref: "#/components/schemas/AuthPayload"
+        "401":
           description: Invalid credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiErrorResponse'
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /auth/refresh:
     post:
@@ -830,20 +849,20 @@ paths:
                   type: string
               required: [refreshToken]
       responses:
-        '200':
+        "200":
           description: Token refreshed
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           tokens:
-                            $ref: '#/components/schemas/TokensData'
+                            $ref: "#/components/schemas/TokensData"
 
   /auth/logout:
     post:
@@ -861,13 +880,13 @@ paths:
                   type: string
               required: [refreshToken]
       responses:
-        '200':
+        "200":
           description: Logout successful
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
@@ -885,20 +904,20 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Profile retrieved
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           user:
-                            $ref: '#/components/schemas/User'
+                            $ref: "#/components/schemas/User"
     patch:
       tags: [Users]
       summary: Update current user profile
@@ -919,20 +938,20 @@ paths:
                   type: string
                   minLength: 8
       responses:
-        '200':
+        "200":
           description: Profile updated
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           user:
-                            $ref: '#/components/schemas/User'
+                            $ref: "#/components/schemas/User"
 
   /admin/users:
     post:
@@ -957,10 +976,10 @@ paths:
                 name:
                   type: string
                 role:
-                  $ref: '#/components/schemas/UserRole'
+                  $ref: "#/components/schemas/UserRole"
               required: [email, password, name]
       responses:
-        '201':
+        "201":
           description: User created
     get:
       tags: [Users]
@@ -969,12 +988,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: role
           in: query
           schema:
-            $ref: '#/components/schemas/UserRole'
+            $ref: "#/components/schemas/UserRole"
         - name: search
           in: query
           schema:
@@ -983,9 +1002,9 @@ paths:
           in: query
           schema:
             type: string
-        - $ref: '#/components/parameters/sortOrderParam'
+        - $ref: "#/components/parameters/sortOrderParam"
       responses:
-        '200':
+        "200":
           description: Users list
 
   /admin/users/{id}:
@@ -1002,7 +1021,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: User details
     patch:
       tags: [Users]
@@ -1011,7 +1030,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: User updated
     delete:
       tags: [Users]
@@ -1020,8 +1039,46 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: User deleted
+
+  /admin/users/{id}/stats:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Users]
+      summary: Get user statistics (admin)
+      description: Get statistics for a specific user including exam attempts and performance metrics
+      operationId: getUserStats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalExamsTaken:
+                            type: integer
+                          averageScore:
+                            type: number
+                          passRate:
+                            type: number
+                          totalViolations:
+                            type: integer
+        "404":
+          description: User not found
 
   # === QUESTIONS ENDPOINTS ===
   /admin/questions:
@@ -1043,19 +1100,19 @@ paths:
                   minLength: 10
                   maxLength: 5000
                 options:
-                  $ref: '#/components/schemas/QuestionOptions'
+                  $ref: "#/components/schemas/QuestionOptions"
                 correctAnswer:
                   type: string
                   enum: [A, B, C, D, E]
                 questionType:
-                  $ref: '#/components/schemas/QuestionType'
+                  $ref: "#/components/schemas/QuestionType"
                 defaultScore:
                   type: integer
                   minimum: 1
                   maximum: 100
               required: [content, options, correctAnswer, questionType]
       responses:
-        '201':
+        "201":
           description: Question created
     get:
       tags: [Questions]
@@ -1064,12 +1121,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: type
           in: query
           schema:
-            $ref: '#/components/schemas/QuestionType'
+            $ref: "#/components/schemas/QuestionType"
         - name: search
           in: query
           schema:
@@ -1078,9 +1135,9 @@ paths:
           in: query
           schema:
             type: string
-        - $ref: '#/components/parameters/sortOrderParam'
+        - $ref: "#/components/parameters/sortOrderParam"
       responses:
-        '200':
+        "200":
           description: Questions list
 
   /admin/questions/{id}:
@@ -1097,7 +1154,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Question details
     patch:
       tags: [Questions]
@@ -1106,7 +1163,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Question updated
     delete:
       tags: [Questions]
@@ -1115,7 +1172,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Question deleted
 
   # === EXAMS ENDPOINTS ===
@@ -1127,8 +1184,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: search
           in: query
           schema:
@@ -1138,9 +1195,9 @@ paths:
           schema:
             type: string
             enum: [createdAt, updatedAt, startTime, title]
-        - $ref: '#/components/parameters/sortOrderParam'
+        - $ref: "#/components/parameters/sortOrderParam"
       responses:
-        '200':
+        "200":
           description: Available exams (includes allowRetake and maxAttempts fields)
 
   /exams/{id}:
@@ -1157,7 +1214,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exam details with retake configuration
 
   /exams/{id}/start:
@@ -1172,7 +1229,7 @@ paths:
       summary: Start or resume exam
       description: |
         Start a new exam session, resume an existing IN_PROGRESS session, or start a new retake attempt.
-        
+
         **Behavior:**
         1. If user has an IN_PROGRESS session → Resume that session
         2. If user has completed attempts and retakes disabled → Error (EXAM_SESSION_RETAKE_DISABLED)
@@ -1182,29 +1239,29 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exam started or resumed
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           userExam:
-                            $ref: '#/components/schemas/UserExamSession'
+                            $ref: "#/components/schemas/UserExamSession"
                           questions:
                             type: array
                             items:
-                              $ref: '#/components/schemas/ParticipantQuestion'
+                              $ref: "#/components/schemas/ParticipantQuestion"
                           answers:
                             type: array
                             items:
-                              $ref: '#/components/schemas/ParticipantAnswer'
-        '400':
+                              $ref: "#/components/schemas/ParticipantAnswer"
+        "400":
           description: |
             Business rule violation:
             - EXAM_NO_QUESTIONS: Exam has no questions
@@ -1214,7 +1271,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiErrorResponse'
+                $ref: "#/components/schemas/ApiErrorResponse"
               examples:
                 retakeDisabled:
                   summary: Retakes not allowed
@@ -1247,7 +1304,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateExamRequest'
+              $ref: "#/components/schemas/CreateExamRequest"
             examples:
               basicExam:
                 summary: Basic exam (no retakes)
@@ -1275,20 +1332,20 @@ paths:
                   allowRetake: true
                   maxAttempts: null
       responses:
-        '201':
+        "201":
           description: Exam created
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           exam:
-                            $ref: '#/components/schemas/Exam'
+                            $ref: "#/components/schemas/Exam"
     get:
       tags: [Exams]
       summary: List all exams (admin)
@@ -1296,7 +1353,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exams list (includes allowRetake and maxAttempts)
 
   /admin/exams/{id}:
@@ -1313,13 +1370,13 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exam details with retake configuration
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
@@ -1327,7 +1384,7 @@ paths:
                         properties:
                           exam:
                             allOf:
-                              - $ref: '#/components/schemas/Exam'
+                              - $ref: "#/components/schemas/Exam"
                               - type: object
                                 properties:
                                   creator:
@@ -1351,7 +1408,7 @@ paths:
       summary: Update exam (admin)
       description: |
         Update exam settings including retake configuration.
-        
+
         **Business Rules:**
         - Changing `allowRetake` to `false` does not affect existing attempts
         - Reducing `maxAttempts` does not retroactively invalidate existing attempts
@@ -1362,7 +1419,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateExamRequest'
+              $ref: "#/components/schemas/UpdateExamRequest"
             examples:
               enableRetakes:
                 summary: Enable retakes with limit
@@ -1374,7 +1431,7 @@ paths:
                 value:
                   allowRetake: false
       responses:
-        '200':
+        "200":
           description: Exam updated
     delete:
       tags: [Exams]
@@ -1383,7 +1440,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exam deleted
 
   /admin/exams/{id}/questions:
@@ -1414,7 +1471,7 @@ paths:
                   maxItems: 200
               required: [questionIds]
       responses:
-        '200':
+        "200":
           description: Questions attached
     get:
       tags: [Exams]
@@ -1426,9 +1483,9 @@ paths:
         - name: type
           in: query
           schema:
-            $ref: '#/components/schemas/QuestionType'
+            $ref: "#/components/schemas/QuestionType"
       responses:
-        '200':
+        "200":
           description: Exam questions
     delete:
       tags: [Exams]
@@ -1449,7 +1506,7 @@ paths:
                     type: integer
               required: [questionIds]
       responses:
-        '200':
+        "200":
           description: Questions detached
 
   # === EXAM SESSIONS ENDPOINTS ===
@@ -1462,16 +1519,16 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
       responses:
-        '200':
+        "200":
           description: Exam sessions list with attempt information
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
@@ -1480,9 +1537,9 @@ paths:
                           data:
                             type: array
                             items:
-                              $ref: '#/components/schemas/UserExamListItem'
+                              $ref: "#/components/schemas/UserExamListItem"
                           pagination:
-                            $ref: '#/components/schemas/PaginationMeta'
+                            $ref: "#/components/schemas/PaginationMeta"
 
   /exam-sessions/{id}:
     parameters:
@@ -1498,7 +1555,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Session details with attemptNumber
 
   /exam-sessions/{id}/questions:
@@ -1515,7 +1572,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Questions without correct answers
 
   /exam-sessions/{id}/answers:
@@ -1542,16 +1599,16 @@ paths:
                   type: integer
                   description: ExamQuestion ID, NOT question bank ID!
                 selectedOption:
-                  $ref: '#/components/schemas/AnswerOption'
+                  $ref: "#/components/schemas/AnswerOption"
               required: [examQuestionId]
       responses:
-        '200':
+        "200":
           description: Answer saved
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
@@ -1563,7 +1620,7 @@ paths:
                               examQuestionId:
                                 type: integer
                               selectedOption:
-                                $ref: '#/components/schemas/AnswerOption'
+                                $ref: "#/components/schemas/AnswerOption"
                               answeredAt:
                                 type: string
                                 format: date-time
@@ -1583,7 +1640,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Answers with correct answers
 
   /exam-sessions/{id}/submit:
@@ -1600,13 +1657,13 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Exam submitted
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
@@ -1615,27 +1672,21 @@ paths:
                           message:
                             type: string
                           result:
-                            $ref: '#/components/schemas/ExamResult'
+                            $ref: "#/components/schemas/ExamResult"
 
   /results:
     get:
       tags: [Exam Sessions]
       summary: Get my exam results
-      description: Get results for all exam attempts. By default, only FINISHED sessions are returned. Other statuses can be requested explicitly.
+      description: Get results for all exam attempts
       operationId: getMyResults
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
-        - name: status
-          in: query
-          description: Filter by exam session status
-          schema:
-            $ref: '#/components/schemas/ExamStatus'
-            default: FINISHED
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
       responses:
-        '200':
+        "200":
           description: Results list (includes attemptNumber for each result)
 
   /admin/exam-sessions:
@@ -1646,8 +1697,8 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: examId
           in: query
           schema:
@@ -1659,18 +1710,18 @@ paths:
         - name: status
           in: query
           schema:
-            $ref: '#/components/schemas/ExamStatus'
+            $ref: "#/components/schemas/ExamStatus"
       responses:
-        '200':
+        "200":
           description: All sessions with attemptNumber
   /admin/exam-sessions/{id}:
     get:
-      tags: [ Exam Sessions ]
+      tags: [Exam Sessions]
       summary: Get specific exam session (admin)
       description: Retrieve details of any exam session. Admin access only.
       operationId: getAdminExamSessionById
       security:
-        - bearerAuth: [ ]
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -1679,7 +1730,7 @@ paths:
           schema:
             type: integer
       responses:
-        '200':
+        "200":
           description: Session details including attemptNumber
           content:
             application/json:
@@ -1699,7 +1750,7 @@ paths:
                       userId:
                         type: integer
                       status:
-                        $ref: '#/components/schemas/ExamStatus'
+                        $ref: "#/components/schemas/ExamStatus"
                       startedAt:
                         type: string
                         format: date-time
@@ -1734,71 +1785,71 @@ paths:
                   timestamp:
                     type: string
                     format: date-time
-        '404':
+        "404":
           description: Session not found
 
-    /admin/exam-sessions/{id}/answers:
-      get:
-        tags: [ Exam Sessions ]
-        summary: Get answers for any exam session (admin)
-        description: Retrieve all answers with review data for any session. Admin access only.
-        operationId: getAdminExamSessionAnswers
-        security:
-          - bearerAuth: [ ]
-        parameters:
-          - name: id
-            in: path
-            required: true
-            description: UserExam session ID
-            schema:
-              type: integer
-        responses:
-          '200':
-            description: All answers with correct answer visibility
-            content:
-              application/json:
-                schema:
-                  type: object
-                  properties:
-                    success:
-                      type: boolean
-                      example: true
-                    data:
-                      type: object
-                      properties:
-                        answers:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              id:
-                                type: integer
-                              examQuestionId:
-                                type: integer
-                              selectedOption:
-                                $ref: '#/components/schemas/AnswerOption'
-                              isCorrect:
-                                type: boolean
-                              answeredAt:
-                                type: string
-                                format: date-time
-                                nullable: true
-                              examQuestion:
-                                type: object
-                                properties:
-                                  orderNumber:
-                                    type: integer
-                                  question:
-                                    $ref: '#/components/schemas/Question'
-                        total:
-                          type: integer
-                    message:
-                      type: string
-                    timestamp:
-                      type: string
-                      format: date-time
-          '404':
-            description: Session not found
+  /admin/exam-sessions/{id}/answers:
+    get:
+      tags: [Exam Sessions]
+      summary: Get answers for any exam session (admin)
+      description: Retrieve all answers with review data for any session. Admin access only.
+      operationId: getAdminExamSessionAnswers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UserExam session ID
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All answers with correct answer visibility
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      answers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                            examQuestionId:
+                              type: integer
+                            selectedOption:
+                              $ref: "#/components/schemas/AnswerOption"
+                            isCorrect:
+                              type: boolean
+                            answeredAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            examQuestion:
+                              type: object
+                              properties:
+                                orderNumber:
+                                  type: integer
+                                question:
+                                  $ref: "#/components/schemas/Question"
+                      total:
+                        type: integer
+                  message:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        "404":
+          description: Session not found
   /admin/results:
     get:
       tags: [Exam Sessions]
@@ -1807,7 +1858,7 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: All results
 
   # === PROCTORING ENDPOINTS ===
@@ -1828,12 +1879,12 @@ paths:
                 userExamId:
                   type: integer
                 eventType:
-                  $ref: '#/components/schemas/ProctoringEventType'
+                  $ref: "#/components/schemas/ProctoringEventType"
                 metadata:
                   type: object
               required: [userExamId, eventType]
       responses:
-        '200':
+        "200":
           description: Event logged
 
   /proctoring/exam-sessions/{userExamId}/analyze-face:
@@ -1848,7 +1899,7 @@ paths:
       summary: Analyze face via YOLO ML
       description: |
         **⚠️ CRITICAL: This is the ML integration endpoint for thesis demonstration!**
-        
+
         Analyzes webcam frame using YOLO face detection.
         Rate limited to 30 requests/minute.
       operationId: analyzeFace
@@ -1867,24 +1918,24 @@ paths:
                   description: Base64 encoded image
               required: [imageBase64]
       responses:
-        '200':
+        "200":
           description: Analysis complete
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ApiSuccessResponse'
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         properties:
                           analysis:
-                            $ref: '#/components/schemas/FaceAnalysisResult'
+                            $ref: "#/components/schemas/FaceAnalysisResult"
                           eventLogged:
                             type: boolean
                           eventType:
-                            $ref: '#/components/schemas/ProctoringEventType'
+                            $ref: "#/components/schemas/ProctoringEventType"
                             nullable: true
                           usedFallback:
                             type: boolean
@@ -1903,12 +1954,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: eventType
           in: query
           schema:
-            $ref: '#/components/schemas/ProctoringEventType'
+            $ref: "#/components/schemas/ProctoringEventType"
         - name: startDate
           in: query
           schema:
@@ -1919,10 +1970,51 @@ paths:
           schema:
             type: string
             format: date-time
-        - $ref: '#/components/parameters/sortOrderParam'
+        - $ref: "#/components/parameters/sortOrderParam"
       responses:
-        '200':
+        "200":
           description: Proctoring events
+
+  /proctoring/exam-sessions/{userExamId}/violations-count:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Proctoring]
+      summary: Get violation counts for session
+      description: Returns aggregated violation counts by severity level
+      operationId: getViolationsCount
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Violation counts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          counts:
+                            type: object
+                            properties:
+                              high:
+                                type: integer
+                              medium:
+                                type: integer
+                              low:
+                                type: integer
+                              total:
+                                type: integer
+                              weightedScore:
+                                type: number
 
   /admin/proctoring/events:
     get:
@@ -1933,12 +2025,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/pageParam'
-        - $ref: '#/components/parameters/limitParam'
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
         - name: eventType
           in: query
           schema:
-            $ref: '#/components/schemas/ProctoringEventType'
+            $ref: "#/components/schemas/ProctoringEventType"
         - name: userExamId
           in: query
           schema:
@@ -1953,9 +2045,9 @@ paths:
           schema:
             type: string
             format: date-time
-        - $ref: '#/components/parameters/sortOrderParam'
+        - $ref: "#/components/parameters/sortOrderParam"
       responses:
-        '200':
+        "200":
           description: All proctoring events (includes attemptNumber in userExam)
 
   /admin/proctoring/exam-sessions/{userExamId}/events:
@@ -1972,5 +2064,5 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Session proctoring events
