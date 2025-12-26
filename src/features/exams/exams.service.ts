@@ -28,6 +28,8 @@ const EXAM_PUBLIC_SELECT = {
   createdBy: true,
   createdAt: true,
   updatedAt: true,
+  allowRetake: true,
+  maxAttempts: true,
   _count: {
     select: {
       examQuestions: true,
@@ -49,6 +51,8 @@ const EXAM_DETAIL_SELECT = {
   createdBy: true,
   createdAt: true,
   updatedAt: true,
+  allowRetake: true,
+  maxAttempts: true,
   creator: {
     select: {
       id: true,
