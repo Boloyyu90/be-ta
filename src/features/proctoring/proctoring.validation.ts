@@ -42,7 +42,7 @@ export const logEventSchema = z.object({
 
 /**
  * Schema for getting proctoring events
- * GET /api/v1/proctoring/user-exams/:userExamId/events
+ * GET /api/v1/proctoring/exam-sessions/:userExamId/events
  *
  * @access Exam participant
  */
@@ -104,7 +104,7 @@ export const getAdminEventsSchema = z.object({
 
 /**
  * Schema for analyzing face detection
- * POST /api/v1/proctoring/user-exams/:userExamId/analyze-face
+ * POST /api/v1/proctoring/exam-sessions/:userExamId/analyze-face
  *
  * @access Exam participant
  */
@@ -137,8 +137,9 @@ export interface ProctoringEventData {
   id: number;
   userExamId: number;
   eventType: ProctoringEventType;
-  metadata: Record<string, any> | null; // ✅ CHANGED: eventData → metadata
+  metadata: Record<string, any> | null;
   timestamp: Date;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 /**
@@ -164,17 +165,22 @@ export interface ProctoringEventDetailData extends ProctoringEventData {
 
 /**
  * Face analysis result
+ * Matches actual ML service response structure
  */
 export interface FaceAnalysisResult {
   analysis: {
-    faceDetected: boolean;
-    faceCount: number;
+    status: 'success' | 'timeout' | 'error';
+    violations: string[];
     confidence: number;
-    lookingAway: boolean;
     message: string;
+    metadata?: {
+      processingTimeMs: number;
+      error?: string;
+    };
   };
   eventLogged: boolean;
   eventType: ProctoringEventType | null;
+  usedFallback: boolean;
 }
 
 /**

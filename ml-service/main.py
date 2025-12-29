@@ -10,10 +10,21 @@ Model: YOLOv8n (auto-download from Ultralytics)
 """
 
 # ==================== PYTORCH COMPATIBILITY FIX ====================
-# ✅ CRITICAL: Set environment variable BEFORE any imports
-# This disables PyTorch 2.6+ weights_only restriction
+# ✅ CRITICAL: Monkey-patch torch.load BEFORE importing ultralytics
+# PyTorch 2.6+ changed weights_only default to True, blocking YOLO model loading
+# We trust official YOLO weights, so we patch torch.load to use weights_only=False
 import os
-os.environ['TORCH_SERIALIZATION_WEIGHTS_ONLY'] = '0'
+import torch
+
+_original_torch_load = torch.load
+
+def _patched_torch_load(*args, **kwargs):
+    """Patched torch.load that defaults weights_only=False for YOLO compatibility"""
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return _original_torch_load(*args, **kwargs)
+
+torch.load = _patched_torch_load
 
 import base64
 import time

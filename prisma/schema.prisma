@@ -45,7 +45,7 @@ model QuestionBank {
   content       String
   options       Json
   correctAnswer String         @map("correct_answer")
-  defaultScore  Int            @default(5) @map("default_score")
+  defaultScore  Int            @default(1) @map("default_score")
   questionType  QuestionType   @default(TIU) @map("question_type")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
