@@ -18,6 +18,18 @@ info:
     - `allowRetake`: Enable/disable retakes per exam
     - `maxAttempts`: Limit number of attempts (null = unlimited)
     - `attemptNumber`: Track which attempt each session represents
+
+    ## MVP Scope
+    This spec documents implemented functionality. The following are **NOT** implemented:
+    - Email verification enforcement
+    - Password reset flow
+    - Time window enforcement at API level (frontend responsibility)
+    - WebSocket real-time updates
+    
+    ## Critical Integration Notes
+    - Always use `examQuestionId` for answer submissions, NOT `questionId`
+    - Timer should use server-provided `remainingTimeMs`, not client calculation
+    - Proctoring rate limit: max 30 requests/minute (1 every 2 seconds)
   version: 1.0.0
   contact:
     name: I Gede Bala Putra
@@ -373,10 +385,10 @@ components:
       properties:
         id:
           type: integer
-          description: Question bank ID
+          description: Question bank ID (for reference only)
         examQuestionId:
           type: integer
-          description: ExamQuestion ID (use for answers!)
+          description: ExamQuestion ID - USE THIS FOR ANSWERS
         content:
           type: string
         options:
@@ -398,12 +410,16 @@ components:
       properties:
         examQuestionId:
           type: integer
+          description: ExamQuestion ID this answer belongs to
         selectedOption:
           $ref: "#/components/schemas/AnswerOption"
         answeredAt:
           type: string
           format: date-time
           nullable: true
+      required:
+        - examQuestionId
+        - selectedOption
 
     UserExamSession:
       type: object
@@ -428,7 +444,7 @@ components:
           $ref: "#/components/schemas/ExamStatus"
         remainingTimeMs:
           type: integer
-          description: Remaining time in milliseconds
+          description: Remaining time in milliseconds (server-calculated)
         totalQuestions:
           type: integer
         answeredQuestions:
@@ -467,9 +483,15 @@ components:
               nullable: true
             allowRetake:
               type: boolean
+              description: Whether exam allows retakes
             maxAttempts:
               type: integer
               nullable: true
+              description: Maximum attempts allowed
+          required:
+            - id
+            - title
+            - allowRetake
         status:
           $ref: "#/components/schemas/ExamStatus"
         startedAt:
@@ -493,7 +515,8 @@ components:
           type: integer
         attemptNumber:
           type: integer
-          description: Which attempt this is
+          minimum: 1
+          description: Which attempt this session represents (1, 2, 3...)
       required:
         - id
         - exam
@@ -503,6 +526,29 @@ components:
         - answeredQuestions
         - totalQuestions
         - attemptNumber
+
+    # === Attach/Detach Questions Responses ===
+    AttachQuestionsResponse:
+      type: object
+      properties:
+        attached:
+          type: integer
+          description: Number of NEW questions attached
+        alreadyAttached:
+          type: integer
+          description: Number of questions that were already attached (skipped)
+      required:
+        - attached
+        - alreadyAttached
+
+    DetachQuestionsResponse:
+      type: object
+      properties:
+        detached:
+          type: integer
+          description: Number of questions removed
+      required:
+        - detached
 
     ScoreByType:
       type: object
@@ -682,7 +728,7 @@ components:
         type: integer
         minimum: 1
         maximum: 100
-        default: 10
+        default: 20
     sortOrderParam:
       name: sortOrder
       in: query
@@ -704,12 +750,6 @@ components:
                   errorCode:
                     type: string
                     enum: [EXAM_SESSION_RETAKE_DISABLED]
-                  context:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                        example: "This exam does not allow retakes"
 
     MaxAttemptsError:
       description: Maximum attempts reached for this exam
@@ -733,25 +773,6 @@ components:
                         type: integer
                         description: Current number of attempts made
 
-    ExamCancelledError:
-      description: Exam was cancelled due to proctoring violations
-      content:
-        application/json:
-          schema:
-            allOf:
-              - $ref: "#/components/schemas/ApiErrorResponse"
-              - type: object
-                properties:
-                  errorCode:
-                    type: string
-                    enum: [EXAM_CANCELLED_VIOLATIONS]
-                  context:
-                    type: object
-                    properties:
-                      userExamId:
-                        type: integer
-                      cancelReason:
-                        type: string
 paths:
   # === AUTH ENDPOINTS ===
   /auth/register:
@@ -1042,44 +1063,6 @@ paths:
         "200":
           description: User deleted
 
-  /admin/users/{id}/stats:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Users]
-      summary: Get user statistics (admin)
-      description: Get statistics for a specific user including exam attempts and performance metrics
-      operationId: getUserStats
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: User statistics
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiSuccessResponse"
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          totalExamsTaken:
-                            type: integer
-                          averageScore:
-                            type: number
-                          passRate:
-                            type: number
-                          totalViolations:
-                            type: integer
-        "404":
-          description: User not found
-
   # === QUESTIONS ENDPOINTS ===
   /admin/questions:
     post:
@@ -1180,6 +1163,11 @@ paths:
     get:
       tags: [Exams]
       summary: List available exams (participant)
+      description: |
+        Returns exams that have at least 1 question attached.
+        
+        **Note:** Time window filtering (startTime/endTime) is NOT enforced at the API level.
+        Frontend should handle display logic for exams outside their time window.
       operationId: getAvailableExams
       security:
         - bearerAuth: []
@@ -1273,6 +1261,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
               examples:
+                noQuestions:
+                  summary: Exam has no questions
+                  value:
+                    success: false
+                    message: "Exam has no questions"
+                    errorCode: "EXAM_NO_QUESTIONS"
+                    timestamp: "2025-01-15T10:30:00.000Z"
+                noDuration:
+                  summary: Duration not set
+                  value:
+                    success: false
+                    message: "Exam duration not configured"
+                    errorCode: "EXAM_NO_DURATION"
+                    timestamp: "2025-01-15T10:30:00.000Z"
                 retakeDisabled:
                   summary: Retakes not allowed
                   value:
@@ -1290,6 +1292,8 @@ paths:
                       maxAttempts: 3
                       currentAttempts: 3
                     timestamp: "2025-01-15T10:30:00.000Z"
+        "404":
+          description: Exam not found
 
   /admin/exams:
     post:
@@ -1473,6 +1477,15 @@ paths:
       responses:
         "200":
           description: Questions attached
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AttachQuestionsResponse"
     get:
       tags: [Exams]
       summary: Get exam questions (admin)
@@ -1486,7 +1499,7 @@ paths:
             $ref: "#/components/schemas/QuestionType"
       responses:
         "200":
-          description: Exam questions
+          description: Exam questions with correct answers
     delete:
       tags: [Exams]
       summary: Detach questions from exam
@@ -1508,6 +1521,15 @@ paths:
       responses:
         "200":
           description: Questions detached
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DetachQuestionsResponse"
 
   # === EXAM SESSIONS ENDPOINTS ===
   /exam-sessions:
@@ -1641,7 +1663,7 @@ paths:
         - bearerAuth: []
       responses:
         "200":
-          description: Answers with correct answers
+          description: Answers with correct answers (only available after submission)
 
   /exam-sessions/{id}/submit:
     parameters:
@@ -1714,6 +1736,7 @@ paths:
       responses:
         "200":
           description: All sessions with attemptNumber
+
   /admin/exam-sessions/{id}:
     get:
       tags: [Exam Sessions]
@@ -1850,6 +1873,7 @@ paths:
                     format: date-time
         "404":
           description: Session not found
+
   /admin/results:
     get:
       tags: [Exam Sessions]
@@ -1974,47 +1998,6 @@ paths:
       responses:
         "200":
           description: Proctoring events
-
-  /proctoring/exam-sessions/{userExamId}/violations-count:
-    parameters:
-      - name: userExamId
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Proctoring]
-      summary: Get violation counts for session
-      description: Returns aggregated violation counts by severity level
-      operationId: getViolationsCount
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Violation counts
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiSuccessResponse"
-                  - type: object
-                    properties:
-                      data:
-                        type: object
-                        properties:
-                          counts:
-                            type: object
-                            properties:
-                              high:
-                                type: integer
-                              medium:
-                                type: integer
-                              low:
-                                type: integer
-                              total:
-                                type: integer
-                              weightedScore:
-                                type: number
 
   /admin/proctoring/events:
     get:

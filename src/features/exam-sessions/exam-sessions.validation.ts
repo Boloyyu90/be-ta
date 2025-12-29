@@ -175,6 +175,7 @@ export interface UserExamSession {
   remainingTimeMs: number | null;
   totalQuestions: number;
   answeredQuestions: number;
+  attemptNumber: number;
 }
 
 /**
@@ -182,10 +183,14 @@ export interface UserExamSession {
  */
 export interface UserExamListItem {
   id: number;
+  examId: number;
+  attemptNumber: number;
   exam: {
     id: number;
     title: string;
     description: string | null;
+    allowRetake?: boolean;
+    maxAttempts?: number | null;
   };
   status: ExamStatus;
   startedAt: Date | null;

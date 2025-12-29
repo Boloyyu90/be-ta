@@ -301,6 +301,7 @@ export const startExam = async (userId: number, examId: number) => {
       remainingTimeMs,
       totalQuestions: questions.length,
       answeredQuestions: answers.filter((a) => a.selectedOption !== null).length,
+      attemptNumber: inProgressSession.attemptNumber,
     };
 
     return {
@@ -425,6 +426,7 @@ export const startExam = async (userId: number, examId: number) => {
     remainingTimeMs,
     totalQuestions: questions.length,
     answeredQuestions: answers.filter((a) => a.selectedOption !== null).length,
+    attemptNumber: newAttemptNumber,
   };
 
   return {
