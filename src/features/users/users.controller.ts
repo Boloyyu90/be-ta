@@ -140,6 +140,28 @@ export const updateMe = async (
 };
 
 /**
+ * Get current user exam statistics controller
+ * GET /api/v1/me/stats
+ *
+ * @access Private (All authenticated users)
+ */
+export const getMyStats = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const userId = req.user!.id;
+  const stats = await usersService.getMyStats(userId);
+
+  sendSuccess(
+    res,
+    { stats },
+    SUCCESS_MESSAGES.STATS_RETRIEVED,
+    HTTP_STATUS.OK
+  );
+};
+
+/**
  * Delete user controller
  * DELETE /api/v1/users/:id
  *

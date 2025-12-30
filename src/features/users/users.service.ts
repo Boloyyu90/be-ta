@@ -1,10 +1,10 @@
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, ExamStatus } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { hash } from '@/shared/utils/hash';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
 import { createPaginatedResponse } from '@/shared/utils/pagination';
 import { ConflictError, NotFoundError, BadRequestError } from '@/shared/errors/app-errors';
-import type { CreateUserInput, UpdateUserInput, GetUsersQuery, UpdateMeInput } from './users.validation';
+import type { CreateUserInput, UpdateUserInput, GetUsersQuery, UpdateMeInput, UserStats } from './users.validation';
 
 // ==================== PRISMA SELECT OBJECTS ====================
 
@@ -316,4 +316,74 @@ export const deleteUser = async (id: number) => {
   });
 
   return { success: true };
+};
+
+/**
+ * Get current user's exam statistics
+ * Aggregates: completed exams, average score, total time, active exams
+ *
+ * @param userId - Current user ID
+ * @returns User exam statistics
+ */
+export const getMyStats = async (userId: number): Promise<UserStats> => {
+  // Run all aggregations in parallel for performance
+  const [completedExams, activeExams, scoreAggregate, timeData] = await Promise.all([
+    // Count of FINISHED exams
+    prisma.userExam.count({
+      where: {
+        userId,
+        status: ExamStatus.FINISHED,
+      },
+    }),
+
+    // Count of IN_PROGRESS exams
+    prisma.userExam.count({
+      where: {
+        userId,
+        status: ExamStatus.IN_PROGRESS,
+      },
+    }),
+
+    // Average score from FINISHED exams with non-null totalScore
+    prisma.userExam.aggregate({
+      where: {
+        userId,
+        status: ExamStatus.FINISHED,
+        totalScore: { not: null },
+      },
+      _avg: {
+        totalScore: true,
+      },
+    }),
+
+    // Get all FINISHED exams with timestamps to calculate total time
+    prisma.userExam.findMany({
+      where: {
+        userId,
+        status: ExamStatus.FINISHED,
+        startedAt: { not: null },
+        submittedAt: { not: null },
+      },
+      select: {
+        startedAt: true,
+        submittedAt: true,
+      },
+    }),
+  ]);
+
+  // Calculate total time in minutes from timestamps
+  let totalTimeMinutes = 0;
+  for (const exam of timeData) {
+    if (exam.startedAt && exam.submittedAt) {
+      const durationMs = exam.submittedAt.getTime() - exam.startedAt.getTime();
+      totalTimeMinutes += Math.round(durationMs / 60000); // Convert ms to minutes
+    }
+  }
+
+  return {
+    completedExams,
+    averageScore: scoreAggregate._avg.totalScore ?? null,
+    totalTimeMinutes,
+    activeExams,
+  };
 };
