@@ -33,3 +33,14 @@ selfRouter.patch(
   validate(usersValidation.updateMeSchema),
   asyncHandler(usersController.updateMe)
 );
+
+/**
+ * @route   GET /api/v1/me/stats
+ * @desc    Get current user exam statistics (dashboard metrics)
+ * @access  Authenticated users
+ * @returns { completedExams, averageScore, totalTimeMinutes, activeExams }
+ */
+selfRouter.get(
+  '/stats',
+  asyncHandler(usersController.getMyStats)
+);

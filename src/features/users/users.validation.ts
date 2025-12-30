@@ -263,3 +263,14 @@ export interface UserDeletedResponse {
   success: boolean;
   message: string;
 }
+
+/**
+ * User exam statistics for dashboard
+ * Aggregated metrics from UserExam table
+ */
+export interface UserStats {
+  completedExams: number;      // Count of FINISHED exams
+  averageScore: number | null; // AVG(totalScore) or null if no completed exams
+  totalTimeMinutes: number;    // SUM(submittedAt - startedAt) in minutes
+  activeExams: number;         // Count of IN_PROGRESS exams
+}

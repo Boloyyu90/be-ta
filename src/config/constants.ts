@@ -161,6 +161,7 @@ export const SUCCESS_MESSAGES = {
   PROFILE_RETRIEVED: 'Profile retrieved successfully',
   PROFILE_UPDATED: 'Profile updated successfully',
   USER_STATISTICS_RETRIEVED: 'User statistics retrieved successfully',
+  STATS_RETRIEVED: 'Statistics retrieved successfully',
 
   // Exam
   EXAM_CREATED: 'Exam created successfully',
