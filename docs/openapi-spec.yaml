@@ -25,7 +25,7 @@ info:
     - Password reset flow
     - Time window enforcement at API level (frontend responsibility)
     - WebSocket real-time updates
-    
+
     ## Critical Integration Notes
     - Always use `examQuestionId` for answer submissions, NOT `questionId`
     - Timer should use server-provided `remainingTimeMs`, not client calculation
@@ -116,6 +116,33 @@ components:
         - isEmailVerified
         - createdAt
         - updatedAt
+
+    UserStats:
+      type: object
+      description: Dashboard statistics for current user
+      properties:
+        completedExams:
+          type: integer
+          description: Count of exams with status FINISHED
+          minimum: 0
+        averageScore:
+          type: number
+          format: float
+          nullable: true
+          description: Average totalScore of FINISHED exams, null if none
+        totalTimeMinutes:
+          type: integer
+          description: Total time spent on all FINISHED exams in minutes
+          minimum: 0
+        activeExams:
+          type: integer
+          description: Count of exams with status IN_PROGRESS
+          minimum: 0
+      required:
+        - completedExams
+        - averageScore
+        - totalTimeMinutes
+        - activeExams
 
     TokensData:
       type: object
@@ -676,7 +703,7 @@ components:
           minimum: 1
           nullable: true
           description: Maximum attempts allowed (only enforced when allowRetake is true)
-      required: [title]
+      required: [title, durationMinutes]
 
     UpdateExamRequest:
       type: object
@@ -728,7 +755,7 @@ components:
         type: integer
         minimum: 1
         maximum: 100
-        default: 20
+        default: 10
     sortOrderParam:
       name: sortOrder
       in: query
@@ -974,6 +1001,51 @@ paths:
                           user:
                             $ref: "#/components/schemas/User"
 
+  /me/stats:
+    get:
+      tags: [Users]
+      summary: Get current user's dashboard statistics
+      description: |
+        Returns aggregated statistics for the authenticated user including:
+        - Count of completed exams (status=FINISHED)
+        - Average score across all completed exams
+        - Total time spent on all completed exams
+        - Count of currently active exams (status=IN_PROGRESS)
+      operationId: getMyStats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          stats:
+                            $ref: "#/components/schemas/UserStats"
+              example:
+                success: true
+                data:
+                  stats:
+                    completedExams: 5
+                    averageScore: 78.5
+                    totalTimeMinutes: 240
+                    activeExams: 1
+                message: "Statistics retrieved successfully"
+                timestamp: "2025-12-30T12:34:56.789Z"
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
   /admin/users:
     post:
       tags: [Users]
@@ -1165,7 +1237,7 @@ paths:
       summary: List available exams (participant)
       description: |
         Returns exams that have at least 1 question attached.
-        
+
         **Note:** Time window filtering (startTime/endTime) is NOT enforced at the API level.
         Frontend should handle display logic for exams outside their time window.
       operationId: getAvailableExams

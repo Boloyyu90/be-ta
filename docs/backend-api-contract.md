@@ -11,12 +11,12 @@
 1. [Global Conventions](#1-global-conventions)
 2. [Authentication](#2-authentication)
 3. [API Endpoints](#3-api-endpoints)
-    - [Auth Module](#31-auth-module)
-    - [Users Module](#32-users-module)
-    - [Questions Module](#33-questions-module)
-    - [Exams Module](#34-exams-module)
-    - [Exam Sessions Module](#35-exam-sessions-module)
-    - [Proctoring Module](#36-proctoring-module)
+   - [Auth Module](#31-auth-module)
+   - [Users Module](#32-users-module)
+   - [Questions Module](#33-questions-module)
+   - [Exams Module](#34-exams-module)
+   - [Exam Sessions Module](#35-exam-sessions-module)
+   - [Proctoring Module](#36-proctoring-module)
 4. [Shared Schemas & DTOs](#4-shared-schemas--dtos)
 5. [Frontend Integration Notes](#5-frontend-integration-notes)
 6. [Exam Retake Business Rules](#6-exam-retake-business-rules)
@@ -154,16 +154,19 @@ This API contract documents the **implemented and tested** backend functionality
 The following features are explicitly **OUT OF SCOPE** for MVP:
 
 #### Not Implemented (Backend)
+
 - Email verification flow (field exists but not enforced)
 - Password reset functionality
 - Exam time window enforcement at API level
 
 #### Frontend Responsibility
+
 - Time window display/blocking (startTime/endTime validation)
 - Offline answer queuing (graceful degradation)
 - Progressive violation warnings UI
 
 #### Planned Post-MVP
+
 - WebSocket for real-time proctoring updates
 - Batch answer submission endpoint
 - Exam analytics/reporting endpoints
@@ -381,6 +384,75 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
   timestamp: string
 }
 ```
+
+---
+
+#### GET `/me/stats`
+
+**Access:** Authenticated
+
+**Description:** Get current user's dashboard statistics including completed exams count, average score, total time spent, and active exams count.
+
+**Response (200):**
+
+```typescript
+{
+  success: true,
+  data: {
+    stats: {
+      completedExams: number,      // Count of exams with status=FINISHED
+      averageScore: number | null, // AVG(totalScore) of FINISHED exams, null if none
+      totalTimeMinutes: number,    // SUM of (submittedAt - startedAt) in minutes
+      activeExams: number          // Count of exams with status=IN_PROGRESS
+    }
+  },
+  message: "Statistics retrieved successfully",
+  timestamp: string
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "stats": {
+      "completedExams": 5,
+      "averageScore": 78.5,
+      "totalTimeMinutes": 240,
+      "activeExams": 1
+    }
+  },
+  "message": "Statistics retrieved successfully",
+  "timestamp": "2025-12-30T12:34:56.789Z"
+}
+```
+
+**Business Rules:**
+
+- `averageScore` is `null` if user has no completed exams
+- `totalTimeMinutes` computed from `(submittedAt - startedAt)` for all FINISHED exams
+- Stats automatically update when user completes an exam
+- Only counts exams for the authenticated user
+
+**UI Mapping:**
+
+- `completedExams` → "Ujian Selesai" card
+- `averageScore` → "Rata-rata Skor" card
+- `totalTimeMinutes` → "Total Waktu" card
+- `activeExams` → "Ujian Aktif" card
+
+**Frontend Integration:**
+
+```typescript
+// Hook: useMyStats()
+// API: GET /api/v1/me/stats
+// Cache key: ['my-stats']
+// Invalidate on: exam submission, exam start
+```
+
+---
 
 ---
 
@@ -1073,7 +1145,7 @@ Get answers with review (shows correctAnswer after submit).
           id: number,
           content: string,
           options: QuestionOptions,
-          correctAnswer: string,     
+          correctAnswer: string,
           questionType: QuestionType,
           defaultScore: number
         }
@@ -1202,7 +1274,7 @@ Analyze webcam frame via YOLO face detection.
 
 ```typescript
 {
-  imageBase64: string    // Base64 encoded image (min 100 chars)
+  imageBase64: string; // Base64 encoded image (min 100 chars)
 }
 ```
 
@@ -1324,6 +1396,14 @@ interface User {
   updatedAt: string;
 }
 
+// User Statistics (Dashboard)
+interface UserStats {
+  completedExams: number; // Count of FINISHED exams for this user
+  averageScore: number | null; // Average totalScore, null if no finished exams
+  totalTimeMinutes: number; // Total time spent on all finished exams (in minutes)
+  activeExams: number; // Count of IN_PROGRESS exams for this user
+}
+
 // Question
 interface Question {
   id: number;
@@ -1351,8 +1431,8 @@ interface Exam {
   endTime: string | null;
   durationMinutes: number;
   passingScore: number;
-  allowRetake: boolean;           // Whether users can retake this exam
-  maxAttempts: number | null;     // Maximum attempts (null = unlimited when retakes enabled)
+  allowRetake: boolean; // Whether users can retake this exam
+  maxAttempts: number | null; // Maximum attempts (null = unlimited when retakes enabled)
   createdBy: number;
   createdAt: string;
   updatedAt: string;
@@ -1370,7 +1450,7 @@ interface UserExam {
   id: number;
   userId: number;
   examId: number;
-  attemptNumber: number;          // Which attempt this is (1, 2, 3, ...)
+  attemptNumber: number; // Which attempt this is (1, 2, 3, ...)
   startedAt: string;
   submittedAt: string | null;
   totalScore: number | null;
@@ -1583,22 +1663,22 @@ function hasInProgressSession(sessions: ExamSession[]): ExamSession | null {
 
 ### 5.9 Error Code Reference
 
-| Code                             | Module     | Meaning                                              |
-| -------------------------------- | ---------- | ---------------------------------------------------- |
-| `AUTH_EMAIL_EXISTS`              | Auth       | Email already registered                             |
-| `AUTH_INVALID_CREDENTIALS`       | Auth       | Wrong email/password                                 |
-| `AUTH_INVALID_TOKEN`             | Auth       | Token expired/invalid                                |
-| `USER_NOT_FOUND`                 | Users      | User ID doesn't exist                                |
-| `EXAM_NOT_FOUND`                 | Exams      | Exam ID doesn't exist                                |
-| `EXAM_NO_QUESTIONS`              | Exams      | Exam has 0 questions                                 |
-| `EXAM_NO_DURATION`               | Exams      | Duration not set                                     |
-| `EXAM_SESSION_NOT_FOUND`         | Sessions   | Session doesn't exist                                |
-| `EXAM_SESSION_ALREADY_STARTED`   | Sessions   | Can't restart submitted exam (when retakes disabled) |
-| `EXAM_SESSION_TIMEOUT`           | Sessions   | Time limit exceeded                                  |
-| `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions   | Already finalized                                    |
-| `EXAM_SESSION_INVALID_QUESTION`  | Sessions   | examQuestionId not in exam                           |
-| `EXAM_SESSION_RETAKE_DISABLED`   | Sessions   | Exam does not allow retakes                          |
-| `EXAM_SESSION_MAX_ATTEMPTS`      | Sessions   | Maximum attempts reached for this exam               |
+| Code                             | Module   | Meaning                                              |
+| -------------------------------- | -------- | ---------------------------------------------------- |
+| `AUTH_EMAIL_EXISTS`              | Auth     | Email already registered                             |
+| `AUTH_INVALID_CREDENTIALS`       | Auth     | Wrong email/password                                 |
+| `AUTH_INVALID_TOKEN`             | Auth     | Token expired/invalid                                |
+| `USER_NOT_FOUND`                 | Users    | User ID doesn't exist                                |
+| `EXAM_NOT_FOUND`                 | Exams    | Exam ID doesn't exist                                |
+| `EXAM_NO_QUESTIONS`              | Exams    | Exam has 0 questions                                 |
+| `EXAM_NO_DURATION`               | Exams    | Duration not set                                     |
+| `EXAM_SESSION_NOT_FOUND`         | Sessions | Session doesn't exist                                |
+| `EXAM_SESSION_ALREADY_STARTED`   | Sessions | Can't restart submitted exam (when retakes disabled) |
+| `EXAM_SESSION_TIMEOUT`           | Sessions | Time limit exceeded                                  |
+| `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions | Already finalized                                    |
+| `EXAM_SESSION_INVALID_QUESTION`  | Sessions | examQuestionId not in exam                           |
+| `EXAM_SESSION_RETAKE_DISABLED`   | Sessions | Exam does not allow retakes                          |
+| `EXAM_SESSION_MAX_ATTEMPTS`      | Sessions | Maximum attempts reached for this exam               |
 
 ---
 
@@ -1671,6 +1751,7 @@ POST /api/v1/auth/logout
 ```
 GET  /api/v1/me
 PATCH /api/v1/me
+GET  /api/v1/me/stats
 GET  /api/v1/exams
 GET  /api/v1/exams/:id
 POST /api/v1/exams/:id/start
@@ -1717,8 +1798,8 @@ GET    /api/v1/admin/proctoring/exam-sessions/:id/events
 
 ---
 
-**Total Routes:** 45
+**Total Routes:** 46
 
 - Public: 4
-- Participant: 14
+- Participant: 15
 - Admin: 27
