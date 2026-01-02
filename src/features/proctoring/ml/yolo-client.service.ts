@@ -61,11 +61,12 @@ export class YOLOFaceAnalyzer implements IFaceAnalyzer {
    * Warmup: Check if Python service is available
    */
   async warmup(): Promise<void> {
-    logger.info('🔥 YOLOFaceAnalyzer warmup starting...');
+    const healthUrl = `${this.config.baseUrl}/health`;
+    logger.info({ url: healthUrl }, '🔥 YOLOFaceAnalyzer warmup starting...');
 
     try {
       const response = await withTimeout(
-        fetch(`${this.config.baseUrl}/health`),
+        fetch(healthUrl),
         5000
       );
 
@@ -75,14 +76,26 @@ export class YOLOFaceAnalyzer implements IFaceAnalyzer {
         this.ready = this.serviceHealthy;
 
         logger.info(
-          { health, serviceHealthy: this.serviceHealthy },
+          { health, serviceHealthy: this.serviceHealthy, url: healthUrl },
           '✅ YOLO service health check passed'
         );
       } else {
-        throw new Error(`Health check failed: ${response.status}`);
+        throw new Error(`Health check failed with status ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
-      logger.error({ error }, '❌ YOLO service health check failed');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorType = error instanceof Error ? error.name : 'UnknownError';
+
+      logger.error(
+        {
+          error: errorMessage,
+          errorType,
+          url: healthUrl,
+          fallbackEnabled: env.ML_FALLBACK_TO_MOCK
+        },
+        '❌ YOLO service health check failed - will use mock analyzer if fallback enabled'
+      );
+
       this.ready = false;
       this.serviceHealthy = false;
 

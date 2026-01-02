@@ -126,14 +126,21 @@ export interface IFaceAnalyzer {
  */
 export const createFaceAnalyzer = (): IFaceAnalyzer => {
   if (env.YOLO_ENABLED) {
-    logger.info('🎯 Creating YOLO face analyzer (production mode)');
+    const serviceUrl = env.YOLO_SERVICE_URL;
+    logger.info(
+      { serviceUrl, timeout: env.ML_ANALYSIS_TIMEOUT_MS },
+      '🎯 Creating YOLO face analyzer (production mode)'
+    );
     return new YOLOFaceAnalyzer({
-      baseUrl: process.env.YOLO_SERVICE_URL || 'http://localhost:8000',
+      baseUrl: serviceUrl,
       timeout: env.ML_ANALYSIS_TIMEOUT_MS,
     });
   }
 
-  logger.info('🎭 Creating mock face analyzer (development mode)');
+  logger.warn(
+    { YOLO_ENABLED: env.YOLO_ENABLED },
+    '🎭 Creating mock face analyzer (development mode) - set YOLO_ENABLED=true to use real ML service'
+  );
   return new MockFaceAnalyzer();
 };
 
@@ -234,17 +241,25 @@ export const warmupFaceAnalyzer = async (): Promise<void> => {
 
     } catch (error) {
       const elapsed = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
       logger.error(
-        { error, elapsedMs: elapsed },
+        { error: errorMessage, elapsedMs: elapsed, YOLO_ENABLED: env.YOLO_ENABLED },
         '❌ Face analyzer warmup failed'
       );
 
       // Fallback ke mock jika enabled
       if (env.ML_FALLBACK_TO_MOCK) {
-        logger.warn('⚠️ Falling back to mock analyzer');
+        logger.warn(
+          { reason: errorMessage, ML_FALLBACK_TO_MOCK: true },
+          '⚠️ Falling back to mock analyzer - face analysis will return dummy data!'
+        );
         analyzerInstance = new MockFaceAnalyzer();
         await analyzerInstance.warmup();
-        logger.info('✅ Mock analyzer ready as fallback');
+        logger.info(
+          { analyzerType: 'mock' },
+          '✅ Mock analyzer ready as fallback - NOTE: This will always return FACE_DETECTED'
+        );
       } else {
         throw error;
       }
