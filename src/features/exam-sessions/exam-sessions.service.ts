@@ -758,6 +758,9 @@ export const getUserExams = async (userId: number, query: GetUserExamsQuery) => 
 
 /**
  * Get user exam session details
+ *
+ * ✅ FIX: Now returns remainingTimeMs and durationMinutes at root level
+ * (consistent with getUserExams list response)
  */
 export const getUserExam = async (userExamId: number, userId: number) => {
   const userExam = await prisma.userExam.findUnique({
@@ -782,7 +785,19 @@ export const getUserExam = async (userExamId: number, userId: number) => {
     });
   }
 
-  return userExam;
+  // ✅ FIX: Calculate remainingTimeMs and add durationMinutes at root level
+  // This ensures timer works correctly even when accessing via direct URL
+  const durationMinutes = userExam.exam.durationMinutes;
+  const remainingTimeMs =
+    userExam.startedAt && !userExam.submittedAt && durationMinutes
+      ? getRemainingTime(userExam.startedAt, durationMinutes)
+      : null;
+
+  return {
+    ...userExam,
+    durationMinutes,
+    remainingTimeMs,
+  };
 };
 
 /**
