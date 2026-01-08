@@ -151,6 +151,7 @@ export interface ProctoringEventDetailData extends ProctoringEventData {
     userId: number;
     examId: number;
     status: string;
+    attemptNumber: number;
     user: {
       id: number;
       name: string;

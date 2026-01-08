@@ -294,12 +294,12 @@ Then I see an error: "Exam duration not set"
 **Error Codes:**
 | Code | Meaning | UI Action |
 |------|---------|-----------|
-| `EXAM_NOT_FOUND` | Exam doesn't exist | Redirect to exam list |
-| `EXAM_NO_QUESTIONS` | No questions in exam | Show error, disable start |
-| `EXAM_NO_DURATION` | Duration not configured | Show error, disable start |
-| `EXAM_SESSION_ALREADY_STARTED` | Already completed (legacy) | Show results link |
-| `EXAM_SESSION_RETAKE_DISABLED` | Retakes not allowed | Show "Lihat Hasil" |
-| `EXAM_SESSION_MAX_ATTEMPTS` | Maximum attempts reached | Show "Batas Tercapai" disabled |
+| `EXAM_001` | Exam doesn't exist | Redirect to exam list |
+| `EXAM_002` | No questions in exam | Show error, disable start |
+| `EXAM_003` | Duration not configured | Show error, disable start |
+| `EXAM_SESSION_002` | Already completed (legacy) | Show results link |
+| `EXAM_SESSION_010` | Retakes not allowed | Show "Lihat Hasil" |
+| `EXAM_SESSION_011` | Maximum attempts reached | Show "Batas Tercapai" disabled |
 
 ---
 
@@ -377,10 +377,10 @@ And I can still view my previous results
 
 **Error Handling:**
 
-| Error Code                     | User Message                              | Button State                   |
-| ------------------------------ | ----------------------------------------- | ------------------------------ |
-| `EXAM_SESSION_RETAKE_DISABLED` | "Ujian ini tidak mengizinkan pengulangan" | Show "Lihat Hasil"             |
-| `EXAM_SESSION_MAX_ATTEMPTS`    | "Batas maksimum percobaan tercapai"       | Show "Batas Tercapai" disabled |
+| Error Code           | User Message                              | Button State                   |
+| -------------------- | ----------------------------------------- | ------------------------------ |
+| `EXAM_SESSION_010`   | "Ujian ini tidak mengizinkan pengulangan" | Show "Lihat Hasil"             |
+| `EXAM_SESSION_011`   | "Batas maksimum percobaan tercapai"       | Show "Batas Tercapai" disabled |
 
 **UI States:**
 
@@ -1171,9 +1171,9 @@ Then I see "Maximum attempts reached"
 
 **Error Codes:**
 
-- `EXAM_SESSION_ALREADY_STARTED` → Show results
-- `EXAM_SESSION_RETAKE_DISABLED` → Show results, no retry option
-- `EXAM_SESSION_MAX_ATTEMPTS` → Show all attempt results
+- `EXAM_SESSION_002` → Show results
+- `EXAM_SESSION_010` → Show results, no retry option
+- `EXAM_SESSION_011` → Show all attempt results
 
 ---
 
@@ -1495,21 +1495,21 @@ Then I see specific error messages per field
 
 ## Appendix B: Error Codes Reference
 
-| Code                             | HTTP | Message                       | Frontend Action           |
-| -------------------------------- | ---- | ----------------------------- | ------------------------- |
-| `AUTH_INVALID_CREDENTIALS`       | 401  | Wrong email/password          | Show login error          |
-| `AUTH_INVALID_TOKEN`             | 401  | Token expired/invalid         | Redirect to login         |
-| `AUTH_EMAIL_EXISTS`              | 409  | Email already registered      | Show field error          |
-| `EXAM_NOT_FOUND`                 | 404  | Exam ID doesn't exist         | Redirect to exam list     |
-| `EXAM_NO_QUESTIONS`              | 400  | Exam has 0 questions          | Disable start button      |
-| `EXAM_NO_DURATION`               | 400  | Duration not set              | Disable start button      |
-| `EXAM_SESSION_NOT_FOUND`         | 404  | Session doesn't exist         | Redirect to dashboard     |
-| `EXAM_SESSION_ALREADY_STARTED`   | 409  | Already has completed session | Show results link         |
-| `EXAM_SESSION_RETAKE_DISABLED`   | 400  | Retakes not allowed           | Show "Lihat Hasil"        |
-| `EXAM_SESSION_MAX_ATTEMPTS`      | 400  | Maximum attempts reached      | Show "Batas Tercapai"     |
-| `EXAM_SESSION_TIMEOUT`           | 400  | Time limit exceeded           | Auto-submit, show results |
-| `EXAM_SESSION_ALREADY_SUBMITTED` | 400  | Already finalized             | Redirect to results       |
-| `EXAM_SESSION_INVALID_QUESTION`  | 400  | examQuestionId not in exam    | Log error, skip           |
+| Code                 | HTTP | Message                       | Frontend Action           |
+| -------------------- | ---- | ----------------------------- | ------------------------- |
+| `AUTH_001`           | 401  | Wrong email/password          | Show login error          |
+| `AUTH_003`           | 401  | Token expired/invalid         | Redirect to login         |
+| `AUTH_002`           | 409  | Email already registered      | Show field error          |
+| `EXAM_001`           | 404  | Exam ID doesn't exist         | Redirect to exam list     |
+| `EXAM_002`           | 400  | Exam has 0 questions          | Disable start button      |
+| `EXAM_003`           | 400  | Duration not set              | Disable start button      |
+| `EXAM_SESSION_001`   | 404  | Session doesn't exist         | Redirect to dashboard     |
+| `EXAM_SESSION_002`   | 409  | Already has completed session | Show results link         |
+| `EXAM_SESSION_010`   | 400  | Retakes not allowed           | Show "Lihat Hasil"        |
+| `EXAM_SESSION_011`   | 400  | Maximum attempts reached      | Show "Batas Tercapai"     |
+| `EXAM_SESSION_003`   | 400  | Time limit exceeded           | Auto-submit, show results |
+| `EXAM_SESSION_004`   | 400  | Already finalized             | Redirect to results       |
+| `EXAM_SESSION_005`   | 400  | examQuestionId not in exam    | Log error, skip           |
 
 ---
 

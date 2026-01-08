@@ -123,7 +123,7 @@ type ExamStatus = "IN_PROGRESS" | "FINISHED" | "CANCELLED" | "TIMEOUT";
 type QuestionType = "TIU" | "TKP" | "TWK";
 
 // Token Types (Prisma: TokenType)
-type TokenType = "ACCESS" | "REFRESH";
+type TokenType = "ACCESS" | "REFRESH" | "RESET_PASSWORD" | "VERIFY_EMAIL";
 
 // Proctoring Event Types (Prisma: ProctoringEventType)
 type ProctoringEventType =
@@ -476,7 +476,7 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
   },
   correctAnswer: 'A' | 'B' | 'C' | 'D' | 'E',
   questionType: QuestionType,
-  defaultScore?: number      // Min 0, default 1
+  defaultScore?: number      // Min 1, max 100, default 1
 }
 ```
 
@@ -953,10 +953,11 @@ Start an exam session, resume an existing IN_PROGRESS session, or start a new re
 Get current user's exam sessions (all attempts).
 
 **Query Parameters:**
-| Param | Type | Default |
-|-------|------|---------|
-| page | number | 1 |
-| limit | number | 10 |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | number | 1 | Page number |
+| limit | number | 10 | Items per page |
+| status | ExamStatus | - | Filter by status (IN_PROGRESS, FINISHED, CANCELLED, TIMEOUT) |
 
 **Response (200):**
 
@@ -1315,7 +1316,7 @@ Get proctoring events for a session.
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | page | number | 1 | Page number |
-| limit | number | 10 | Items per page |
+| limit | number | 20 | Items per page |
 | eventType | ProctoringEventType | - | Filter by type |
 | startDate | string | - | ISO datetime |
 | endDate | string | - | ISO datetime |
@@ -1663,22 +1664,22 @@ function hasInProgressSession(sessions: ExamSession[]): ExamSession | null {
 
 ### 5.9 Error Code Reference
 
-| Code                             | Module   | Meaning                                              |
-| -------------------------------- | -------- | ---------------------------------------------------- |
-| `AUTH_EMAIL_EXISTS`              | Auth     | Email already registered                             |
-| `AUTH_INVALID_CREDENTIALS`       | Auth     | Wrong email/password                                 |
-| `AUTH_INVALID_TOKEN`             | Auth     | Token expired/invalid                                |
-| `USER_NOT_FOUND`                 | Users    | User ID doesn't exist                                |
-| `EXAM_NOT_FOUND`                 | Exams    | Exam ID doesn't exist                                |
-| `EXAM_NO_QUESTIONS`              | Exams    | Exam has 0 questions                                 |
-| `EXAM_NO_DURATION`               | Exams    | Duration not set                                     |
-| `EXAM_SESSION_NOT_FOUND`         | Sessions | Session doesn't exist                                |
-| `EXAM_SESSION_ALREADY_STARTED`   | Sessions | Can't restart submitted exam (when retakes disabled) |
-| `EXAM_SESSION_TIMEOUT`           | Sessions | Time limit exceeded                                  |
-| `EXAM_SESSION_ALREADY_SUBMITTED` | Sessions | Already finalized                                    |
-| `EXAM_SESSION_INVALID_QUESTION`  | Sessions | examQuestionId not in exam                           |
-| `EXAM_SESSION_RETAKE_DISABLED`   | Sessions | Exam does not allow retakes                          |
-| `EXAM_SESSION_MAX_ATTEMPTS`      | Sessions | Maximum attempts reached for this exam               |
+| Code                   | Module   | Meaning                                              |
+| ---------------------- | -------- | ---------------------------------------------------- |
+| `AUTH_002`             | Auth     | Email already registered                             |
+| `AUTH_001`             | Auth     | Wrong email/password                                 |
+| `AUTH_003`             | Auth     | Token expired/invalid                                |
+| `USER_001`             | Users    | User ID doesn't exist                                |
+| `EXAM_001`             | Exams    | Exam ID doesn't exist                                |
+| `EXAM_002`             | Exams    | Exam has 0 questions                                 |
+| `EXAM_003`             | Exams    | Duration not set                                     |
+| `EXAM_SESSION_001`     | Sessions | Session doesn't exist                                |
+| `EXAM_SESSION_002`     | Sessions | Can't restart submitted exam (when retakes disabled) |
+| `EXAM_SESSION_003`     | Sessions | Time limit exceeded                                  |
+| `EXAM_SESSION_004`     | Sessions | Already finalized                                    |
+| `EXAM_SESSION_005`     | Sessions | examQuestionId not in exam                           |
+| `EXAM_SESSION_010`     | Sessions | Exam does not allow retakes                          |
+| `EXAM_SESSION_011`     | Sessions | Maximum attempts reached for this exam               |
 
 ---
 
@@ -1798,8 +1799,8 @@ GET    /api/v1/admin/proctoring/exam-sessions/:id/events
 
 ---
 
-**Total Routes:** 46
+**Total Routes:** 44
 
 - Public: 4
-- Participant: 15
-- Admin: 27
+- Participant: 16
+- Admin: 24

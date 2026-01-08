@@ -776,7 +776,7 @@ components:
                 properties:
                   errorCode:
                     type: string
-                    enum: [EXAM_SESSION_RETAKE_DISABLED]
+                    enum: [EXAM_SESSION_010]
 
     MaxAttemptsError:
       description: Maximum attempts reached for this exam
@@ -789,7 +789,7 @@ components:
                 properties:
                   errorCode:
                     type: string
-                    enum: [EXAM_SESSION_MAX_ATTEMPTS]
+                    enum: [EXAM_SESSION_011]
                   context:
                     type: object
                     properties:
@@ -1615,6 +1615,11 @@ paths:
       parameters:
         - $ref: "#/components/parameters/pageParam"
         - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          description: Filter by exam status
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
       responses:
         "200":
           description: Exam sessions list with attempt information

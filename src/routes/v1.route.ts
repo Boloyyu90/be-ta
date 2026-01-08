@@ -153,6 +153,7 @@ if (process.env.NODE_ENV === 'development') {
         participant: [
           'GET /api/v1/me',
           'PATCH /api/v1/me',
+          'GET /api/v1/me/stats',
           'GET /api/v1/exams',
           'GET /api/v1/exams/:id',
           'POST /api/v1/exams/:id/start',
@@ -195,10 +196,10 @@ if (process.env.NODE_ENV === 'development') {
         ],
       },
       statistics: {
-        totalRoutes: 50,
+        totalRoutes: 44,
         publicRoutes: 4,
-        participantRoutes: 15,
-        adminRoutes: 31,
+        participantRoutes: 16,
+        adminRoutes: 24,
       },
       tips: {
         testAuth: 'curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/me',
