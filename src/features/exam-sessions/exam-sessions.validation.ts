@@ -104,6 +104,7 @@ export const submitExamSchema = z.object({
 export const getMyResultsSchema = z.object({
   query: paginationSchema.extend({
     status: z.nativeEnum(ExamStatus).default(ExamStatus.FINISHED),
+    examId: z.coerce.number().int().positive().optional(),
   }),
 });
 
@@ -256,7 +257,9 @@ export interface ExamResult {
     id: number;
     title: string;
     description: string | null;
+    passingScore: number;
   };
+  attemptNumber: number;
   user: {
     id: number;
     name: string;

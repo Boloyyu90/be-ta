@@ -154,11 +154,13 @@ const EXAM_RESULT_SELECT = {
   submittedAt: true,
   totalScore: true,
   status: true,
+  attemptNumber: true,
   exam: {
     select: {
       id: true,
       title: true,
       description: true,
+      passingScore: true,
       examQuestions: {
         select: {
           id: true,
@@ -684,7 +686,9 @@ export const submitExam = async (userExamId: number, userId: number) => {
           id: userExam.exam.id,
           title: userExam.exam.title,
           description: userExam.exam.description,
+          passingScore: userExam.exam.passingScore,
         },
+        attemptNumber: userExam.attemptNumber,
         user: userExam.user,
         startedAt: userExam.startedAt!,
         submittedAt: now,
@@ -913,11 +917,12 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
  * Get user's exam results (participant view)
  */
 export const getMyResults = async (userId: number, query: GetMyResultsQuery) => {
-  const { page, limit, status } = query;
+  const { page, limit, status, examId } = query;
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    status,
+    ...(status && { status }),    // ✅ conditional
+    ...(examId && { examId }),
   };
 
   const skip = (page - 1) * limit;
@@ -941,7 +946,9 @@ export const getMyResults = async (userId: number, query: GetMyResultsQuery) => 
       id: ue.exam.id,
       title: ue.exam.title,
       description: ue.exam.description,
+      passingScore: ue.exam.passingScore,
     },
+    attemptNumber: ue.attemptNumber,
     user: ue.user,
     startedAt: ue.startedAt!,
     submittedAt: ue.submittedAt,
@@ -991,6 +998,7 @@ export const getResults = async (query: GetResultsQuery) => {
       id: ue.exam.id,
       title: ue.exam.title,
       description: ue.exam.description,
+      passingScore: ue.exam.passingScore,
     },
     user: ue.user,
     startedAt: ue.startedAt!,
@@ -1002,6 +1010,7 @@ export const getResults = async (query: GetResultsQuery) => {
       : null,
     answeredQuestions: ue.answers.filter((a) => a.selectedOption !== null).length,
     totalQuestions: ue.exam.examQuestions.length,
+    attemptNumber: ue.attemptNumber,
     scoresByType: [],
   }));
 
