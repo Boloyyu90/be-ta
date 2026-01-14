@@ -30,7 +30,7 @@ info:
     - Always use `examQuestionId` for answer submissions, NOT `questionId`
     - Timer should use server-provided `remainingTimeMs`, not client calculation
     - Proctoring rate limit: max 30 requests/minute (1 every 2 seconds)
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: I Gede Bala Putra
     email: gede.bala@example.com
@@ -498,6 +498,12 @@ components:
       properties:
         id:
           type: integer
+        examId:
+          type: integer
+        attemptNumber:
+          type: integer
+          minimum: 1
+          description: Which attempt this session represents (1, 2, 3...)
         exam:
           type: object
           properties:
@@ -508,22 +514,15 @@ components:
             description:
               type: string
               nullable: true
-            allowRetake:
-              type: boolean
-              description: Whether exam allows retakes
-            maxAttempts:
-              type: integer
-              nullable: true
-              description: Maximum attempts allowed
           required:
             - id
             - title
-            - allowRetake
         status:
           $ref: "#/components/schemas/ExamStatus"
         startedAt:
           type: string
           format: date-time
+          nullable: true
         submittedAt:
           type: string
           format: date-time
@@ -536,23 +535,19 @@ components:
           nullable: true
         durationMinutes:
           type: integer
+          nullable: true
         answeredQuestions:
           type: integer
         totalQuestions:
           type: integer
-        attemptNumber:
-          type: integer
-          minimum: 1
-          description: Which attempt this session represents (1, 2, 3...)
       required:
         - id
+        - examId
+        - attemptNumber
         - exam
         - status
-        - startedAt
-        - durationMinutes
         - answeredQuestions
         - totalQuestions
-        - attemptNumber
 
     # === Attach/Detach Questions Responses ===
     AttachQuestionsResponse:
@@ -591,26 +586,89 @@ components:
         totalQuestions:
           type: integer
 
+    AnswerReview:
+      type: object
+      description: Answer with review information after exam submission
+      properties:
+        examQuestionId:
+          type: integer
+        questionContent:
+          type: string
+        questionType:
+          $ref: "#/components/schemas/QuestionType"
+        options:
+          $ref: "#/components/schemas/QuestionOptions"
+        selectedOption:
+          type: string
+          nullable: true
+          enum: [A, B, C, D, E]
+        correctAnswer:
+          type: string
+          enum: [A, B, C, D, E]
+        isCorrect:
+          type: boolean
+          nullable: true
+        score:
+          type: integer
+          description: Score earned (defaultScore if correct, 0 otherwise)
+      required:
+        - examQuestionId
+        - questionContent
+        - questionType
+        - options
+        - correctAnswer
+        - score
+
     ExamResult:
       type: object
       description: Exam result with attempt tracking
       properties:
         id:
           type: integer
-        examId:
+        exam:
+          type: object
+          description: Exam information
+          properties:
+            id:
+              type: integer
+            title:
+              type: string
+            description:
+              type: string
+              nullable: true
+            passingScore:
+              type: integer
+          required:
+            - id
+            - title
+            - passingScore
+        attemptNumber:
           type: integer
-        examTitle:
-          type: string
-        userId:
-          type: integer
+          description: Which attempt this result is for
+          minimum: 1
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            email:
+              type: string
+          required:
+            - id
+            - name
+            - email
         startedAt:
           type: string
           format: date-time
         submittedAt:
           type: string
           format: date-time
+          nullable: true
         totalScore:
           type: integer
+          nullable: true
         status:
           $ref: "#/components/schemas/ExamStatus"
         duration:
@@ -621,26 +679,19 @@ components:
           type: integer
         totalQuestions:
           type: integer
-        attemptNumber:
-          type: integer
-          description: Which attempt this result is for
-          minimum: 1
         scoresByType:
           type: array
           items:
             $ref: "#/components/schemas/ScoreByType"
       required:
         - id
-        - examId
-        - examTitle
-        - userId
+        - exam
+        - attemptNumber
+        - user
         - startedAt
-        - submittedAt
-        - totalScore
         - status
         - answeredQuestions
         - totalQuestions
-        - attemptNumber
         - scoresByType
 
     # === Face Analysis ===
@@ -1784,6 +1835,16 @@ paths:
       parameters:
         - $ref: "#/components/parameters/pageParam"
         - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          description: Filter by status (defaults to FINISHED)
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
+        - name: examId
+          in: query
+          description: Filter by exam ID
+          schema:
+            type: integer
       responses:
         "200":
           description: Results list (includes attemptNumber for each result)

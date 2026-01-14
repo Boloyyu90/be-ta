@@ -1,7 +1,7 @@
 # Backend API Contract - Prestige Academy CPNS Exam System
 
 > **Generated from actual backend code** (Boloyyu90/be-ta)
-> **Last Updated:** December 2025
+> **Last Updated:** January 2026
 > **API Version:** v1
 
 ---
@@ -967,22 +967,21 @@ Get current user's exam sessions (all attempts).
   data: {
     data: Array<{
       id: number,
+      examId: number,
+      attemptNumber: number,         // Which attempt this is
       exam: {
         id: number,
         title: string,
-        description: string | null,
-        allowRetake: boolean,       // Whether exam allows retakes
-        maxAttempts: number | null  // Max attempts for this exam
+        description: string | null
       },
       status: ExamStatus,
-      startedAt: string,
+      startedAt: string | null,
       submittedAt: string | null,
       totalScore: number | null,
       remainingTimeMs: number | null,
-      durationMinutes: number,
+      durationMinutes: number | null,
       answeredQuestions: number,
-      totalQuestions: number,
-      attemptNumber: number         // Which attempt this is
+      totalQuestions: number
     }>,
     pagination: PaginationMeta
   },
@@ -991,7 +990,7 @@ Get current user's exam sessions (all attempts).
 }
 ```
 
-**Note:** Results are ordered by `startedAt` descending, showing most recent attempts first. The composite index on `[userId, examId, status]` ensures efficient queries.
+**Note:** Results are ordered by `createdAt` descending, showing most recent sessions first.
 
 ---
 
@@ -1005,10 +1004,46 @@ Get current user's exam sessions (all attempts).
 {
   success: true,
   data: {
-    ...UserExamDetail,
-    attemptNumber: number          // Which attempt this session represents
+    userExam: {
+      id: number,
+      examId: number,
+      userId: number,
+      startedAt: string,
+      submittedAt: string | null,
+      totalScore: number | null,
+      status: ExamStatus,
+      durationMinutes: number,       // Added at root level for convenience
+      remainingTimeMs: number | null, // Server-calculated remaining time
+      exam: {
+        id: number,
+        title: string,
+        description: string | null,
+        durationMinutes: number,
+        passingScore: number,
+        allowRetake: boolean,
+        maxAttempts: number | null,
+        examQuestions: Array<{
+          id: number,
+          orderNumber: number,
+          question: {
+            id: number,
+            content: string,
+            questionType: QuestionType,
+            defaultScore: number
+          }
+        }>
+      },
+      user: {
+        id: number,
+        name: string,
+        email: string
+      },
+      _count: {
+        answers: number
+      }
+    }
   },
-  message: "Exam session retrieved successfully",
+  message: "User exam retrieved successfully",
   timestamp: string
 }
 ```
@@ -1092,12 +1127,20 @@ Finalize and submit the exam.
 {
   success: true,
   data: {
-    message: string,
     result: {
       id: number,
-      examId: number,
-      examTitle: string,
-      userId: number,
+      exam: {
+        id: number,
+        title: string,
+        description: string | null,
+        passingScore: number
+      },
+      attemptNumber: number,          // Which attempt this was
+      user: {
+        id: number,
+        name: string,
+        email: string
+      },
       startedAt: string,
       submittedAt: string,
       totalScore: number,
@@ -1105,7 +1148,6 @@ Finalize and submit the exam.
       duration: number | null,        // Seconds taken
       answeredQuestions: number,
       totalQuestions: number,
-      attemptNumber: number,          // Which attempt this was
       scoresByType: Array<{
         type: QuestionType,
         score: number,
@@ -1135,22 +1177,14 @@ Get answers with review (shows correctAnswer after submit).
   success: true,
   data: {
     answers: Array<{
-      id: number,
       examQuestionId: number,
+      questionContent: string,
+      questionType: QuestionType,
+      options: QuestionOptions,
       selectedOption: AnswerOption,
-      isCorrect: boolean,
-      answeredAt: string | null,
-      examQuestion: {
-        orderNumber: number,
-        question: {
-          id: number,
-          content: string,
-          options: QuestionOptions,
-          correctAnswer: string,
-          questionType: QuestionType,
-          defaultScore: number
-        }
-      }
+      correctAnswer: string,
+      isCorrect: boolean | null,
+      score: number              // Score earned (defaultScore if correct, 0 otherwise)
     }>,
     total: number
   },
@@ -1169,13 +1203,15 @@ Get answers with review (shows correctAnswer after submit).
 
 **Access:** Authenticated
 
-Get current user's exam results (all attempts).
+Get current user's exam results.
 
 **Query Parameters:**
-| Param | Type | Default |
-|-------|------|---------|
-| page | number | 1 |
-| limit | number | 10 |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | number | 1 | Page number |
+| limit | number | 10 | Items per page |
+| status | ExamStatus | FINISHED | Filter by status (defaults to FINISHED) |
+| examId | number | - | Filter by exam ID |
 
 **Response (200):**
 
@@ -1184,8 +1220,27 @@ Get current user's exam results (all attempts).
   success: true,
   data: {
     data: Array<{
-      ...ExamResult,
-      attemptNumber: number       // Which attempt this result is for
+      id: number,
+      exam: {
+        id: number,
+        title: string,
+        description: string | null,
+        passingScore: number
+      },
+      attemptNumber: number,
+      user: {
+        id: number,
+        name: string,
+        email: string
+      },
+      startedAt: string,
+      submittedAt: string | null,
+      totalScore: number | null,
+      status: ExamStatus,
+      duration: number | null,       // Seconds taken
+      answeredQuestions: number,
+      totalQuestions: number,
+      scoresByType: []               // Empty array in list view
     }>,
     pagination: PaginationMeta
   },
@@ -1211,7 +1266,31 @@ Get all exam sessions.
 | userId | number | Filter by user |
 | status | ExamStatus | Filter by status |
 
-**Response (200):** Same format as participant results, includes `attemptNumber` for each session.
+**Response (200):** Same format as `GET /results`, includes `attemptNumber` for each session.
+
+---
+
+#### GET `/admin/exam-sessions/:id`
+
+**Access:** ADMIN only
+
+Get specific exam session details.
+
+> **Note:** Currently uses same controller as participant endpoint. Admin access to other users' sessions may require admin-specific controller in future versions.
+
+**Response (200):** Same format as `GET /exam-sessions/:id`.
+
+---
+
+#### GET `/admin/exam-sessions/:id/answers`
+
+**Access:** ADMIN only
+
+Get answers for any exam session with review data.
+
+> **Note:** Currently uses same controller as participant endpoint.
+
+**Response (200):** Same format as `GET /exam-sessions/:id/answers`.
 
 ---
 
@@ -1456,6 +1535,49 @@ interface UserExam {
   submittedAt: string | null;
   totalScore: number | null;
   status: ExamStatus;
+}
+
+// ExamResult (for results endpoints)
+interface ExamResult {
+  id: number;
+  exam: {
+    id: number;
+    title: string;
+    description: string | null;
+    passingScore: number;
+  };
+  attemptNumber: number;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  startedAt: string;
+  submittedAt: string | null;
+  totalScore: number | null;
+  status: ExamStatus;
+  duration: number | null; // Seconds taken
+  answeredQuestions: number;
+  totalQuestions: number;
+  scoresByType: Array<{
+    type: QuestionType;
+    score: number;
+    maxScore: number;
+    correctAnswers: number;
+    totalQuestions: number;
+  }>;
+}
+
+// AnswerReview (for exam review after submission)
+interface AnswerReview {
+  examQuestionId: number;
+  questionContent: string;
+  questionType: QuestionType;
+  options: QuestionOptions;
+  selectedOption: string | null;
+  correctAnswer: string;
+  isCorrect: boolean | null;
+  score: number;
 }
 
 // ProctoringEvent
