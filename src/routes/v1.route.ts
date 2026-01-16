@@ -24,6 +24,7 @@ import { adminExamSessionsRouter } from '@/features/exam-sessions/routes/admin.r
 import { adminResultsRouter } from '@/features/exam-sessions/routes/admin-results.route';
 import { adminQuestionsRouter } from '@/features/questions/routes/admin.route';
 import { adminProctoringRouter } from '@/features/proctoring/routes/admin.route';
+import { configRouter } from '@/features/config/routes/public.route';
 
 export const v1Router = Router();
 
@@ -35,6 +36,12 @@ export const v1Router = Router();
  * Register, login, refresh token, logout
  */
 v1Router.use('/auth', authRouter);
+
+/**
+ * Config routes (/config)
+ * Public configuration endpoints (CPNS passing grades, etc.)
+ */
+v1Router.use('/config', configRouter);
 
 // ==================== PARTICIPANT ROUTES ====================
 // All authenticated users (authenticate middleware)

@@ -12,6 +12,7 @@
 
 import { QuestionType, Prisma } from '@prisma/client';
 import { logger } from '@/shared/utils/logger';
+import { CPNS_PASSING_GRADES, isCategoryPassing } from '@/config/cpns.constants';
 
 // ✅ Import types from validation (single source of truth)
 import type {
@@ -102,6 +103,8 @@ export const calculateScore = (
       maxScore: stats.maxScore,
       correctAnswers: stats.correct,
       totalQuestions: stats.total,
+      passingGrade: CPNS_PASSING_GRADES[type],
+      isPassing: isCategoryPassing(type, stats.score),
     })),
   };
 };

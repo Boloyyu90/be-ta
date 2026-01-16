@@ -278,6 +278,8 @@ export interface ExamResult {
     maxScore: number;
     correctAnswers: number;
     totalQuestions: number;
+    passingGrade: number;
+    isPassing: boolean;
   }>;
 }
 
@@ -358,6 +360,8 @@ export interface ScoreCalculationResult {
     maxScore: number;
     correctAnswers: number;
     totalQuestions: number;
+    passingGrade: number;
+    isPassing: boolean;
   }>;
 }
 
