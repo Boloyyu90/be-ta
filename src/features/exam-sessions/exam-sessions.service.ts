@@ -39,6 +39,9 @@ import {
   updateAnswerCorrectness,
 } from './exam-sessions.score';
 
+// Import transaction service for exam access check
+import { checkExamAccess } from '@/features/transactions/transactions.service';
+
 // Import types from validation (single source of truth)
 import type {
   SubmitAnswerInput,
@@ -229,6 +232,32 @@ export const startExam = async (userId: number, examId: number) => {
       ERROR_MESSAGES.EXAM_HAS_NO_DURATION_SET,
       ERROR_CODES.EXAM_NO_DURATION,
       { examId, userId }
+    );
+  }
+
+  // Check exam access (payment required for paid exams)
+  const accessCheck = await checkExamAccess(userId, examId);
+  if (!accessCheck.hasAccess) {
+    if (accessCheck.reason === 'pending') {
+      throw new BusinessLogicError(
+        'Payment is pending. Please complete payment to access this exam.',
+        'PAYMENT_PENDING',
+        {
+          examId,
+          userId,
+          transactionId: accessCheck.transaction?.id,
+          snapRedirectUrl: accessCheck.transaction?.snapRedirectUrl,
+        }
+      );
+    }
+    throw new BusinessLogicError(
+      'Payment required to access this exam.',
+      'PAYMENT_REQUIRED',
+      {
+        examId,
+        userId,
+        price: accessCheck.exam.price,
+      }
     );
   }
 

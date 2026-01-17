@@ -8,17 +8,18 @@ datasource db {
 }
 
 model User {
-  id              Int        @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   name            String
-  email           String     @unique
+  email           String        @unique
   password        String
-  role            UserRole   @default(PARTICIPANT)
-  isEmailVerified Boolean    @default(false) @map("is_email_verified")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  createdExams    Exam[]     @relation("ExamCreator")
+  role            UserRole      @default(PARTICIPANT)
+  isEmailVerified Boolean       @default(false) @map("is_email_verified")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  createdExams    Exam[]        @relation("ExamCreator")
   tokens          Token[]
   userExams       UserExam[]
+  transactions    Transaction[] // NEW: User payment transactions
 
   @@index([email])
   @@index([role])
@@ -67,12 +68,14 @@ model Exam {
   passingScore    Int            @default(0) @map("passing_score")
   allowRetake     Boolean        @default(false) @map("allow_retake")
   maxAttempts     Int?           @map("max_attempts")
+  price           Int?           @map("price") // NEW: Price in IDR (null = free exam)
   createdBy       Int            @map("created_by")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @default(now()) @map("updated_at")
   examQuestions   ExamQuestion[]
   creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
   userExams       UserExam[]
+  transactions    Transaction[] // NEW: Payment transactions for this exam
 
   @@index([createdBy])
   @@index([startTime])
@@ -149,6 +152,41 @@ model ProctoringEvent {
   @@map("proctoring_events")
 }
 
+// ============================================================================
+// NEW: TRANSACTION MODEL FOR MIDTRANS INTEGRATION
+// ============================================================================
+
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  orderId         String            @unique @map("order_id") // Midtrans order_id (unique per transaction)
+  userId          Int               @map("user_id")
+  examId          Int               @map("exam_id")
+  amount          Int // Amount in IDR (Indonesian Rupiah)
+  status          TransactionStatus @default(PENDING)
+  paymentType     String?           @map("payment_type") // e.g., "bank_transfer", "gopay", "qris"
+  snapToken       String?           @map("snap_token") // Midtrans Snap token for payment popup
+  snapRedirectUrl String?           @map("snap_redirect_url") // Midtrans redirect URL
+  paidAt          DateTime?         @map("paid_at") // Timestamp when payment confirmed
+  expiredAt       DateTime?         @map("expired_at") // Payment deadline
+  metadata        Json? // Store full Midtrans notification response
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, examId, status]) // Prevent duplicate pending transactions per user-exam
+  @@index([userId])
+  @@index([examId])
+  @@index([status])
+  @@index([orderId])
+  @@map("transactions")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
 enum UserRole {
   ADMIN
   PARTICIPANT
@@ -179,4 +217,13 @@ enum TokenType {
   REFRESH
   RESET_PASSWORD
   VERIFY_EMAIL
+}
+
+enum TransactionStatus {
+  PENDING // Waiting for payment (Snap token generated)
+  PAID // Payment successful (settlement received)
+  EXPIRED // Payment window expired (24 hours default)
+  CANCELLED // Cancelled by user or system
+  FAILED // Payment failed (denied, error)
+  REFUNDED // Refunded (future use for dispute handling)
 }

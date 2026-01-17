@@ -24,7 +24,10 @@ import { adminExamSessionsRouter } from '@/features/exam-sessions/routes/admin.r
 import { adminResultsRouter } from '@/features/exam-sessions/routes/admin-results.route';
 import { adminQuestionsRouter } from '@/features/questions/routes/admin.route';
 import { adminProctoringRouter } from '@/features/proctoring/routes/admin.route';
-import { configRouter } from '@/features/config/routes/public.route';
+import { publicQuestionsRouter } from '@/features/questions/routes/public.route';
+import { participantTransactionsRouter } from '@/features/transactions/routes/participant.route';
+import { publicTransactionsRouter } from '@/features/transactions/routes/public.route';
+import { adminTransactionsRouter } from '@/features/transactions/routes/admin.route';
 
 export const v1Router = Router();
 
@@ -38,10 +41,16 @@ export const v1Router = Router();
 v1Router.use('/auth', authRouter);
 
 /**
- * Config routes (/config)
+ * Questions public routes (/questions)
  * Public configuration endpoints (CPNS passing grades, etc.)
  */
-v1Router.use('/config', configRouter);
+v1Router.use('/questions', publicQuestionsRouter);
+
+/**
+ * Transaction webhook routes (/transactions/webhook)
+ * Midtrans payment notification - must be public for Midtrans to call
+ */
+v1Router.use('/transactions', publicTransactionsRouter);
 
 // ==================== PARTICIPANT ROUTES ====================
 // All authenticated users (authenticate middleware)
@@ -75,6 +84,12 @@ v1Router.use('/results', authenticate, participantResultsRouter);
  * Log events, analyze face, view own events
  */
 v1Router.use('/proctoring', authenticate, participantProctoringRouter);
+
+/**
+ * Transaction routes (/transactions)
+ * Create payment, check access, view history
+ */
+v1Router.use('/transactions', authenticate, participantTransactionsRouter);
 
 // ==================== ADMIN ROUTES ====================
 // Admin only (authenticate + authorize(ADMIN))
@@ -119,6 +134,12 @@ adminRouter.use('/questions', adminQuestionsRouter);
  * View all proctoring events
  */
 adminRouter.use('/proctoring', adminProctoringRouter);
+
+/**
+ * Transaction management (/admin/transactions)
+ * View all transactions
+ */
+adminRouter.use('/transactions', adminTransactionsRouter);
 
 // Mount admin router
 v1Router.use('/admin', adminRouter);

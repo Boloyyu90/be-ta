@@ -1,5 +1,5 @@
 /**
- * Prisma Seed File - Tryout CPNS + Proctoring System
+ * Prisma Seed File - Tryout CPNS + Proctoring System + Midtrans Transactions
  *
  * THESIS PROJECT: Universitas Atma Jaya Yogyakarta
  * STUDENT: I Gede Bala Putra
@@ -17,6 +17,7 @@
  *   - TIMEOUT (edge case)
  *   - CANCELLED (proctoring violation - edge case)
  * - Proctoring events for ML demonstration
+ * - NEW: Transaction records for Midtrans payment testing
  *
  * USAGE:
  *   1. npx prisma migrate reset     (RECOMMENDED: clean + migrate + seed)
@@ -24,7 +25,7 @@
  *
  * IDEMPOTENT: Safe to run multiple times - cleans data before seeding
  *
- * @version 2.0.0
+ * @version 3.0.0 (Added Midtrans Transaction support)
  * @date January 2026
  */
 
@@ -34,6 +35,7 @@ import {
   QuestionType,
   ExamStatus,
   ProctoringEventType,
+  TransactionStatus, // NEW: Import TransactionStatus enum
 } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
@@ -113,6 +115,15 @@ function relativeDate(options: {
   return date;
 }
 
+/**
+ * Generate unique order ID for Midtrans transactions
+ */
+function generateOrderId(prefix: string = 'TRX'): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `${prefix}-${timestamp}-${random}`;
+}
+
 // ============================================================================
 // DATABASE CLEANUP
 // ============================================================================
@@ -126,6 +137,7 @@ async function cleanDatabase() {
     { name: 'ProctoringEvent', fn: () => prisma.proctoringEvent.deleteMany() },
     { name: 'Answer', fn: () => prisma.answer.deleteMany() },
     { name: 'UserExam', fn: () => prisma.userExam.deleteMany() },
+    { name: 'Transaction', fn: () => prisma.transaction.deleteMany() }, // NEW: Clean transactions
     { name: 'ExamQuestion', fn: () => prisma.examQuestion.deleteMany() },
     { name: 'Exam', fn: () => prisma.exam.deleteMany() },
     { name: 'QuestionBank', fn: () => prisma.questionBank.deleteMany() },
@@ -169,6 +181,8 @@ async function seedUsers() {
    * - IN_PROGRESS session on Exam 1 (resume flow)
    * - FINISHED session on Exam 2 (retake disabled error)
    * - 2/2 attempts exhausted on Exam 3 (max attempts error)
+   * - PAID transaction for Exam 2 (paid exam access)
+   * - PAID transaction for Exam 3 (paid exam access)
    */
   const participant1 = await prisma.user.create({
     data: {
@@ -185,6 +199,8 @@ async function seedUsers() {
    * - FINISHED session on Exam 1 (can retake - "Ulangi Ujian" button)
    * - FINISHED session on Exam 2 (view results)
    * - TIMEOUT session on Exam 3
+   * - PAID transaction for Exam 2
+   * - PENDING transaction for Exam 3 (waiting payment)
    */
   const participant2 = await prisma.user.create({
     data: {
@@ -199,6 +215,7 @@ async function seedUsers() {
   /**
    * Participant 3 (Andi) - Fresh user with NO exam history
    * Perfect for testing first-time exam flow ("Mulai Ujian")
+   * - NO transactions (will test purchase flow)
    */
   const participant3 = await prisma.user.create({
     data: {
@@ -575,7 +592,7 @@ async function seedQuestions() {
 }
 
 // ============================================================================
-// SEED: EXAMS
+// SEED: EXAMS (with price field for Midtrans)
 // ============================================================================
 
 async function seedExams(adminId: number) {
@@ -587,37 +604,39 @@ async function seedExams(adminId: number) {
   });
 
   // -------------------------------------------------------------------------
-  // Exam 1: Active exam with RETAKES ALLOWED (max 3 attempts)
+  // Exam 1: FREE exam with RETAKES ALLOWED (max 3 attempts)
   // Test scenarios: Resume, Retake button, Multiple attempts history
   // -------------------------------------------------------------------------
   const exam1 = await prisma.exam.create({
     data: {
-      title: 'Tryout CPNS 2025 - Paket A',
+      title: 'Tryout CPNS 2025 - Paket Gratis',
       description:
-        'Tryout CPNS lengkap mencakup TIU, TWK, dan TKP. Durasi 90 menit dengan 25 soal pilihan ganda. Dapat diulang hingga 3 kali untuk latihan optimal.',
+        'Tryout CPNS GRATIS untuk latihan awal. Durasi 90 menit dengan 25 soal pilihan ganda. Dapat diulang hingga 3 kali untuk latihan optimal.',
       durationMinutes: 90,
-      passingScore: 65, // 65% = 81.25 dari 125 total
+      passingScore: 65,
       allowRetake: true,
       maxAttempts: 3,
-      startTime: relativeDate({ days: -30 }), // Started 30 days ago
-      endTime: relativeDate({ days: 60 }), // Valid for 60 more days
+      price: null, // FREE EXAM
+      startTime: relativeDate({ days: -30 }),
+      endTime: relativeDate({ days: 60 }),
       createdBy: adminId,
     },
   });
 
   // -------------------------------------------------------------------------
-  // Exam 2: Exam with NO RETAKES (one-shot simulation)
-  // Test scenarios: Retake disabled error, final exam simulation
+  // Exam 2: PAID exam with NO RETAKES (one-shot simulation) - Rp 35.000
+  // Test scenarios: Retake disabled error, final exam simulation, payment required
   // -------------------------------------------------------------------------
   const exam2 = await prisma.exam.create({
     data: {
-      title: 'Simulasi CPNS 2025 - Final',
+      title: 'Simulasi CPNS 2025 - Final (Premium)',
       description:
-        'Simulasi ujian CPNS final. TIDAK DAPAT DIULANG setelah selesai. Kondisi menyerupai ujian sesungguhnya. Persiapkan diri dengan baik!',
+        'Simulasi ujian CPNS final PREMIUM. TIDAK DAPAT DIULANG setelah selesai. Kondisi menyerupai ujian sesungguhnya dengan pembahasan lengkap.',
       durationMinutes: 60,
-      passingScore: 75, // Higher passing score for final
+      passingScore: 75,
       allowRetake: false,
       maxAttempts: 1,
+      price: 35000, // Rp 35.000
       startTime: relativeDate({ days: -15 }),
       endTime: relativeDate({ days: 45 }),
       createdBy: adminId,
@@ -625,18 +644,19 @@ async function seedExams(adminId: number) {
   });
 
   // -------------------------------------------------------------------------
-  // Exam 3: Exam with LIMITED RETAKES (max 2 attempts)
-  // Test scenarios: Max attempts reached error, attempt history
+  // Exam 3: PAID exam with LIMITED RETAKES (max 2 attempts) - Rp 25.000
+  // Test scenarios: Max attempts reached error, attempt history, payment required
   // -------------------------------------------------------------------------
   const exam3 = await prisma.exam.create({
     data: {
-      title: 'Tryout CPNS 2025 - Paket B (Limited)',
+      title: 'Tryout CPNS 2025 - Paket Silver',
       description:
-        'Tryout CPNS dengan maksimal 2 percobaan. Gunakan kesempatan dengan bijak! Cocok untuk evaluasi kesiapan ujian.',
+        'Tryout CPNS SILVER dengan maksimal 2 percobaan. Termasuk analisis hasil dan tips peningkatan skor. Gunakan kesempatan dengan bijak!',
       durationMinutes: 45,
       passingScore: 60,
       allowRetake: true,
       maxAttempts: 2,
+      price: 25000, // Rp 25.000
       startTime: relativeDate({ days: -7 }),
       endTime: relativeDate({ days: 30 }),
       createdBy: adminId,
@@ -660,20 +680,183 @@ async function seedExams(adminId: number) {
   log(`    - Duration: ${exam1.durationMinutes} minutes`);
   log(`    - Passing: ${exam1.passingScore} points`);
   log(`    - Retakes: ✅ Allowed, Max: ${exam1.maxAttempts} attempts`);
+  log(`    - Price: 🆓 FREE`);
 
   log(`  ✓ Exam 2: "${exam2.title}" (ID: ${exam2.id})`);
   log(`    - Duration: ${exam2.durationMinutes} minutes`);
   log(`    - Passing: ${exam2.passingScore} points`);
   log(`    - Retakes: ❌ Disabled (one-shot)`);
+  log(`    - Price: 💰 Rp ${exam2.price?.toLocaleString('id-ID')}`);
 
   log(`  ✓ Exam 3: "${exam3.title}" (ID: ${exam3.id})`);
   log(`    - Duration: ${exam3.durationMinutes} minutes`);
   log(`    - Passing: ${exam3.passingScore} points`);
   log(`    - Retakes: ✅ Allowed, Max: ${exam3.maxAttempts} attempts`);
+  log(`    - Price: 💰 Rp ${exam3.price?.toLocaleString('id-ID')}`);
 
   log(`  ✓ Assigned ${allQuestions.length} questions to each exam`);
 
   return { exam1, exam2, exam3 };
+}
+
+// ============================================================================
+// NEW: SEED TRANSACTIONS (Midtrans Payment Records)
+// ============================================================================
+
+async function seedTransactions(
+  participant1Id: number,
+  participant2Id: number,
+  participant3Id: number,
+  exam1Id: number,
+  exam2Id: number,
+  exam3Id: number,
+  exam2Price: number,
+  exam3Price: number
+) {
+  logSection('SEEDING TRANSACTIONS (Midtrans)');
+
+  const transactions = [];
+
+  // =========================================================================
+  // Participant 1 (Budi) - Has PAID transactions for both paid exams
+  // This allows Budi to access Exam 2 and Exam 3
+  // =========================================================================
+
+  // Transaction 1: Budi paid for Exam 2 (Premium Final) - 3 days ago
+  const trx1 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX'),
+      userId: participant1Id,
+      examId: exam2Id,
+      amount: exam2Price,
+      status: TransactionStatus.PAID,
+      paymentType: 'bank_transfer',
+      paidAt: relativeDate({ days: -3 }),
+      metadata: {
+        bank: 'bca',
+        va_number: '12345678901234',
+        transaction_time: relativeDate({ days: -3 }).toISOString(),
+        settlement_time: relativeDate({ days: -3, minutes: 5 }).toISOString(),
+      },
+    },
+  });
+  transactions.push(trx1);
+  log(`  ✓ Budi → Exam 2: PAID (Rp ${exam2Price.toLocaleString('id-ID')}) via Bank Transfer`);
+
+  // Transaction 2: Budi paid for Exam 3 (Silver) - 5 days ago
+  const trx2 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX'),
+      userId: participant1Id,
+      examId: exam3Id,
+      amount: exam3Price,
+      status: TransactionStatus.PAID,
+      paymentType: 'gopay',
+      paidAt: relativeDate({ days: -5 }),
+      metadata: {
+        transaction_time: relativeDate({ days: -5 }).toISOString(),
+        settlement_time: relativeDate({ days: -5, minutes: 2 }).toISOString(),
+      },
+    },
+  });
+  transactions.push(trx2);
+  log(`  ✓ Budi → Exam 3: PAID (Rp ${exam3Price.toLocaleString('id-ID')}) via GoPay`);
+
+  // =========================================================================
+  // Participant 2 (Siti) - Mixed transaction statuses for testing
+  // =========================================================================
+
+  // Transaction 3: Siti paid for Exam 2 - 2 days ago
+  const trx3 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX'),
+      userId: participant2Id,
+      examId: exam2Id,
+      amount: exam2Price,
+      status: TransactionStatus.PAID,
+      paymentType: 'qris',
+      paidAt: relativeDate({ days: -2 }),
+      metadata: {
+        issuer: 'DANA',
+        transaction_time: relativeDate({ days: -2 }).toISOString(),
+      },
+    },
+  });
+  transactions.push(trx3);
+  log(`  ✓ Siti → Exam 2: PAID (Rp ${exam2Price.toLocaleString('id-ID')}) via QRIS`);
+
+  // Transaction 4: Siti has PENDING transaction for Exam 3 (waiting payment)
+  const trx4 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX'),
+      userId: participant2Id,
+      examId: exam3Id,
+      amount: exam3Price,
+      status: TransactionStatus.PENDING,
+      snapToken: 'sample-snap-token-' + Date.now(),
+      snapRedirectUrl: 'https://app.sandbox.midtrans.com/snap/v3/redirection/sample-token',
+      expiredAt: relativeDate({ hours: 24 }), // Expires in 24 hours
+      metadata: {
+        created_via: 'seed_script',
+        note: 'Waiting for payment - demo pending transaction',
+      },
+    },
+  });
+  transactions.push(trx4);
+  log(`  ✓ Siti → Exam 3: PENDING (Rp ${exam3Price.toLocaleString('id-ID')}) - Awaiting Payment`);
+
+  // Transaction 5: Siti has an EXPIRED transaction (for testing expired flow)
+  const trx5 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX-EXP'),
+      userId: participant2Id,
+      examId: exam3Id,
+      amount: exam3Price,
+      status: TransactionStatus.EXPIRED,
+      expiredAt: relativeDate({ days: -1 }), // Expired yesterday
+      metadata: {
+        reason: 'Payment window expired',
+        original_expiry: relativeDate({ days: -1 }).toISOString(),
+      },
+    },
+  });
+  transactions.push(trx5);
+  log(`  ✓ Siti → Exam 3: EXPIRED (previous attempt)`);
+
+  // =========================================================================
+  // Participant 3 (Andi) - NO transactions (fresh user for purchase flow testing)
+  // =========================================================================
+  log(`  ✓ Andi: No transactions (test fresh purchase flow)`);
+
+  // =========================================================================
+  // Additional test transactions
+  // =========================================================================
+
+  // Transaction 6: A CANCELLED transaction for demonstration
+  const trx6 = await prisma.transaction.create({
+    data: {
+      orderId: generateOrderId('TRX-CAN'),
+      userId: participant3Id,
+      examId: exam2Id,
+      amount: exam2Price,
+      status: TransactionStatus.CANCELLED,
+      metadata: {
+        reason: 'Cancelled by user before payment',
+        cancelled_at: relativeDate({ days: -2 }).toISOString(),
+      },
+    },
+  });
+  transactions.push(trx6);
+  log(`  ✓ Andi → Exam 2: CANCELLED (user cancelled)`);
+
+  log(`\n  📊 Transaction Summary:`);
+  log(`    - PAID: 3 transactions`);
+  log(`    - PENDING: 1 transaction`);
+  log(`    - EXPIRED: 1 transaction`);
+  log(`    - CANCELLED: 1 transaction`);
+  log(`    - Total: ${transactions.length} transactions`);
+
+  return transactions;
 }
 
 // ============================================================================
@@ -964,8 +1147,6 @@ async function seedExamSessions(
 async function seedProctoringEvents(sessions: Record<string, { id: number; status: ExamStatus }>) {
   logSection('SEEDING PROCTORING EVENTS');
 
-  const now = new Date();
-
   // -------------------------------------------------------------------------
   // IN_PROGRESS session: Recent events for live demo
   // Shows active proctoring with some violations
@@ -1002,51 +1183,42 @@ async function seedProctoringEvents(sessions: Record<string, { id: number; statu
         eventType: ProctoringEventType.FACE_DETECTED,
         severity: 'LOW',
         timestamp: relativeDate({ minutes: -18 }),
-        metadata: { confidence: 0.95, facesDetected: 1, message: 'Resumed normal position' },
+        metadata: { confidence: 0.97, facesDetected: 1 },
       },
-      // Brief no face (warning)
+      // Multiple faces detected! (serious violation)
       {
         userExamId: sessions.inProgress.id,
-        eventType: ProctoringEventType.NO_FACE_DETECTED,
+        eventType: ProctoringEventType.MULTIPLE_FACES,
         severity: 'HIGH',
         timestamp: relativeDate({ minutes: -10 }),
-        metadata: { confidence: 0.15, message: 'No face detected - possible absence' },
+        metadata: { confidence: 0.94, facesDetected: 2, message: 'WARNING: Multiple faces detected!' },
       },
-      // Recovered
+      // Recovered to single face
       {
         userExamId: sessions.inProgress.id,
         eventType: ProctoringEventType.FACE_DETECTED,
         severity: 'LOW',
-        timestamp: relativeDate({ minutes: -9 }),
-        metadata: { confidence: 0.97, facesDetected: 1, message: 'User returned' },
+        timestamp: relativeDate({ minutes: -8 }),
+        metadata: { confidence: 0.95, facesDetected: 1, message: 'Returned to normal' },
       },
-      // Recent monitoring
-      {
-        userExamId: sessions.inProgress.id,
-        eventType: ProctoringEventType.FACE_DETECTED,
-        severity: 'LOW',
-        timestamp: relativeDate({ minutes: -5 }),
-        metadata: { confidence: 0.94, facesDetected: 1, message: 'Continuous monitoring' },
-      },
+      // Recent monitoring (for live demo)
       {
         userExamId: sessions.inProgress.id,
         eventType: ProctoringEventType.FACE_DETECTED,
         severity: 'LOW',
         timestamp: relativeDate({ minutes: -2 }),
-        metadata: { confidence: 0.96, facesDetected: 1, message: 'Active session' },
+        metadata: { confidence: 0.99, facesDetected: 1, message: 'Current status OK' },
       },
     ];
 
     for (const event of events) {
       await prisma.proctoringEvent.create({ data: event });
     }
-    log(`  ✓ IN_PROGRESS session: ${events.length} events`);
-    log(`    - 1 LOOKING_AWAY (MEDIUM), 1 NO_FACE (HIGH)`);
+    log(`  ✓ In Progress session: ${events.length} events (including HIGH violation)`);
   }
 
   // -------------------------------------------------------------------------
-  // View Results session: Historical events with multiple violations
-  // Demonstrates violation tracking and severity levels
+  // View Results session: More violations for report demonstration
   // -------------------------------------------------------------------------
   if (sessions.viewResults) {
     const sessionStart = relativeDate({ hours: -1, minutes: -45 });
@@ -1056,42 +1228,21 @@ async function seedProctoringEvents(sessions: Record<string, { id: number; statu
         eventType: ProctoringEventType.FACE_DETECTED,
         severity: 'LOW',
         timestamp: new Date(sessionStart.getTime() + 1 * 60 * 1000),
-        metadata: { confidence: 0.97, facesDetected: 1, message: 'Session started' },
-      },
-      {
-        userExamId: sessions.viewResults.id,
-        eventType: ProctoringEventType.FACE_DETECTED,
-        severity: 'LOW',
-        timestamp: new Date(sessionStart.getTime() + 5 * 60 * 1000),
-        metadata: { confidence: 0.94, facesDetected: 1 },
+        metadata: { confidence: 0.97, facesDetected: 1 },
       },
       {
         userExamId: sessions.viewResults.id,
         eventType: ProctoringEventType.NO_FACE_DETECTED,
         severity: 'HIGH',
         timestamp: new Date(sessionStart.getTime() + 10 * 60 * 1000),
-        metadata: { confidence: 0.12, message: 'User may have left frame' },
-      },
-      {
-        userExamId: sessions.viewResults.id,
-        eventType: ProctoringEventType.FACE_DETECTED,
-        severity: 'LOW',
-        timestamp: new Date(sessionStart.getTime() + 11 * 60 * 1000),
-        metadata: { confidence: 0.91, facesDetected: 1 },
+        metadata: { confidence: 0.12, message: 'User left view' },
       },
       {
         userExamId: sessions.viewResults.id,
         eventType: ProctoringEventType.MULTIPLE_FACES,
         severity: 'HIGH',
-        timestamp: new Date(sessionStart.getTime() + 18 * 60 * 1000),
-        metadata: { confidence: 0.88, facesDetected: 2, message: 'Second person detected' },
-      },
-      {
-        userExamId: sessions.viewResults.id,
-        eventType: ProctoringEventType.FACE_DETECTED,
-        severity: 'LOW',
         timestamp: new Date(sessionStart.getTime() + 20 * 60 * 1000),
-        metadata: { confidence: 0.93, facesDetected: 1, message: 'Single face restored' },
+        metadata: { confidence: 0.88, facesDetected: 3, message: 'Multiple people detected' },
       },
       {
         userExamId: sessions.viewResults.id,
@@ -1207,7 +1358,7 @@ async function seedProctoringEvents(sessions: Record<string, { id: number; statu
 
 async function main() {
   console.log('\n' + '═'.repeat(70));
-  console.log('🎓 TRYOUT CPNS + PROCTORING - DATABASE SEEDING');
+  console.log('🎓 TRYOUT CPNS + PROCTORING + MIDTRANS - DATABASE SEEDING');
   console.log('   Thesis Project: Universitas Atma Jaya Yogyakarta');
   console.log('═'.repeat(70));
 
@@ -1221,10 +1372,22 @@ async function main() {
     // Step 2: Questions (25 total)
     await seedQuestions();
 
-    // Step 3: Exams (3 configurations)
+    // Step 3: Exams (3 configurations - with price)
     const { exam1, exam2, exam3 } = await seedExams(admin.id);
 
-    // Step 4: Exam Sessions (All scenarios)
+    // Step 4: Transactions (Midtrans payment records) - NEW!
+    await seedTransactions(
+      participant1.id,
+      participant2.id,
+      participant3.id,
+      exam1.id,
+      exam2.id,
+      exam3.id,
+      exam2.price!,
+      exam3.price!
+    );
+
+    // Step 5: Exam Sessions (All scenarios)
     const sessions = await seedExamSessions(
       participant1.id,
       participant2.id,
@@ -1233,7 +1396,7 @@ async function main() {
       exam3.id
     );
 
-    // Step 5: Proctoring Events
+    // Step 6: Proctoring Events
     await seedProctoringEvents(sessions);
 
     // =========================================================================
@@ -1250,19 +1413,19 @@ async function main() {
     console.log('');
     console.log(`PARTICIPANT 1: ${TEST_CREDENTIALS.participant1.email} (Budi)`);
     console.log(`               Password: ${TEST_CREDENTIALS.participant1.password}`);
-    console.log(`               ├─ Exam 1: IN_PROGRESS (resume flow)`);
-    console.log(`               ├─ Exam 2: FINISHED (retake disabled)`);
-    console.log(`               └─ Exam 3: 2/2 attempts (max exhausted)`);
+    console.log(`               ├─ Exam 1: IN_PROGRESS (resume flow) [FREE]`);
+    console.log(`               ├─ Exam 2: FINISHED (retake disabled) [PAID ✓]`);
+    console.log(`               └─ Exam 3: 2/2 attempts (max exhausted) [PAID ✓]`);
     console.log('');
     console.log(`PARTICIPANT 2: ${TEST_CREDENTIALS.participant2.email} (Siti)`);
     console.log(`               Password: ${TEST_CREDENTIALS.participant2.password}`);
-    console.log(`               ├─ Exam 1: FINISHED (can retake)`);
-    console.log(`               ├─ Exam 2: FINISHED (view results)`);
-    console.log(`               └─ Exam 3: TIMEOUT (edge case)`);
+    console.log(`               ├─ Exam 1: FINISHED (can retake) [FREE]`);
+    console.log(`               ├─ Exam 2: FINISHED (view results) [PAID ✓]`);
+    console.log(`               └─ Exam 3: TIMEOUT (edge case) [PENDING payment]`);
     console.log('');
     console.log(`PARTICIPANT 3: ${TEST_CREDENTIALS.participant3.email} (Andi)`);
     console.log(`               Password: ${TEST_CREDENTIALS.participant3.password}`);
-    console.log(`               └─ NO EXAMS (fresh start flow)`);
+    console.log(`               └─ NO EXAMS (fresh start + purchase flow)`);
     console.log('─'.repeat(60));
 
     console.log('\n📊 DATA SUMMARY:');
@@ -1270,9 +1433,14 @@ async function main() {
     console.log(`Users:              4 (1 admin, 3 participants)`);
     console.log(`Questions:          25 (10 TIU, 8 TWK, 7 TKP)`);
     console.log(`Exams:              3`);
-    console.log(`  ├─ Exam 1:        Retakes ✅ (max 3)`);
-    console.log(`  ├─ Exam 2:        Retakes ❌ (one-shot)`);
-    console.log(`  └─ Exam 3:        Retakes ✅ (max 2)`);
+    console.log(`  ├─ Exam 1:        Retakes ✅ (max 3) - 🆓 FREE`);
+    console.log(`  ├─ Exam 2:        Retakes ❌ (one-shot) - 💰 Rp 35.000`);
+    console.log(`  └─ Exam 3:        Retakes ✅ (max 2) - 💰 Rp 25.000`);
+    console.log(`Transactions:       6`);
+    console.log(`  ├─ PAID:          3 transactions`);
+    console.log(`  ├─ PENDING:       1 transaction`);
+    console.log(`  ├─ EXPIRED:       1 transaction`);
+    console.log(`  └─ CANCELLED:     1 transaction`);
     console.log(`Exam Sessions:      7`);
     console.log(`  ├─ IN_PROGRESS:   1 (resume flow)`);
     console.log(`  ├─ FINISHED:      5 (various scenarios)`);
@@ -1282,15 +1450,23 @@ async function main() {
 
     console.log('\n🧪 TESTABLE SCENARIOS FOR THESIS DEFENSE:');
     console.log('─'.repeat(60));
-    console.log('1. First Start     → Login as Andi, start any exam');
-    console.log('2. Resume Exam     → Login as Budi, continue Exam 1');
-    console.log('3. Retake Exam     → Login as Siti, retake Exam 1');
-    console.log('4. Retake Disabled → Login as Budi, try Exam 2 again');
-    console.log('5. Max Attempts    → Login as Budi, try Exam 3 again');
-    console.log('6. View Results    → Login as Siti, view Exam 2 results');
-    console.log('7. View History    → Login as Budi, view Exam 3 attempts');
-    console.log('8. Proctoring Demo → Active session shows YOLO events');
-    console.log('9. Violation Report→ Session 4 has HIGH severity violations');
+    console.log('EXAM FLOW:');
+    console.log('  1. First Start     → Login as Andi, start Exam 1 (free)');
+    console.log('  2. Resume Exam     → Login as Budi, continue Exam 1');
+    console.log('  3. Retake Exam     → Login as Siti, retake Exam 1');
+    console.log('  4. Retake Disabled → Login as Budi, try Exam 2 again');
+    console.log('  5. Max Attempts    → Login as Budi, try Exam 3 again');
+    console.log('  6. View Results    → Login as Siti, view Exam 2 results');
+    console.log('');
+    console.log('PAYMENT FLOW (MIDTRANS):');
+    console.log('  7. Purchase Exam   → Login as Andi, buy Exam 2 or 3');
+    console.log('  8. Pending Payment → Login as Siti, check Exam 3 status');
+    console.log('  9. Access Granted  → Login as Budi, access paid exams');
+    console.log(' 10. Payment History → View all transaction statuses');
+    console.log('');
+    console.log('PROCTORING:');
+    console.log(' 11. Proctoring Demo → Active session shows YOLO events');
+    console.log(' 12. Violation Report→ Session 4 has HIGH severity violations');
     console.log('─'.repeat(60));
 
     console.log('\n🔧 QUICK COMMANDS:');

@@ -1,10 +1,10 @@
 /**
- * Config Public Routes
+ * Questions Public Routes
  *
- * Public endpoints untuk configuration data.
+ * Public endpoints untuk question-related configuration.
  * Tidak memerlukan authentication.
  *
- * @module features/config/routes/public
+ * @module features/questions/routes/public
  */
 
 import { Router } from 'express';
@@ -14,13 +14,13 @@ import {
   CPNS_CATEGORIES,
 } from '@/config/cpns.constants';
 
-export const configRouter = Router();
+export const publicQuestionsRouter = Router();
 
 /**
- * GET /api/v1/config/cpns
+ * GET /api/v1/questions/cpns-config
  * Get CPNS configuration (passing grades, categories)
  */
-configRouter.get('/cpns', (req, res) => {
+publicQuestionsRouter.get('/cpns-config', (req, res) => {
   res.json({
     success: true,
     data: {
