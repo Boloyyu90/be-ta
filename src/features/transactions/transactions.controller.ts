@@ -12,6 +12,7 @@ import * as transactionsService from './transactions.service';
 import { sendSuccess } from '@/shared/utils/response';
 import { HTTP_STATUS } from '@/config/constants';
 import { MidtransNotification } from './transactions.types';
+import { transactionLogger } from '@/shared/utils/logger';
 
 // ============================================================================
 // PARTICIPANT CONTROLLERS
@@ -238,12 +239,6 @@ export const getTransactionAdmin = async (req: Request, res: Response): Promise<
 export const handleWebhook = async (req: Request, res: Response): Promise<void> => {
   const notification = req.body as MidtransNotification;
 
-  console.log('[WEBHOOK] Received notification:', {
-    order_id: notification.order_id,
-    transaction_status: notification.transaction_status,
-    payment_type: notification.payment_type,
-  });
-
   try {
     const transaction = await transactionsService.handleWebhookNotification(notification);
 
@@ -255,9 +250,10 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
       HTTP_STATUS.OK
     );
   } catch (error) {
-    console.error('[WEBHOOK] Error processing webhook:', error);
+    // Use structured logger instead of console.error for better traceability
+    transactionLogger.webhookFailed(notification.order_id || 'unknown', error as Error);
     // Still return 200 to prevent Midtrans from retrying
-    // Log error for debugging but don't expose to Midtrans
+    // Error is logged for debugging but not exposed to Midtrans
     sendSuccess(
       res,
       { processed: false },
