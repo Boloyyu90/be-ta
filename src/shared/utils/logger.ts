@@ -217,4 +217,20 @@ export const transactionLogger = {
       `Rate limit hit: ${context.ip} on ${context.endpoint}`
     );
   },
+
+  /**
+   * Log transaction status changed (for lazy cleanup and other status transitions)
+   */
+  statusChanged: (orderId: string, oldStatus: string, newStatus: string, reason?: string) => {
+    logger.info(
+      {
+        event: 'transaction.status_changed',
+        orderId,
+        oldStatus,
+        newStatus,
+        reason,
+      },
+      `Transaction ${orderId} status changed: ${oldStatus} -> ${newStatus}${reason ? ` (${reason})` : ''}`
+    );
+  },
 };

@@ -82,6 +82,12 @@ export const createExamSchema = z.object({
         .min(1, 'Max attempts must be at least 1')
         .optional()
         .nullable(),
+      price: z
+        .number()
+        .int('Price must be a whole number (in IDR)')
+        .min(0, 'Price cannot be negative')
+        .optional()
+        .nullable(), // null or undefined = free exam
     })
     .refine(
       (data) => {
@@ -167,6 +173,12 @@ export const updateExamSchema = z.object({
         .min(1, 'Max attempts must be at least 1')
         .optional()
         .nullable(),
+      price: z
+        .number()
+        .int('Price must be a whole number (in IDR)')
+        .min(0, 'Price cannot be negative')
+        .optional()
+        .nullable(), // null = free exam
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided for update',
@@ -317,6 +329,7 @@ export interface ExamPublicData {
   endTime: Date | null;
   durationMinutes: number;
   passingScore: number;
+  price: number | null; // null = free exam
   createdAt: Date;
   createdBy: number;
   _count: {

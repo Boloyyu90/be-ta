@@ -88,6 +88,68 @@ function verifySignature(notification: MidtransNotification): boolean {
   }
 }
 
+/**
+ * Check if a PENDING transaction is expired and update to EXPIRED if needed.
+ * Implements "lazy cleanup" - expired transactions are cleaned when accessed.
+ *
+ * @param transactionId - Transaction ID to check
+ * @returns Updated transaction if still valid, null if expired (was cleaned up)
+ */
+async function expireTransactionIfNeeded(
+  transactionId: number
+): Promise<TransactionResponse | null> {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      exam: { select: { id: true, title: true, price: true } },
+    },
+  });
+
+  if (!transaction) {
+    return null;
+  }
+
+  // Only check PENDING transactions with expiredAt set
+  if (
+    transaction.status !== TransactionStatus.PENDING ||
+    !transaction.expiredAt
+  ) {
+    return transaction as TransactionResponse;
+  }
+
+  // Check if still valid (not expired)
+  if (transaction.expiredAt >= new Date()) {
+    return transaction as TransactionResponse;
+  }
+
+  // Transaction is expired - perform lazy cleanup
+  const updated = await prisma.transaction.update({
+    where: { id: transaction.id },
+    data: {
+      status: TransactionStatus.EXPIRED,
+      metadata: {
+        ...((transaction.metadata as object) || {}),
+        expired_at: new Date().toISOString(),
+        expired_reason: 'lazy_cleanup',
+        expired_by: 'system',
+        original_expired_at: transaction.expiredAt.toISOString(),
+      } as unknown as Prisma.InputJsonObject,
+    },
+    include: {
+      exam: { select: { id: true, title: true, price: true } },
+    },
+  });
+
+  transactionLogger.statusChanged(
+    transaction.orderId,
+    TransactionStatus.PENDING,
+    TransactionStatus.EXPIRED,
+    'Lazy cleanup: transaction past expiry time'
+  );
+
+  return null; // Return null to indicate no valid pending transaction
+}
+
 // ============================================================================
 // SERVICE FUNCTIONS
 // ============================================================================
@@ -135,23 +197,30 @@ export const createTransaction = async (
   }
 
   // 5. Check for existing PENDING transaction (return it instead of creating new)
+  // Query without expiredAt filter - we'll handle expiry via lazy cleanup
   const existingPending = await prisma.transaction.findFirst({
     where: {
       userId,
       examId,
       status: TransactionStatus.PENDING,
-      expiredAt: { gt: new Date() },
     },
     include: { exam: { select: { id: true, title: true, price: true } } },
   });
 
   if (existingPending) {
-    return {
-      transaction: existingPending as TransactionResponse,
-      snapToken: existingPending.snapToken || '',
-      snapRedirectUrl: existingPending.snapRedirectUrl || '',
-      clientKey: midtransConfig.getClientKey(),
-    };
+    // Apply lazy cleanup - if expired, this will update status and return null
+    const validPending = await expireTransactionIfNeeded(existingPending.id);
+
+    if (validPending && validPending.status === TransactionStatus.PENDING) {
+      // Return existing valid PENDING transaction (idempotent behavior)
+      return {
+        transaction: validPending,
+        snapToken: existingPending.snapToken || '',
+        snapRedirectUrl: existingPending.snapRedirectUrl || '',
+        clientKey: midtransConfig.getClientKey(),
+      };
+    }
+    // Transaction was expired and cleaned up, continue to create new transaction
   }
 
   // 6. Get user details
@@ -399,13 +468,12 @@ export const checkExamAccess = async (
     };
   }
 
-  // 4. Check for PENDING transaction
+  // 4. Check for PENDING transaction (without expiredAt filter - we'll handle expiry via lazy cleanup)
   const pendingTransaction = await prisma.transaction.findFirst({
     where: {
       userId,
       examId,
       status: TransactionStatus.PENDING,
-      expiredAt: { gt: new Date() },
     },
     include: {
       exam: { select: { id: true, title: true, price: true } },
@@ -413,12 +481,18 @@ export const checkExamAccess = async (
   });
 
   if (pendingTransaction) {
-    return {
-      hasAccess: false,
-      reason: 'pending',
-      transaction: pendingTransaction as TransactionResponse,
-      exam,
-    };
+    // Apply lazy cleanup - if expired, this will update status and return null
+    const validPending = await expireTransactionIfNeeded(pendingTransaction.id);
+
+    if (validPending) {
+      return {
+        hasAccess: false,
+        reason: 'pending',
+        transaction: validPending,
+        exam,
+      };
+    }
+    // Transaction was expired and cleaned up, fall through to 'not_purchased'
   }
 
   // 5. No valid transaction found

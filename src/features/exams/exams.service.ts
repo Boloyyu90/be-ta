@@ -25,6 +25,7 @@ const EXAM_PUBLIC_SELECT = {
   endTime: true,
   durationMinutes: true,
   passingScore: true,
+  price: true, // null = free exam
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -48,6 +49,7 @@ const EXAM_DETAIL_SELECT = {
   endTime: true,
   durationMinutes: true,
   passingScore: true,
+  price: true, // null = free exam
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -78,7 +80,8 @@ const EXAM_WITH_QUESTIONS_SELECT = {
   startTime: true,
   endTime: true,
   durationMinutes: true,
-  passingScore: true,      // ← ADD THIS LINE
+  passingScore: true,
+  price: true, // null = free exam
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -205,7 +208,7 @@ const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reas
  * @throws {ConflictError} If exam title already exists for user
  */
 export const createExam = async (userId: number, input: CreateExamInput) => {
-  const { title, description, startTime, endTime, durationMinutes, passingScore, allowRetake, maxAttempts } = input;
+  const { title, description, startTime, endTime, durationMinutes, passingScore, allowRetake, maxAttempts, price } = input;
 
   // Check for duplicate title by same creator
   const existingExam = await prisma.exam.findFirst({
@@ -238,6 +241,7 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
       passingScore: passingScore ?? 0,
       allowRetake: allowRetake ?? false,
       maxAttempts: maxAttempts || null,
+      price: price ?? null, // null = free exam
       createdBy: userId,
     },
     select: EXAM_DETAIL_SELECT,

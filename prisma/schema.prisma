@@ -175,11 +175,14 @@ model Transaction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, examId, status]) // Prevent duplicate pending transactions per user-exam
+  // Removed: @@unique([userId, examId, status])
+  // Reason: Blocks legitimate flows (multiple EXPIRED/CANCELLED for same user-exam)
+  // Protection handled by application logic in createTransaction()
   @@index([userId])
   @@index([examId])
   @@index([status])
   @@index([orderId])
+  @@index([userId, examId, status]) // Keep composite index for query performance
   @@map("transactions")
 }
 

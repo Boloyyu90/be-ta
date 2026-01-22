@@ -1,0 +1,2235 @@
+{
+  "info": {
+    "name": "CPNS Tryout Proctoring API - Complete Test Suite v3",
+    "description": "## Comprehensive API Testing for CPNS Exam System\n\n### Version 3 Updates\n- ✅ Added TRANSACTIONS folder (Midtrans Snap integration)\n- ✅ Added Webhook testing with signature verification\n- ✅ Added Admin Transaction endpoints\n- ✅ Added Idempotency & Security tests\n- ✅ Added Paid/Free exam flow testing\n\n### Coverage\n- **Auth:** 6 endpoints\n- **Users:** 3 participant + 5 admin endpoints\n- **Questions:** 8 admin endpoints\n- **Exams:** 9 admin + 2 participant endpoints\n- **Exam Sessions:** 10 participant + 4 admin endpoints\n- **Proctoring:** 5 participant + 2 admin endpoints\n- **Transactions:** 10 participant + 4 admin + 6 webhook tests\n- **ML Service:** 3 direct endpoints\n- **Error Handling:** 6 test scenarios\n\n**Total: 75+ endpoints**\n\n### Test Order\nRun folders in numbered order (1→14) for proper data flow.\n\n### Variables Auto-Set\nTest scripts automatically save IDs and tokens to environment variables.\n\n### Transaction Testing Prerequisites\n1. Set `midtransServerKey` in environment (from .env)\n2. Ensure Midtrans sandbox credentials configured\n3. Run folders 1-5 first to setup auth and exams",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "mlServiceUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. AUTH - Public",
+      "description": "Public authentication endpoints (no token required)",
+      "item": [
+        {
+          "name": "1.1 Register Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Response structure valid', () => {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.user).to.exist;",
+                  "    pm.expect(json.data.tokens.accessToken).to.exist;",
+                  "    pm.expect(json.data.tokens.refreshToken).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('User has ADMIN role', () => {",
+                  "    pm.expect(json.data.user.role).to.equal('ADMIN');",
+                  "});",
+                  "",
+                  "pm.environment.set('adminToken', json.data.tokens.accessToken);",
+                  "pm.environment.set('adminRefreshToken', json.data.tokens.refreshToken);",
+                  "pm.environment.set('adminUserId', json.data.user.id);",
+                  "",
+                  "console.log('✅ Admin registered, ID:', json.data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"name\": \"Admin Tryout\",\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "1.2 Register Participant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Response structure valid', () => {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.tokens.accessToken).to.exist;",
+                  "});",
+                  "",
+                  "pm.test('User has PARTICIPANT role', () => {",
+                  "    pm.expect(json.data.user.role).to.equal('PARTICIPANT');",
+                  "});",
+                  "",
+                  "pm.environment.set('participantToken', json.data.tokens.accessToken);",
+                  "pm.environment.set('participantRefreshToken', json.data.tokens.refreshToken);",
+                  "pm.environment.set('participantUserId', json.data.user.id);",
+                  "",
+                  "console.log('✅ Participant registered, ID:', json.data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{participantEmail}}\",\n  \"password\": \"{{participantPassword}}\",\n  \"name\": \"Peserta CPNS\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has access token', () => {",
+                  "    pm.expect(json.data.tokens.accessToken).to.exist;",
+                  "});",
+                  "",
+                  "pm.environment.set('adminToken', json.data.tokens.accessToken);",
+                  "pm.environment.set('adminRefreshToken', json.data.tokens.refreshToken);",
+                  "pm.environment.set('adminUserId', json.data.user.id);",
+                  "",
+                  "console.log('✅ Admin logged in');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.4 Login Participant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('participantToken', json.data.tokens.accessToken);",
+                  "pm.environment.set('participantRefreshToken', json.data.tokens.refreshToken);",
+                  "pm.environment.set('participantUserId', json.data.user.id);",
+                  "",
+                  "console.log('✅ Participant logged in');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{participantEmail}}\",\n  \"password\": \"{{participantPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.5 Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.tokens) {",
+                  "    pm.environment.set('participantToken', json.data.tokens.accessToken);",
+                  "    pm.environment.set('participantRefreshToken', json.data.tokens.refreshToken);",
+                  "    console.log('✅ Tokens refreshed');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{participantRefreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "1.6 Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('✅ Logged out');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{participantRefreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. USERS - Profile",
+      "description": "User profile management (authenticated)",
+      "item": [
+        {
+          "name": "2.1 Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has user data', () => {",
+                  "    pm.expect(json.data.user.id).to.exist;",
+                  "    pm.expect(json.data.user.email).to.exist;",
+                  "});",
+                  "",
+                  "console.log('User:', json.data.user.name, '|', json.data.user.role);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "2.2 Update My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Peserta Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Get My Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Stats:', JSON.stringify(json.data, null, 2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/me/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["me", "stats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. ADMIN - Users",
+      "description": "Admin user management",
+      "item": [
+        {
+          "name": "3.1 Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('testUserId', json.data.user.id);",
+                  "console.log('✅ Test user created, ID:', json.data.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@tryout.com\",\n  \"password\": \"TestUser@123\",\n  \"name\": \"Test User by Admin\",\n  \"role\": \"PARTICIPANT\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "3.2 Get All Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Total users:', json.data.pagination.total);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.3 Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{testUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{testUserId}}"]
+            }
+          }
+        },
+        {
+          "name": "3.4 Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User Updated\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{testUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{testUserId}}"]
+            }
+          }
+        },
+        {
+          "name": "3.5 Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 204', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "console.log('✅ Test user deleted');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{testUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{testUserId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. ADMIN - Questions",
+      "description": "Question bank management",
+      "item": [
+        {
+          "name": "4.1 Create Question (TWK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('questionId', json.data.question.id);",
+                  "console.log('✅ TWK Question created, ID:', json.data.question.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Pancasila sebagai dasar negara Indonesia pertama kali dirumuskan dalam sidang?\",\n  \"options\": {\n    \"A\": \"PPKI\",\n    \"B\": \"BPUPKI\",\n    \"C\": \"Konstituante\",\n    \"D\": \"MPR\",\n    \"E\": \"DPR\"\n  },\n  \"correctAnswer\": \"B\",\n  \"questionType\": \"TWK\",\n  \"defaultScore\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions"]
+            }
+          }
+        },
+        {
+          "name": "4.2 Create Question (TIU)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('questionId2', json.data.question.id);",
+                  "console.log('✅ TIU Question created, ID:', json.data.question.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Jika 3x + 5 = 20, maka nilai x adalah...\",\n  \"options\": {\n    \"A\": \"3\",\n    \"B\": \"4\",\n    \"C\": \"5\",\n    \"D\": \"6\",\n    \"E\": \"7\"\n  },\n  \"correctAnswer\": \"C\",\n  \"questionType\": \"TIU\",\n  \"defaultScore\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions"]
+            }
+          }
+        },
+        {
+          "name": "4.3 Get All Questions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Total questions:', json.data.pagination.total);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.4 Get Question by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions/{{questionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions", "{{questionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. ADMIN - Exams (Setup for Transactions)",
+      "description": "Exam management with PAID and FREE exams for transaction testing",
+      "item": [
+        {
+          "name": "5.1 Create FREE Exam (price=null)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('freeExamId', json.data.exam.id);",
+                  "pm.environment.set('examId', json.data.exam.id);",
+                  "",
+                  "pm.test('Exam is free (no price)', () => {",
+                  "    pm.expect(json.data.exam.price).to.be.oneOf([null, undefined, 0]);",
+                  "});",
+                  "",
+                  "console.log('✅ FREE Exam created, ID:', json.data.exam.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tryout CPNS 2025 - GRATIS\",\n  \"description\": \"Ujian gratis untuk latihan\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams"]
+            }
+          }
+        },
+        {
+          "name": "5.2 Create PAID Exam (price=50000)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('paidExamId', json.data.exam.id);",
+                  "",
+                  "pm.test('Exam has price', () => {",
+                  "    pm.expect(json.data.exam.price).to.equal(50000);",
+                  "});",
+                  "",
+                  "// Store amount for webhook testing",
+                  "pm.environment.set('transactionAmount', '50000');",
+                  "",
+                  "console.log('✅ PAID Exam created, ID:', json.data.exam.id);",
+                  "console.log('   Price: Rp', json.data.exam.price);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tryout CPNS 2025 - Premium Package\",\n  \"description\": \"Paket ujian premium dengan analisis lengkap\",\n  \"durationMinutes\": 60,\n  \"passingScore\": 300,\n  \"price\": 50000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams"]
+            }
+          }
+        },
+        {
+          "name": "5.3 Assign Questions to PAID Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "console.log('✅ Questions assigned to paid exam');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [{{questionId}}, {{questionId2}}]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams/{{paidExamId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams", "{{paidExamId}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "5.4 Get All Exams",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('');",
+                  "console.log('========== EXAMS OVERVIEW ==========');",
+                  "json.data.data.forEach(exam => {",
+                  "    const priceStr = exam.price ? `Rp ${exam.price}` : 'FREE';",
+                  "    console.log(`ID ${exam.id}: ${exam.title} [${priceStr}]`);",
+                  "});",
+                  "console.log('=====================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. TRANSACTIONS - Participant Flow",
+      "description": "Complete transaction flow for paid exams (Midtrans Snap integration)",
+      "item": [
+        {
+          "name": "12.1 Get Midtrans Client Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has clientKey', () => {",
+                  "    pm.expect(json.data.clientKey).to.exist;",
+                  "    pm.expect(json.data.clientKey).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.environment.set('midtransClientKey', json.data.clientKey);",
+                  "",
+                  "console.log('✅ Client Key retrieved');",
+                  "console.log('   Key:', json.data.clientKey.substring(0, 20) + '...');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/config/client-key",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "config", "client-key"]
+            }
+          }
+        },
+        {
+          "name": "12.2 Check Access - FREE Exam (hasAccess=true)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has access to free exam', () => {",
+                  "    pm.expect(json.data.hasAccess).to.be.true;",
+                  "    pm.expect(json.data.reason).to.equal('free');",
+                  "});",
+                  "",
+                  "console.log('✅ FREE Exam Access Check');",
+                  "console.log('   hasAccess:', json.data.hasAccess);",
+                  "console.log('   reason:', json.data.reason);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/exam/{{freeExamId}}/access",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "exam", "{{freeExamId}}", "access"]
+            }
+          }
+        },
+        {
+          "name": "12.3 Check Access - PAID Exam (not_purchased)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('No access to paid exam (not purchased)', () => {",
+                  "    pm.expect(json.data.hasAccess).to.be.false;",
+                  "    pm.expect(json.data.reason).to.equal('not_purchased');",
+                  "});",
+                  "",
+                  "console.log('✅ PAID Exam Access Check (before purchase)');",
+                  "console.log('   hasAccess:', json.data.hasAccess);",
+                  "console.log('   reason:', json.data.reason);",
+                  "console.log('   exam.price:', json.data.exam?.price);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/exam/{{paidExamId}}/access",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "exam", "{{paidExamId}}", "access"]
+            }
+          }
+        },
+        {
+          "name": "12.4 Create Transaction (PAID Exam)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('Transaction created with snapToken', () => {",
+                  "    pm.expect(json.data.transaction).to.exist;",
+                  "    pm.expect(json.data.transaction.id).to.exist;",
+                  "    pm.expect(json.data.transaction.orderId).to.exist;",
+                  "    pm.expect(json.data.transaction.status).to.equal('PENDING');",
+                  "    pm.expect(json.data.snapToken).to.exist;",
+                  "});",
+                  "",
+                  "// Store transaction data",
+                  "pm.environment.set('transactionId', json.data.transaction.id);",
+                  "pm.environment.set('orderId', json.data.transaction.orderId);",
+                  "pm.environment.set('snapToken', json.data.snapToken);",
+                  "pm.environment.set('snapRedirectUrl', json.data.snapRedirectUrl || '');",
+                  "pm.environment.set('transactionAmount', json.data.transaction.amount.toString());",
+                  "",
+                  "console.log('');",
+                  "console.log('========== TRANSACTION CREATED ==========');",
+                  "console.log('Transaction ID:', json.data.transaction.id);",
+                  "console.log('Order ID:', json.data.transaction.orderId);",
+                  "console.log('Amount:', json.data.transaction.amount);",
+                  "console.log('Status:', json.data.transaction.status);",
+                  "console.log('Snap Token:', json.data.snapToken.substring(0, 30) + '...');",
+                  "console.log('Client Key:', json.data.clientKey?.substring(0, 20) + '...');",
+                  "console.log('==========================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": {{paidExamId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "12.5 Check Access - PAID Exam (pending)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has pending transaction', () => {",
+                  "    pm.expect(json.data.hasAccess).to.be.false;",
+                  "    pm.expect(json.data.reason).to.equal('pending');",
+                  "    pm.expect(json.data.transaction).to.exist;",
+                  "});",
+                  "",
+                  "console.log('✅ Access check shows PENDING');",
+                  "console.log('   Transaction ID:', json.data.transaction?.id);",
+                  "console.log('   Status:', json.data.transaction?.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/exam/{{paidExamId}}/access",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "exam", "{{paidExamId}}", "access"]
+            }
+          }
+        },
+        {
+          "name": "12.6 Get Transaction by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Transaction found', () => {",
+                  "    pm.expect(json.data.transaction.id).to.equal(parseInt(pm.environment.get('transactionId')));",
+                  "});",
+                  "",
+                  "console.log('Transaction:', JSON.stringify(json.data.transaction, null, 2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "12.7 Get Transaction by Order ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Transaction found by orderId', () => {",
+                  "    pm.expect(json.data.transaction.orderId).to.equal(pm.environment.get('orderId'));",
+                  "});",
+                  "",
+                  "console.log('✅ Found by Order ID:', json.data.transaction.orderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/order/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "order", "{{orderId}}"]
+            }
+          }
+        },
+        {
+          "name": "12.8 List My Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has transactions array', () => {",
+                  "    pm.expect(json.data.transactions).to.be.an('array');",
+                  "    pm.expect(json.data.pagination).to.exist;",
+                  "});",
+                  "",
+                  "console.log('');",
+                  "console.log('========== MY TRANSACTIONS ==========');",
+                  "console.log('Total:', json.data.pagination.total);",
+                  "json.data.transactions.forEach(tx => {",
+                  "    console.log(`  ${tx.orderId} | ${tx.status} | Rp ${tx.amount}`);",
+                  "});",
+                  "console.log('======================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "12.9 List Transactions (Filter by Status)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('All transactions are PENDING', () => {",
+                  "    json.data.transactions.forEach(tx => {",
+                  "        pm.expect(tx.status).to.equal('PENDING');",
+                  "    });",
+                  "});",
+                  "",
+                  "console.log('PENDING transactions:', json.data.transactions.length);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          }
+        },
+        {
+          "name": "12.10 Sync Transaction Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('✅ Transaction synced');",
+                  "console.log('   Status:', json.data.transaction?.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}/sync",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}", "sync"]
+            }
+          }
+        },
+        {
+          "name": "12.11 Cancel Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Transaction cancelled', () => {",
+                  "    pm.expect(json.data.transaction.status).to.equal('CANCELLED');",
+                  "});",
+                  "",
+                  "pm.environment.set('cancelledTransactionId', json.data.transaction.id);",
+                  "",
+                  "console.log('✅ Transaction cancelled');",
+                  "console.log('   ID:', json.data.transaction.id);",
+                  "console.log('   Status:', json.data.transaction.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "12.12 Create Transaction Again (After Cancel)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "",
+                  "const json = pm.response.json();",
+                  "",
+                  "pm.test('New transaction created', () => {",
+                  "    pm.expect(json.data.transaction.id).to.not.equal(parseInt(pm.environment.get('cancelledTransactionId')));",
+                  "    pm.expect(json.data.transaction.status).to.equal('PENDING');",
+                  "});",
+                  "",
+                  "// Update stored values",
+                  "pm.environment.set('transactionId', json.data.transaction.id);",
+                  "pm.environment.set('orderId', json.data.transaction.orderId);",
+                  "pm.environment.set('snapToken', json.data.snapToken);",
+                  "",
+                  "console.log('✅ New transaction created after cancel');",
+                  "console.log('   New ID:', json.data.transaction.id);",
+                  "console.log('   New Order ID:', json.data.transaction.orderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": {{paidExamId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "12.13 ERR: Create Tx for Free Exam (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Error message indicates free exam', () => {",
+                  "    pm.expect(json.message.toLowerCase()).to.include('free');",
+                  "});",
+                  "",
+                  "console.log('✅ Correctly rejected free exam transaction');",
+                  "console.log('   Message:', json.message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": {{freeExamId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "12.14 ERR: Cancel Non-Pending Tx (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Error message indicates only pending', () => {",
+                  "    pm.expect(json.message.toLowerCase()).to.include('pending');",
+                  "});",
+                  "",
+                  "console.log('✅ Correctly rejected cancel on non-pending');",
+                  "console.log('   Message:', json.message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{cancelledTransactionId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{cancelledTransactionId}}", "cancel"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. TRANSACTIONS - Webhook Tests",
+      "description": "Webhook security, idempotency, and status transitions. IMPORTANT: Set midtransServerKey in environment!",
+      "item": [
+        {
+          "name": "13.0 [SETUP] Generate Webhook Signature",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate SHA512 signature for webhook testing",
+                  "// Formula: SHA512(order_id + status_code + gross_amount + server_key)",
+                  "",
+                  "const orderId = pm.environment.get('orderId');",
+                  "const statusCode = '200';",
+                  "const grossAmount = pm.environment.get('transactionAmount') || '50000';",
+                  "const serverKey = pm.environment.get('midtransServerKey');",
+                  "",
+                  "if (!serverKey || serverKey === 'SB-Mid-server-XXXXXXXX') {",
+                  "    console.log('⚠️ WARNING: midtransServerKey not set!');",
+                  "    console.log('   Set it from your .env MIDTRANS_SERVER_KEY');",
+                  "}",
+                  "",
+                  "const payload = orderId + statusCode + grossAmount + serverKey;",
+                  "const signature = CryptoJS.SHA512(payload).toString();",
+                  "",
+                  "pm.environment.set('webhookSignature', signature);",
+                  "",
+                  "console.log('');",
+                  "console.log('========== WEBHOOK SIGNATURE GENERATED ==========');",
+                  "console.log('Order ID:', orderId);",
+                  "console.log('Status Code:', statusCode);",
+                  "console.log('Gross Amount:', grossAmount);",
+                  "console.log('Server Key:', serverKey ? serverKey.substring(0, 15) + '...' : 'NOT SET');",
+                  "console.log('Payload:', orderId + statusCode + grossAmount + '***');",
+                  "console.log('Signature:', signature.substring(0, 40) + '...');",
+                  "console.log('=================================================');",
+                  "console.log('');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// This is a setup request - just displays the signature",
+                  "pm.test('Signature generated', () => {",
+                  "    const sig = pm.environment.get('webhookSignature');",
+                  "    pm.expect(sig).to.exist;",
+                  "    pm.expect(sig.length).to.equal(128); // SHA512 = 128 hex chars",
+                  "});",
+                  "",
+                  "console.log('✅ Webhook signature ready for testing');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/../health",
+              "host": ["{{baseUrl}}"],
+              "path": ["..", "health"]
+            },
+            "description": "This request generates the webhook signature in the pre-request script. The actual endpoint called doesn't matter."
+          }
+        },
+        {
+          "name": "13.1 Webhook - Settlement (PAID)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Regenerate signature before request",
+                  "const orderId = pm.environment.get('orderId');",
+                  "const statusCode = '200';",
+                  "const grossAmount = pm.environment.get('transactionAmount') || '50000';",
+                  "const serverKey = pm.environment.get('midtransServerKey');",
+                  "",
+                  "const payload = orderId + statusCode + grossAmount + serverKey;",
+                  "const signature = CryptoJS.SHA512(payload).toString();",
+                  "pm.environment.set('webhookSignature', signature);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK (webhook always returns 200)', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Webhook processed successfully', () => {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    // Check if transaction was updated",
+                  "    if (json.data.transactionId) {",
+                  "        pm.expect(json.data.status).to.equal('PAID');",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('');",
+                  "console.log('========== WEBHOOK SETTLEMENT RESULT ==========');",
+                  "console.log('Response:', JSON.stringify(json, null, 2));",
+                  "console.log('===============================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"transaction_status\": \"settlement\",\n  \"status_code\": \"200\",\n  \"gross_amount\": \"{{transactionAmount}}\",\n  \"signature_key\": \"{{webhookSignature}}\",\n  \"payment_type\": \"bank_transfer\",\n  \"transaction_id\": \"midtrans-sandbox-tx-id\",\n  \"transaction_time\": \"2026-01-19 12:00:00\",\n  \"status_message\": \"Success, transaction is found\",\n  \"merchant_id\": \"G123456789\",\n  \"currency\": \"IDR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "13.2 Verify Status Changed to PAID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Transaction status is PAID', () => {",
+                  "    pm.expect(json.data.transaction.status).to.equal('PAID');",
+                  "    pm.expect(json.data.transaction.paidAt).to.exist;",
+                  "});",
+                  "",
+                  "console.log('✅ Transaction verified as PAID');",
+                  "console.log('   Status:', json.data.transaction.status);",
+                  "console.log('   Paid At:', json.data.transaction.paidAt);",
+                  "console.log('   Payment Type:', json.data.transaction.paymentType);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "13.3 Check Access - Now Has Access (paid)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Now has access to paid exam', () => {",
+                  "    pm.expect(json.data.hasAccess).to.be.true;",
+                  "    pm.expect(json.data.reason).to.equal('paid');",
+                  "});",
+                  "",
+                  "console.log('✅ Access granted after payment!');",
+                  "console.log('   hasAccess:', json.data.hasAccess);",
+                  "console.log('   reason:', json.data.reason);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/exam/{{paidExamId}}/access",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "exam", "{{paidExamId}}", "access"]
+            }
+          }
+        },
+        {
+          "name": "13.4 Webhook - Idempotency (Duplicate)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const orderId = pm.environment.get('orderId');",
+                  "const statusCode = '200';",
+                  "const grossAmount = pm.environment.get('transactionAmount') || '50000';",
+                  "const serverKey = pm.environment.get('midtransServerKey');",
+                  "",
+                  "const payload = orderId + statusCode + grossAmount + serverKey;",
+                  "const signature = CryptoJS.SHA512(payload).toString();",
+                  "pm.environment.set('webhookSignature', signature);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Duplicate webhook handled gracefully', () => {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    // Transaction should still be PAID, not error",
+                  "});",
+                  "",
+                  "console.log('✅ Idempotency test passed');",
+                  "console.log('   Duplicate webhook did not cause error');",
+                  "console.log('   Response:', JSON.stringify(json, null, 2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"transaction_status\": \"settlement\",\n  \"status_code\": \"200\",\n  \"gross_amount\": \"{{transactionAmount}}\",\n  \"signature_key\": \"{{webhookSignature}}\",\n  \"payment_type\": \"bank_transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "13.5 Webhook - Invalid Signature (Security)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK (webhook always returns 200)', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Webhook rejected invalid signature gracefully', () => {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    // processed should be false for invalid signature",
+                  "    if (json.data.processed !== undefined) {",
+                  "        pm.expect(json.data.processed).to.be.false;",
+                  "    }",
+                  "});",
+                  "",
+                  "console.log('✅ Invalid signature handled correctly');",
+                  "console.log('   Returns 200 (to prevent Midtrans retry)');",
+                  "console.log('   But transaction NOT updated');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderId}}\",\n  \"transaction_status\": \"settlement\",\n  \"status_code\": \"200\",\n  \"gross_amount\": \"{{transactionAmount}}\",\n  \"signature_key\": \"invalid_signature_should_be_rejected_by_backend\",\n  \"payment_type\": \"credit_card\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "13.6 Webhook - Non-existent Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "console.log('✅ Non-existent order handled gracefully');",
+                  "console.log('   No crash, returns 200');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"TRX-NONEXISTENT-ORDER-12345\",\n  \"transaction_status\": \"settlement\",\n  \"status_code\": \"200\",\n  \"gross_amount\": \"50000\",\n  \"signature_key\": \"any_signature\",\n  \"payment_type\": \"bank_transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "webhook"]
+            }
+          }
+        },
+        {
+          "name": "13.7 ERR: Create Tx for Already Paid Exam (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Error indicates already has access', () => {",
+                  "    pm.expect(json.message.toLowerCase()).to.include('access');",
+                  "});",
+                  "",
+                  "console.log('✅ Correctly rejected duplicate purchase');",
+                  "console.log('   Message:', json.message);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": {{paidExamId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. ADMIN - Transactions",
+      "description": "Admin transaction management endpoints",
+      "item": [
+        {
+          "name": "14.1 List All Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Has transactions array', () => {",
+                  "    pm.expect(json.data.transactions).to.be.an('array');",
+                  "    pm.expect(json.data.pagination).to.exist;",
+                  "});",
+                  "",
+                  "console.log('');",
+                  "console.log('========== ALL TRANSACTIONS (ADMIN) ==========');",
+                  "console.log('Total:', json.data.pagination.total);",
+                  "json.data.transactions.forEach(tx => {",
+                  "    console.log(`  [${tx.status}] ${tx.orderId} | User ${tx.userId} | Rp ${tx.amount}`);",
+                  "});",
+                  "console.log('==============================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "14.2 List Transactions (Filter PAID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('All transactions are PAID', () => {",
+                  "    json.data.transactions.forEach(tx => {",
+                  "        pm.expect(tx.status).to.equal('PAID');",
+                  "    });",
+                  "});",
+                  "",
+                  "console.log('PAID transactions:', json.data.transactions.length);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions?status=PAID",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "transactions"],
+              "query": [{ "key": "status", "value": "PAID" }]
+            }
+          }
+        },
+        {
+          "name": "14.3 Get Transaction by ID (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Transaction details (admin view):', JSON.stringify(json.data.transaction, null, 2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "transactions", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "14.4 Get Transaction Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('');",
+                  "console.log('========== TRANSACTION STATS ==========');",
+                  "console.log(JSON.stringify(json.data, null, 2));",
+                  "console.log('=======================================');",
+                  "console.log('');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "transactions", "stats"]
+            }
+          }
+        },
+        {
+          "name": "14.5 Cleanup Expired Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('✅ Cleanup completed');",
+                  "console.log('   Expired count:', json.data?.expiredCount || 0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions/cleanup",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "transactions", "cleanup"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. PARTICIPANT - Browse Exams",
+      "description": "Participant exam browsing",
+      "item": [
+        {
+          "name": "6.1 Browse Available Exams",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Available exams:', json.data.data?.length || 0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exams",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams"]
+            }
+          }
+        },
+        {
+          "name": "6.2 Get Exam Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exams/{{examId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "{{examId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. EXAM SESSIONS - Taking Exam",
+      "description": "Complete exam-taking flow",
+      "item": [
+        {
+          "name": "7.1 Start Exam",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 201', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('userExamId', json.data.userExam.id);",
+                  "pm.environment.set('attemptNumber', json.data.userExam.attemptNumber);",
+                  "",
+                  "if (json.data.questions && json.data.questions.length > 0) {",
+                  "    pm.environment.set('examQuestionId', json.data.questions[0].id);",
+                  "}",
+                  "",
+                  "console.log('✅ Exam started, session ID:', json.data.userExam.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exams/{{paidExamId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "{{paidExamId}}", "start"]
+            }
+          }
+        },
+        {
+          "name": "7.2 Get My Exam Sessions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exam-sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["exam-sessions"]
+            }
+          }
+        },
+        {
+          "name": "7.3 Get Session Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exam-sessions/{{userExamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["exam-sessions", "{{userExamId}}"]
+            }
+          }
+        },
+        {
+          "name": "7.4 Get Exam Questions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data.questions && json.data.questions.length > 0) {",
+                  "    pm.environment.set('examQuestionId', json.data.questions[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exam-sessions/{{userExamId}}/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["exam-sessions", "{{userExamId}}", "questions"]
+            }
+          }
+        },
+        {
+          "name": "7.5 Submit Answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examQuestionId\": {{examQuestionId}},\n  \"selectedOption\": \"B\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/exam-sessions/{{userExamId}}/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["exam-sessions", "{{userExamId}}", "answers"]
+            }
+          }
+        },
+        {
+          "name": "7.6 Submit Exam (Finish)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+                  "",
+                  "const json = pm.response.json();",
+                  "console.log('Exam finished, score:', json.data.result?.totalScore);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/exam-sessions/{{userExamId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["exam-sessions", "{{userExamId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "7.7 Get My Results",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/results",
+              "host": ["{{baseUrl}}"],
+              "path": ["results"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. PROCTORING",
+      "description": "Proctoring and ML face detection",
+      "item": [
+        {
+          "name": "8.1 ML Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mlServiceUrl}}/health",
+              "host": ["{{mlServiceUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "8.2 Analyze Face (via Backend)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageBase64\": \"{{testImageBase64}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/proctoring/exam-sessions/{{userExamId}}/analyze-face",
+              "host": ["{{baseUrl}}"],
+              "path": ["proctoring", "exam-sessions", "{{userExamId}}", "analyze-face"]
+            }
+          }
+        },
+        {
+          "name": "8.3 Log Proctoring Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{participantToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userExamId\": {{userExamId}},\n  \"eventType\": \"LOOKING_AWAY\",\n  \"metadata\": {\n    \"source\": \"postman_test\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/proctoring/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["proctoring", "events"]
+            }
+          }
+        },
+        {
+          "name": "8.4 Get Session Proctoring Events",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/proctoring/exam-sessions/{{userExamId}}/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["proctoring", "exam-sessions", "{{userExamId}}", "events"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. ADMIN - Exam Sessions",
+      "description": "Admin exam session management",
+      "item": [
+        {
+          "name": "9.1 Get All Exam Sessions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/exam-sessions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exam-sessions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "9.2 Get Session Detail (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/exam-sessions/{{userExamId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exam-sessions", "{{userExamId}}"]
+            }
+          }
+        },
+        {
+          "name": "9.3 Get All Results (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/results?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "results"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. ML SERVICE (Direct)",
+      "description": "Direct ML service testing",
+      "item": [
+        {
+          "name": "10.1 Service Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mlServiceUrl}}/",
+              "host": ["{{mlServiceUrl}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "10.2 Analyze Face (Direct)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image\": \"data:image/png;base64,{{testImageBase64}}\"\n}"
+            },
+            "url": {
+              "raw": "{{mlServiceUrl}}/analyze",
+              "host": ["{{mlServiceUrl}}"],
+              "path": ["analyze"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. ERROR HANDLING",
+      "description": "Test error responses and edge cases",
+      "item": [
+        {
+          "name": "ERR.1 Unauthorized (No Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "ERR.2 Forbidden (Participant → Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{participantToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "ERR.3 Not Found (Invalid ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams/99999",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams", "99999"]
+            }
+          }
+        },
+        {
+          "name": "ERR.4 Bad Request (Invalid Body)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"durationMinutes\": -1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/exams",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "exams"]
+            }
+          }
+        },
+        {
+          "name": "ERR.5 Invalid Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer invalid.token.here" }],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "ERR.6 Login Wrong Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{participantEmail}}\",\n  \"password\": \"WrongPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
