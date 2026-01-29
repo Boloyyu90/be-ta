@@ -1,0 +1,2237 @@
+openapi: 3.1.0
+info:
+  title: Prestige Academy CPNS Exam System API
+  description: |
+    Backend API for online CPNS tryout system with AI-powered proctoring.
+
+    ## Authentication
+    This API uses JWT Bearer token authentication. Include the access token 
+    in the Authorization header: `Authorization: Bearer <token>`
+
+    ## Rate Limits
+    - Global: 100 requests / 15 minutes
+    - Auth: 5 requests / 15 minutes
+    - Proctoring: 30 requests / 1 minute
+    - Transactions: 10 requests / 15 minutes
+    - Webhook: 100 requests / 1 minute
+
+    ## Exam Retake System
+    The system supports configurable exam retakes:
+    - `allowRetake`: Enable/disable retakes per exam
+    - `maxAttempts`: Limit number of attempts (null = unlimited)
+    - `attemptNumber`: Track which attempt each session represents
+
+    ## Payment System
+    The system supports paid exams via Midtrans:
+    - `price`: Exam price (null = free exam)
+    - Transaction states: PENDING → PAID/EXPIRED/CANCELLED/FAILED
+    - 24-hour payment window with lazy expiry cleanup
+
+    ## MVP Scope
+    This spec documents implemented functionality. The following are **NOT** implemented:
+    - Email verification enforcement
+    - Password reset flow
+    - Time window enforcement at API level (frontend responsibility)
+    - WebSocket real-time updates
+
+    ## Critical Integration Notes
+    - Always use `examQuestionId` for answer submissions, NOT `questionId`
+    - Timer should use server-provided `remainingTimeMs`, not client calculation
+    - Proctoring rate limit: max 30 requests/minute (1 every 2 seconds)
+    - Backend runs on port **3001**, not 3000
+  version: 1.1.0
+  contact:
+    name: I Gede Bala Putra
+    email: gede.bala@example.com
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Development server
+
+tags:
+  - name: Auth
+    description: Authentication endpoints (public)
+  - name: Users
+    description: User management
+  - name: Questions
+    description: Question bank management
+  - name: Exams
+    description: Exam CRUD operations
+  - name: Exam Sessions
+    description: Exam taking and submissions
+  - name: Proctoring
+    description: Proctoring and ML face detection
+  - name: Transactions
+    description: Payment transactions with Midtrans
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # === Enums ===
+    UserRole:
+      type: string
+      enum: [ADMIN, PARTICIPANT]
+
+    ExamStatus:
+      type: string
+      enum: [IN_PROGRESS, FINISHED, CANCELLED, TIMEOUT]
+
+    QuestionType:
+      type: string
+      enum: [TIU, TKP, TWK]
+
+    ProctoringEventType:
+      type: string
+      enum: [FACE_DETECTED, NO_FACE_DETECTED, MULTIPLE_FACES, LOOKING_AWAY]
+
+    TransactionStatus:
+      type: string
+      enum: [PENDING, PAID, EXPIRED, CANCELLED, FAILED, REFUNDED]
+      description: |
+        - PENDING: Waiting for payment (Snap token generated)
+        - PAID: Payment successful (settlement received)
+        - EXPIRED: Payment window expired (24 hours default)
+        - CANCELLED: Cancelled by user or system
+        - FAILED: Payment failed (denied, error)
+        - REFUNDED: Refunded (future use)
+
+    AnswerOption:
+      type: string
+      enum: [A, B, C, D, E]
+      nullable: true
+
+    Severity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    # === Base Entities ===
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        isEmailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - name
+        - role
+        - isEmailVerified
+        - createdAt
+        - updatedAt
+
+    UserStats:
+      type: object
+      description: Dashboard statistics for current user
+      properties:
+        completedExams:
+          type: integer
+          description: Count of exams with status FINISHED
+          minimum: 0
+        averageScore:
+          type: number
+          format: float
+          nullable: true
+          description: Average totalScore of FINISHED exams, null if none
+        totalTimeMinutes:
+          type: integer
+          description: Total time spent on all FINISHED exams in minutes
+          minimum: 0
+        activeExams:
+          type: integer
+          description: Count of exams with status IN_PROGRESS
+          minimum: 0
+      required:
+        - completedExams
+        - averageScore
+        - totalTimeMinutes
+        - activeExams
+
+    TokensData:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+      required:
+        - accessToken
+        - refreshToken
+
+    QuestionOptions:
+      type: object
+      properties:
+        A:
+          type: string
+        B:
+          type: string
+        C:
+          type: string
+        D:
+          type: string
+        E:
+          type: string
+      required: [A, B, C, D, E]
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        options:
+          $ref: "#/components/schemas/QuestionOptions"
+        correctAnswer:
+          type: string
+          enum: [A, B, C, D, E]
+        questionType:
+          $ref: "#/components/schemas/QuestionType"
+        defaultScore:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - options
+        - correctAnswer
+        - questionType
+        - defaultScore
+        - createdAt
+        - updatedAt
+
+    Exam:
+      type: object
+      description: Exam entity with retake and pricing configuration
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+        passingScore:
+          type: integer
+        allowRetake:
+          type: boolean
+          description: Whether users can retake this exam after completing it
+          default: false
+        maxAttempts:
+          type: integer
+          nullable: true
+          description: Maximum number of attempts allowed (null = unlimited when retakes enabled)
+        price:
+          type: integer
+          nullable: true
+          description: Exam price in IDR (null = free exam)
+        createdBy:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - durationMinutes
+        - passingScore
+        - allowRetake
+        - createdBy
+        - createdAt
+        - updatedAt
+
+    ExamWithCount:
+      allOf:
+        - $ref: "#/components/schemas/Exam"
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                examQuestions:
+                  type: integer
+
+    UserExam:
+      type: object
+      description: Exam session (attempt) for a user
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        examId:
+          type: integer
+        attemptNumber:
+          type: integer
+          description: Which attempt this is (1 = first, 2 = second, etc.)
+          minimum: 1
+        startedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        totalScore:
+          type: integer
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ExamStatus"
+      required:
+        - id
+        - userId
+        - examId
+        - attemptNumber
+        - startedAt
+        - status
+
+    Transaction:
+      type: object
+      description: Payment transaction for paid exams
+      properties:
+        id:
+          type: integer
+        orderId:
+          type: string
+          description: Unique Midtrans order ID (TRX-timestamp-random)
+        userId:
+          type: integer
+        examId:
+          type: integer
+        amount:
+          type: integer
+          description: Transaction amount in IDR
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        paymentType:
+          type: string
+          nullable: true
+          description: Payment method (e.g., bank_transfer, gopay, qris)
+        snapToken:
+          type: string
+          nullable: true
+          description: Midtrans Snap token for payment popup
+        snapRedirectUrl:
+          type: string
+          nullable: true
+          description: Midtrans redirect URL
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when payment confirmed
+        expiredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Payment deadline (24 hours from creation)
+        metadata:
+          type: object
+          nullable: true
+          description: Full Midtrans notification response
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        exam:
+          type: object
+          properties:
+            id:
+              type: integer
+            title:
+              type: string
+            price:
+              type: integer
+              nullable: true
+      required:
+        - id
+        - orderId
+        - userId
+        - examId
+        - amount
+        - status
+        - createdAt
+        - updatedAt
+
+    ProctoringEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        userExamId:
+          type: integer
+        eventType:
+          $ref: "#/components/schemas/ProctoringEventType"
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userExamId
+        - eventType
+        - createdAt
+
+    FaceAnalysisResult:
+      type: object
+      properties:
+        faceDetected:
+          type: boolean
+        faceCount:
+          type: integer
+        boundingBoxes:
+          type: array
+          items:
+            type: object
+            properties:
+              x:
+                type: number
+              y:
+                type: number
+              width:
+                type: number
+              height:
+                type: number
+              confidence:
+                type: number
+        confidence:
+          type: number
+
+    ScoreByType:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/QuestionType"
+        score:
+          type: integer
+        maxScore:
+          type: integer
+        correctAnswers:
+          type: integer
+        totalQuestions:
+          type: integer
+        passingGrade:
+          type: integer
+        isPassing:
+          type: boolean
+      required:
+        - type
+        - score
+        - maxScore
+        - correctAnswers
+        - totalQuestions
+        - passingGrade
+        - isPassing
+
+    CpnsCategory:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/QuestionType"
+        name:
+          type: string
+        passingGrade:
+          type: integer
+      required:
+        - type
+        - name
+        - passingGrade
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+        totalPages:
+          type: integer
+        hasNext:
+          type: boolean
+        hasPrev:
+          type: boolean
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNext
+        - hasPrev
+
+    AuthPayload:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        tokens:
+          $ref: "#/components/schemas/TokensData"
+      required:
+        - user
+        - tokens
+
+    ApiSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - timestamp
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errorCode:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - message
+        - timestamp
+
+    MidtransNotification:
+      type: object
+      description: Midtrans webhook notification payload
+      properties:
+        transaction_time:
+          type: string
+        transaction_status:
+          type: string
+        transaction_id:
+          type: string
+        status_message:
+          type: string
+        status_code:
+          type: string
+        signature_key:
+          type: string
+        payment_type:
+          type: string
+        order_id:
+          type: string
+        merchant_id:
+          type: string
+        gross_amount:
+          type: string
+        fraud_status:
+          type: string
+        currency:
+          type: string
+        va_numbers:
+          type: array
+          items:
+            type: object
+            properties:
+              va_number:
+                type: string
+              bank:
+                type: string
+      required:
+        - order_id
+        - status_code
+        - gross_amount
+        - signature_key
+        - transaction_status
+
+  parameters:
+    pageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+    sortOrderParam:
+      name: sortOrder
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+
+paths:
+  # === AUTH ENDPOINTS ===
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  description: "Min 8 chars, 1 uppercase, 1 lowercase, 1 number"
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+              required: [email, password, name]
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthPayload"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthPayload"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          tokens:
+                            $ref: "#/components/schemas/TokensData"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout user
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          success:
+                            type: boolean
+
+  # === USER ENDPOINTS ===
+  /me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: "#/components/schemas/User"
+    patch:
+      tags: [Users]
+      summary: Update current user profile
+      operationId: updateMe
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: "#/components/schemas/User"
+
+  /me/stats:
+    get:
+      tags: [Users]
+      summary: Get current user exam statistics
+      description: Returns dashboard metrics including completed exams, average score, and active exams
+      operationId: getMyStats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserStats"
+
+  # === QUESTIONS PUBLIC ENDPOINT ===
+  /questions/cpns-config:
+    get:
+      tags: [Questions]
+      summary: Get CPNS configuration
+      description: Public endpoint returning passing grades and categories for CPNS exams
+      operationId: getCpnsConfig
+      responses:
+        "200":
+          description: CPNS configuration
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          passingGrades:
+                            type: object
+                            properties:
+                              TWK:
+                                type: integer
+                                example: 65
+                              TIU:
+                                type: integer
+                                example: 80
+                              TKP:
+                                type: integer
+                                example: 166
+                          totalPassingScore:
+                            type: integer
+                            example: 311
+                          categories:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/CpnsCategory"
+
+  # === EXAM ENDPOINTS ===
+  /exams:
+    get:
+      tags: [Exams]
+      summary: List available exams
+      operationId: getExams
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [title, createdAt, durationMinutes]
+        - $ref: "#/components/parameters/sortOrderParam"
+      responses:
+        "200":
+          description: List of exams
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ExamWithCount"
+                          pagination:
+                            $ref: "#/components/schemas/Pagination"
+
+  /exams/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exams]
+      summary: Get exam details
+      description: Returns exam details with user's attempt history
+      operationId: getExamById
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam details with attempt info
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          exam:
+                            $ref: "#/components/schemas/Exam"
+                          questionCount:
+                            type: integer
+                          userAttempts:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UserExam"
+                          firstAttempt:
+                            $ref: "#/components/schemas/UserExam"
+                            nullable: true
+                          latestAttempt:
+                            $ref: "#/components/schemas/UserExam"
+                            nullable: true
+        "404":
+          description: Exam not found
+
+  /exams/{id}/start:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exams]
+      summary: Start or resume exam
+      description: |
+        Starts a new exam attempt or resumes an existing IN_PROGRESS session.
+
+        **Business Rules:**
+        - If IN_PROGRESS session exists → Resume it
+        - If no attempts → Create first attempt
+        - If allowRetake=false and has completed attempt → Error
+        - If maxAttempts reached → Error
+        - If paid exam without PAID transaction → Error (PAYMENT_REQUIRED)
+      operationId: startExam
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam started or resumed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userExam:
+                            allOf:
+                              - $ref: "#/components/schemas/UserExam"
+                              - type: object
+                                properties:
+                                  remainingTimeMs:
+                                    type: integer
+                                    description: Remaining time in milliseconds
+                          questions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: integer
+                                  description: examQuestionId (use this for answers!)
+                                orderNumber:
+                                  type: integer
+                                question:
+                                  type: object
+                                  description: Question without correctAnswer
+                          answers:
+                            type: array
+                            items:
+                              type: object
+                              description: Existing answers (for resume)
+        "400":
+          description: Cannot start exam (no questions, retakes disabled, max attempts)
+        "402":
+          description: Payment required for paid exam
+
+  # === EXAM SESSION ENDPOINTS ===
+  /exam-sessions:
+    get:
+      tags: [Exam Sessions]
+      summary: List user's exam sessions
+      operationId: getExamSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
+      responses:
+        "200":
+          description: User's exam sessions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          data:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UserExam"
+                          pagination:
+                            $ref: "#/components/schemas/Pagination"
+
+  /exam-sessions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get exam session details
+      operationId: getExamSession
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam session with remaining time
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userExam:
+                            $ref: "#/components/schemas/UserExam"
+                          remainingTimeMs:
+                            type: integer
+
+  /exam-sessions/{id}/questions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get exam questions (IN_PROGRESS only)
+      description: Returns questions without correctAnswer for active exam sessions
+      operationId: getExamQuestions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam questions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          questions:
+                            type: array
+                            items:
+                              type: object
+                          total:
+                            type: integer
+
+  /exam-sessions/{id}/answers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exam Sessions]
+      summary: Submit answer
+      description: |
+        **CRITICAL:** Use `examQuestionId`, NOT `questionId`!
+
+        The examQuestionId is the junction table ID from the start exam response,
+        not the question bank ID.
+      operationId: submitAnswer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                examQuestionId:
+                  type: integer
+                  description: "⚠️ Use examQuestionId from start exam response, NOT questionId!"
+                selectedOption:
+                  $ref: "#/components/schemas/AnswerOption"
+              required: [examQuestionId]
+      responses:
+        "200":
+          description: Answer saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          answer:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              examQuestionId:
+                                type: integer
+                              selectedOption:
+                                $ref: "#/components/schemas/AnswerOption"
+                              answeredAt:
+                                type: string
+                                format: date-time
+        "400":
+          description: Invalid examQuestionId, timeout, or already submitted
+    get:
+      tags: [Exam Sessions]
+      summary: Get answers for review (FINISHED only)
+      description: Returns all answers with correctAnswer for completed exams
+      operationId: getExamAnswers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Answers with review data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          answers:
+                            type: array
+                            items:
+                              type: object
+                          total:
+                            type: integer
+
+  /exam-sessions/{id}/submit:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Exam Sessions]
+      summary: Submit exam
+      description: Finalizes the exam, calculates scores, and returns results
+      operationId: submitExam
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam submitted with scores
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          userExam:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              status:
+                                type: string
+                                example: "FINISHED"
+                              submittedAt:
+                                type: string
+                                format: date-time
+                              totalScore:
+                                type: integer
+                          scoresByType:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ScoreByType"
+
+  /results:
+    get:
+      tags: [Exam Sessions]
+      summary: Get user's exam results
+      operationId: getResults
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        "200":
+          description: User's exam results
+
+  # === PROCTORING ENDPOINTS ===
+  /proctoring/events:
+    post:
+      tags: [Proctoring]
+      summary: Log proctoring event
+      operationId: logEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userExamId:
+                  type: integer
+                eventType:
+                  $ref: "#/components/schemas/ProctoringEventType"
+                metadata:
+                  type: object
+              required: [userExamId, eventType]
+      responses:
+        "200":
+          description: Event logged
+
+  /proctoring/exam-sessions/{userExamId}/analyze-face:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Proctoring]
+      summary: Analyze face via YOLO ML
+      description: |
+        **⚠️ CRITICAL: This is the ML integration endpoint for thesis demonstration!**
+
+        Analyzes webcam frame using YOLO face detection.
+        Rate limited to 30 requests/minute.
+      operationId: analyzeFace
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageBase64:
+                  type: string
+                  minLength: 100
+                  description: Base64 encoded image
+              required: [imageBase64]
+      responses:
+        "200":
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          analysis:
+                            $ref: "#/components/schemas/FaceAnalysisResult"
+                          eventLogged:
+                            type: boolean
+                          eventType:
+                            $ref: "#/components/schemas/ProctoringEventType"
+                            nullable: true
+                          usedFallback:
+                            type: boolean
+
+  /proctoring/exam-sessions/{userExamId}/events:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Proctoring]
+      summary: Get proctoring events for session
+      operationId: getEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: eventType
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProctoringEventType"
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/sortOrderParam"
+      responses:
+        "200":
+          description: Proctoring events
+
+  # === TRANSACTION ENDPOINTS ===
+  /transactions/webhook:
+    post:
+      tags: [Transactions]
+      summary: Handle Midtrans webhook
+      description: |
+        **⚠️ CRITICAL: This endpoint must be PUBLIC (no authentication)!**
+
+        Called by Midtrans servers when payment status changes.
+        Signature verification is done in the service layer.
+      operationId: handleWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MidtransNotification"
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transactionId:
+                            type: integer
+                          status:
+                            $ref: "#/components/schemas/TransactionStatus"
+
+  /transactions/config/client-key:
+    get:
+      tags: [Transactions]
+      summary: Get Midtrans client key
+      description: Returns the client key needed for Midtrans Snap integration
+      operationId: getClientKey
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Client key
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          clientKey:
+                            type: string
+
+  /transactions/exam/{examId}/access:
+    parameters:
+      - name: examId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Transactions]
+      summary: Check exam access
+      description: |
+        Checks if the user has access to start an exam.
+        Returns access status and reason (free/paid/pending/not_purchased).
+      operationId: checkExamAccess
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Access check result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          hasAccess:
+                            type: boolean
+                          reason:
+                            type: string
+                            enum: [free, paid, pending, not_purchased]
+                          transaction:
+                            $ref: "#/components/schemas/Transaction"
+                            nullable: true
+                          exam:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                              title:
+                                type: string
+                              price:
+                                type: integer
+                                nullable: true
+
+  /transactions/order/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Transactions]
+      summary: Get transaction by order ID
+      operationId: getTransactionByOrderId
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction details
+        "404":
+          description: Transaction not found
+
+  /transactions:
+    post:
+      tags: [Transactions]
+      summary: Create transaction
+      description: |
+        Creates a new payment transaction for a paid exam.
+        Returns Snap token for Midtrans payment popup.
+
+        **Idempotency:** If a PENDING transaction exists for same user+exam,
+        returns the existing transaction instead of creating a new one.
+      operationId: createTransaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                examId:
+                  type: integer
+              required: [examId]
+      responses:
+        "201":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transaction:
+                            $ref: "#/components/schemas/Transaction"
+                          snapToken:
+                            type: string
+                            description: Midtrans Snap token for payment popup
+                          snapRedirectUrl:
+                            type: string
+                            description: Alternative redirect URL
+                          clientKey:
+                            type: string
+                            description: Midtrans client key
+        "400":
+          description: Exam is free (doesn't require payment)
+        "409":
+          description: User already has access to this exam
+        "502":
+          description: Payment gateway error
+    get:
+      tags: [Transactions]
+      summary: List user's transactions
+      operationId: listTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TransactionStatus"
+        - name: examId
+          in: query
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/sortOrderParam"
+      responses:
+        "200":
+          description: User's transactions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transactions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Transaction"
+                          pagination:
+                            $ref: "#/components/schemas/Pagination"
+
+  /transactions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Transactions]
+      summary: Get transaction by ID
+      operationId: getTransaction
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction details
+        "404":
+          description: Transaction not found
+
+  /transactions/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Transactions]
+      summary: Cancel transaction
+      description: Cancels a PENDING transaction
+      operationId: cancelTransaction
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction cancelled
+        "400":
+          description: Cannot cancel (not PENDING or already processed)
+
+  /transactions/{id}/sync:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Transactions]
+      summary: Sync transaction status
+      description: Manually syncs transaction status from Midtrans
+      operationId: syncTransaction
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction status synced
+
+  # === ADMIN ENDPOINTS ===
+  /admin/users:
+    get:
+      tags: [Users]
+      summary: List all users (admin)
+      operationId: getAdminUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: role
+          in: query
+          schema:
+            $ref: "#/components/schemas/UserRole"
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+    post:
+      tags: [Users]
+      summary: Create user (admin)
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+                role:
+                  $ref: "#/components/schemas/UserRole"
+              required: [email, password, name]
+      responses:
+        "201":
+          description: User created
+
+  /admin/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Users]
+      summary: Get user by ID (admin)
+      operationId: getAdminUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User details
+    patch:
+      tags: [Users]
+      summary: Update user (admin)
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: "#/components/schemas/UserRole"
+                password:
+                  type: string
+      responses:
+        "200":
+          description: User updated
+    delete:
+      tags: [Users]
+      summary: Delete user (admin)
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User deleted
+
+  /admin/questions:
+    get:
+      tags: [Questions]
+      summary: List all questions (admin)
+      operationId: getAdminQuestions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: questionType
+          in: query
+          schema:
+            $ref: "#/components/schemas/QuestionType"
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of questions
+    post:
+      tags: [Questions]
+      summary: Create question (admin)
+      operationId: createQuestion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                options:
+                  $ref: "#/components/schemas/QuestionOptions"
+                correctAnswer:
+                  type: string
+                  enum: [A, B, C, D, E]
+                questionType:
+                  $ref: "#/components/schemas/QuestionType"
+                defaultScore:
+                  type: integer
+                  default: 1
+              required: [content, options, correctAnswer, questionType]
+      responses:
+        "201":
+          description: Question created
+
+  /admin/questions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Questions]
+      summary: Get question by ID (admin)
+      operationId: getAdminQuestion
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Question details
+    patch:
+      tags: [Questions]
+      summary: Update question (admin)
+      operationId: updateQuestion
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Question updated
+    delete:
+      tags: [Questions]
+      summary: Delete question (admin)
+      operationId: deleteQuestion
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Question deleted
+
+  /admin/exams:
+    get:
+      tags: [Exams]
+      summary: List all exams (admin)
+      operationId: getAdminExams
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: createdBy
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of exams
+    post:
+      tags: [Exams]
+      summary: Create exam (admin)
+      operationId: createExam
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                durationMinutes:
+                  type: integer
+                  minimum: 1
+                passingScore:
+                  type: integer
+                  default: 0
+                allowRetake:
+                  type: boolean
+                  default: false
+                maxAttempts:
+                  type: integer
+                  nullable: true
+                price:
+                  type: integer
+                  nullable: true
+                  description: Price in IDR (null = free)
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+              required: [title, durationMinutes]
+      responses:
+        "201":
+          description: Exam created
+
+  /admin/exams/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exams]
+      summary: Get exam by ID (admin)
+      operationId: getAdminExam
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam details
+    patch:
+      tags: [Exams]
+      summary: Update exam (admin)
+      operationId: updateExam
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam updated
+    delete:
+      tags: [Exams]
+      summary: Delete exam (admin)
+      operationId: deleteExam
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam deleted
+
+  /admin/exams/{id}/questions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exams]
+      summary: Get exam questions with answers (admin)
+      operationId: getAdminExamQuestions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam questions with correctAnswer
+    post:
+      tags: [Exams]
+      summary: Attach questions to exam (admin)
+      operationId: attachQuestions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                questionIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [questionIds]
+      responses:
+        "200":
+          description: Questions attached
+    delete:
+      tags: [Exams]
+      summary: Detach questions from exam (admin)
+      operationId: detachQuestions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                questionIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [questionIds]
+      responses:
+        "200":
+          description: Questions detached
+
+  /admin/exam-sessions:
+    get:
+      tags: [Exam Sessions]
+      summary: List all exam sessions (admin)
+      operationId: getAdminExamSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
+        - name: examId
+          in: query
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All exam sessions
+
+  /admin/exam-sessions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get exam session by ID (admin)
+      operationId: getAdminExamSession
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Exam session details
+
+  /admin/exam-sessions/{id}/answers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Exam Sessions]
+      summary: Get answers for any session (admin)
+      operationId: getAdminExamSessionAnswers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All answers with review data
+
+  /admin/results:
+    get:
+      tags: [Exam Sessions]
+      summary: Get all results (admin)
+      operationId: getAllResults
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All results
+
+  /admin/proctoring/events:
+    get:
+      tags: [Proctoring]
+      summary: Get all proctoring events (admin)
+      operationId: getAdminEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: eventType
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProctoringEventType"
+        - name: userExamId
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/sortOrderParam"
+      responses:
+        "200":
+          description: All proctoring events
+
+  /admin/proctoring/exam-sessions/{userExamId}/events:
+    parameters:
+      - name: userExamId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Proctoring]
+      summary: Get proctoring events for any session (admin)
+      operationId: getAdminSessionEvents
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Session proctoring events
+
+  /admin/transactions:
+    get:
+      tags: [Transactions]
+      summary: List all transactions (admin)
+      operationId: listAllTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/TransactionStatus"
+        - name: examId
+          in: query
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/sortOrderParam"
+      responses:
+        "200":
+          description: All transactions
+
+  /admin/transactions/stats:
+    get:
+      tags: [Transactions]
+      summary: Get transaction statistics (admin)
+      operationId: getTransactionStats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          byStatus:
+                            type: object
+                            additionalProperties:
+                              type: integer
+                          totalRevenue:
+                            type: integer
+                          todayRevenue:
+                            type: integer
+
+  /admin/transactions/cleanup:
+    post:
+      tags: [Transactions]
+      summary: Cleanup expired transactions (admin)
+      description: Marks expired PENDING transactions as EXPIRED
+      operationId: cleanupExpiredTransactions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          expiredCount:
+                            type: integer
+
+  /admin/transactions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Transactions]
+      summary: Get any transaction by ID (admin)
+      operationId: getAdminTransaction
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction details
