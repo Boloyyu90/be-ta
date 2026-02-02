@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { validate } from '@/shared/middleware/validate.middleware';
+import { answerLimiter, examSubmitLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { asyncHandler } from '@/shared/utils/route-handler';
 import * as examSessionsController from '../exam-sessions.controller';
 import * as examSessionsValidation from '../exam-sessions.validation';
@@ -49,9 +50,11 @@ participantExamSessionsRouter.get(
  * @route   POST /api/v1/exam-sessions/:id/answers
  * @desc    Submit/update answer (auto-save)
  * @access  Session owner only
+ * @ratelimit answerLimiter: 100 req/min (separate from proctoring to avoid cascade failures)
  */
 participantExamSessionsRouter.post(
   '/:id/answers',
+  answerLimiter,
   validate(examSessionsValidation.submitAnswerSchema),
   asyncHandler(examSessionsController.submitAnswer)
 );
@@ -60,9 +63,11 @@ participantExamSessionsRouter.post(
  * @route   POST /api/v1/exam-sessions/:id/submit
  * @desc    Submit exam and finalize
  * @access  Session owner only
+ * @ratelimit examSubmitLimiter: 10 req/5min (generous for retries)
  */
 participantExamSessionsRouter.post(
   '/:id/submit',
+  examSubmitLimiter,
   validate(examSessionsValidation.submitExamSchema),
   asyncHandler(examSessionsController.submitExam)
 );

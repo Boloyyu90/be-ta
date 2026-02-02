@@ -57,6 +57,63 @@ export const proctoringLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
+/**
+ * Answer submission rate limiter
+ * Applied to exam-session answer endpoints (POST /exam-sessions/:id/answers)
+ *
+ * Reasoning:
+ * - MUST be separate from proctoring limiter to avoid cascade failures
+ * - During exam, proctoring captures happen every 3 seconds (20/min)
+ * - Answer saves happen on user interaction (typically slower)
+ * - CRITICAL: Answer submission should NEVER fail due to proctoring rate limits
+ *
+ * Config: 100 requests per 1 minute per IP
+ * - User can answer 100 questions per minute (more than enough)
+ * - Separate from proctoring's 30/min limit
+ */
+export const answerLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 100, // 100 answer submissions per minute (generous for exam)
+  message: {
+    success: false,
+    message: 'Too many answer submissions, please wait a moment',
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: 'See Retry-After header',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});
+
+/**
+ * Exam submission rate limiter
+ * Applied to final exam submission (POST /exam-sessions/:id/submit)
+ *
+ * Reasoning:
+ * - Final submission is a critical operation
+ * - Should only happen once per exam session
+ * - Generous limit to handle retries on network issues
+ *
+ * Config: 10 requests per 5 minutes per IP
+ */
+export const examSubmitLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minute window
+  max: 10, // 10 submit attempts per 5 minutes
+  message: {
+    success: false,
+    message: 'Too many exam submission attempts, please wait',
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: 'See Retry-After header',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+});
+
 // ============================================================================
 // TRANSACTION RATE LIMITERS
 // ============================================================================
