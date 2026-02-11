@@ -19,7 +19,7 @@ model User {
   createdExams    Exam[]        @relation("ExamCreator")
   tokens          Token[]
   userExams       UserExam[]
-  transactions    Transaction[] // NEW: User payment transactions
+  transactions    Transaction[] // User payment transactions
 
   @@index([email])
   @@index([role])
@@ -68,14 +68,14 @@ model Exam {
   passingScore    Int            @default(0) @map("passing_score")
   allowRetake     Boolean        @default(false) @map("allow_retake")
   maxAttempts     Int?           @map("max_attempts")
-  price           Int?           @map("price") // NEW: Price in IDR (null = free exam)
+  price           Int?           @map("price") // Price in IDR (null = free exam)
   createdBy       Int            @map("created_by")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @default(now()) @map("updated_at")
   examQuestions   ExamQuestion[]
   creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
   userExams       UserExam[]
-  transactions    Transaction[] // NEW: Payment transactions for this exam
+  transactions    Transaction[] // Payment transactions for this exam
 
   @@index([createdBy])
   @@index([startTime])
@@ -152,10 +152,6 @@ model ProctoringEvent {
   @@map("proctoring_events")
 }
 
-// ============================================================================
-// NEW: TRANSACTION MODEL FOR MIDTRANS INTEGRATION
-// ============================================================================
-
 model Transaction {
   id              Int               @id @default(autoincrement())
   orderId         String            @unique @map("order_id") // Midtrans order_id (unique per transaction)
@@ -175,9 +171,6 @@ model Transaction {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
 
-  // Removed: @@unique([userId, examId, status])
-  // Reason: Blocks legitimate flows (multiple EXPIRED/CANCELLED for same user-exam)
-  // Protection handled by application logic in createTransaction()
   @@index([userId])
   @@index([examId])
   @@index([status])

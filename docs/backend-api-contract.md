@@ -162,8 +162,14 @@ type Severity = "LOW" | "MEDIUM" | "HIGH";
 | Auth (login/register) | 5 requests   | 15 minutes |
 | Token Refresh         | 10 requests  | 15 minutes |
 | Proctoring            | 30 requests  | 1 minute   |
+| Answer Submission     | 100 requests | 1 minute   |
+| Exam Submit           | 10 requests  | 5 minutes  |
 | Transactions          | 10 requests  | 15 minutes |
 | Webhook               | 100 requests | 1 minute   |
+
+> **Note:** The global limiter automatically skips routes that have dedicated rate limiters
+> (proctoring, answer submission, exam submit) to prevent double-counting during exam sessions.
+> These routes are exclusively controlled by their own specific limiters listed above.
 
 ### 1.9 MVP Scope Definition
 

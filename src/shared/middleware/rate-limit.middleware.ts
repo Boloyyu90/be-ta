@@ -5,6 +5,22 @@ import { transactionLogger } from '@/shared/utils/logger';
 /**
  * Global rate limiter
  * Applied to all routes
+ *
+ * IMPORTANT: Routes with dedicated rate limiters are SKIPPED to prevent double-counting.
+ *
+ * The platform's primary use case (exam sessions with real-time proctoring + answer auto-save)
+ * generates ~27-35 requests/minute. Without the skip logic, the global limiter exhausts
+ * within 3-4 minutes, causing cascade failures:
+ *
+ * 1. Proctoring 429 → recovery logic waits 35s (designed for 1-min proctoring window)
+ * 2. But global limiter has 15-min window → recovery always fails
+ * 3. After 3 failed recoveries, proctoring permanently pauses
+ * 4. Answer submissions also fail → data loss risk
+ *
+ * By skipping routes that already have their own dedicated limiters, we:
+ * - Eliminate double-counting (proctoring: 30/min, answers: 100/min, submit: 10/5min)
+ * - Let each limiter handle its specific concern independently
+ * - Reserve global limiter for non-exam routes (auth, profile, admin, etc.)
  */
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -12,6 +28,18 @@ export const globalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
+  // Skip routes that already have dedicated rate limiters
+  // This prevents double-counting which exhausts global budget during exam sessions
+  skip: (req) => {
+    const url = req.originalUrl || req.url;
+    // Proctoring routes: protected by proctoringLimiter (30 req/min)
+    if (url.includes('/api/v1/proctoring')) return true;
+    // Answer submission: protected by answerLimiter (100 req/min)
+    if (url.match(/\/api\/v1\/exam-sessions\/\d+\/answers/)) return true;
+    // Exam submit: protected by examSubmitLimiter (10 req/5min)
+    if (url.match(/\/api\/v1\/exam-sessions\/\d+\/submit/)) return true;
+    return false;
+  },
 });
 
 /**
