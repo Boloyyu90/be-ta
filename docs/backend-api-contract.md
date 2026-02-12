@@ -156,20 +156,38 @@ type Severity = "LOW" | "MEDIUM" | "HIGH";
 
 ### 1.8 Rate Limits
 
-| Endpoint Group        | Limit        | Window     |
-| --------------------- | ------------ | ---------- |
-| Global                | 100 requests | 15 minutes |
-| Auth (login/register) | 5 requests   | 15 minutes |
-| Token Refresh         | 10 requests  | 15 minutes |
-| Proctoring            | 30 requests  | 1 minute   |
-| Answer Submission     | 100 requests | 1 minute   |
-| Exam Submit           | 10 requests  | 5 minutes  |
-| Transactions          | 10 requests  | 15 minutes |
-| Webhook               | 100 requests | 1 minute   |
+| Endpoint Group        | Limit        | Window     | Notes                                    |
+| --------------------- | ------------ | ---------- | ---------------------------------------- |
+| Global                | 100 requests | 15 minutes | Skips routes with dedicated limiters     |
+| Auth (login/register) | 5 requests   | 15 minutes | Successful requests not counted          |
+| Token Refresh         | 10 requests  | 15 minutes |                                          |
+| Proctoring            | 30 requests  | 1 minute   |                                          |
+| Answer Submission     | 100 requests | 1 minute   |                                          |
+| Exam Submit           | 10 requests  | 5 minutes  |                                          |
+| Transactions          | 10 requests  | 15 minutes | Configurable via `RATE_LIMIT_TRANSACTION_*` ENV |
+| Webhook               | 100 requests | 1 minute   | Configurable via `RATE_LIMIT_WEBHOOK_*` ENV |
 
-> **Note:** The global limiter automatically skips routes that have dedicated rate limiters
-> (proctoring, answer submission, exam submit) to prevent double-counting during exam sessions.
-> These routes are exclusively controlled by their own specific limiters listed above.
+#### Global Limiter Skip Behavior
+
+The global rate limiter **automatically skips** the following routes to prevent double-counting during exam sessions:
+
+- `/api/v1/proctoring/*` → Protected by `proctoringLimiter` (30 req/min)
+- `/api/v1/exam-sessions/:id/answers` → Protected by `answerLimiter` (100 req/min)
+- `/api/v1/exam-sessions/:id/submit` → Protected by `examSubmitLimiter` (10 req/5min)
+
+**Why?** During an active exam session, proctoring captures (~20/min) + answer saves can quickly exhaust the global limit (100/15min). The skip logic ensures each concern is handled independently.
+
+#### Environment Variables for Rate Limits
+
+```bash
+# Transaction rate limit (default: 10 requests per 15 minutes)
+RATE_LIMIT_TRANSACTION_MAX=10
+RATE_LIMIT_TRANSACTION_WINDOW_MS=900000
+
+# Webhook rate limit (default: 100 requests per 1 minute)
+RATE_LIMIT_WEBHOOK_MAX=100
+RATE_LIMIT_WEBHOOK_WINDOW_MS=60000
+```
 
 ### 1.9 MVP Scope Definition
 
@@ -393,11 +411,14 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 
 ```typescript
 {
-  name?: string,           // 2-100 characters
-  currentPassword?: string, // Required if changing password
-  newPassword?: string     // Min 8 chars, complexity requirements
+  name?: string,    // 2-100 characters
+  password?: string // Min 8 chars, 1 uppercase, 1 lowercase, 1 number
+                    // Note: Directly sets new password without current password verification
 }
 ```
+
+> ⚠️ **Security Note:** Current implementation does NOT require `currentPassword` verification.
+> At least one field must be provided for update.
 
 **Response (200):**
 
@@ -446,6 +467,8 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 - `limit` - Items per page (default: 10, max: 100)
 - `role` - Filter by role (ADMIN | PARTICIPANT)
 - `search` - Search by name or email
+- `sortBy` - Sort field (createdAt | name | email | role) - default: createdAt
+- `sortOrder` - asc | desc (default: desc)
 
 **Response (200):**
 
@@ -519,9 +542,12 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
   name?: string,
   email?: string,
   role?: UserRole,
-  password?: string
+  password?: string,
+  isEmailVerified?: boolean  // Admin can manually verify email
 }
 ```
+
+> At least one field must be provided for update.
 
 **Response (200):**
 
@@ -591,8 +617,10 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 **Query Parameters:**
 
 - `page`, `limit` - Pagination
-- `questionType` - Filter by TIU | TKP | TWK
+- `type` - Filter by TIU | TKP | TWK (Note: param name is `type`, not `questionType`)
 - `search` - Search in content
+- `sortBy` - Sort field: createdAt | questionType | defaultScore (default: createdAt)
+- `sortOrder` - asc | desc (default: desc)
 
 **Response (200):**
 
@@ -618,9 +646,9 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 
 ```typescript
 {
-  content: string,
+  content: string,           // 10-5000 characters
   options: {
-    A: string,
+    A: string,               // Min 1 character each
     B: string,
     C: string,
     D: string,
@@ -628,7 +656,7 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
   },
   correctAnswer: "A" | "B" | "C" | "D" | "E",
   questionType: "TIU" | "TKP" | "TWK",
-  defaultScore?: number  // Default: 1
+  defaultScore?: number      // 1-100, default: 1
 }
 ```
 
@@ -718,8 +746,9 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 
 - `page`, `limit` - Pagination
 - `search` - Search in title/description
-- `sortBy` - Sort field (title | createdAt | durationMinutes)
-- `sortOrder` - asc | desc
+- `sortBy` - Sort field (title | createdAt | updatedAt | startTime) - default: createdAt
+- `sortOrder` - asc | desc (default: desc)
+- `createdBy` - Filter by creator user ID (optional)
 
 **Response (200):**
 
@@ -727,7 +756,7 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 {
   success: true,
   data: {
-    data: ExamWithCount[],  // Includes _count.examQuestions
+    data: ExamWithCount[],  // Includes _count.examQuestions, allowRetake, maxAttempts
     pagination: Pagination
   },
   message: "Exams retrieved successfully",
@@ -834,13 +863,13 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 
 ```typescript
 {
-  title: string,
-  description?: string,
-  durationMinutes: number,      // Min: 1
-  passingScore?: number,        // Default: 0
+  title: string,                // 3-200 characters
+  description?: string,         // Max 2000 characters
+  durationMinutes: number,      // 1-300 (max 5 hours)
+  passingScore?: number,        // Min 0, default: 0
   allowRetake?: boolean,        // Default: false
-  maxAttempts?: number | null,  // Default: null (unlimited when retakes enabled)
-  price?: number | null,        // Default: null (free exam)
+  maxAttempts?: number | null,  // Min 1 if set, default: null (unlimited when retakes enabled)
+  price?: number | null,        // Min 0 if set, default: null (free exam)
   startTime?: string,           // ISO datetime
   endTime?: string              // ISO datetime
 }
@@ -1156,6 +1185,8 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 **Query Parameters:**
 
 - `page`, `limit` - Pagination
+- `status` - Filter by ExamStatus (default: FINISHED)
+- `examId` - Filter by specific exam (optional)
 
 **Response (200):**
 
@@ -1243,6 +1274,13 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
 
 **Access:** Admin only
 
+**Query Parameters:**
+
+- `page`, `limit` - Pagination
+- `examId` - Filter by specific exam (optional)
+- `userId` - Filter by specific user (optional)
+- `status` - Filter by ExamStatus (optional)
+
 **Response (200):**
 
 ```typescript
@@ -1311,19 +1349,36 @@ The following features are explicitly **OUT OF SCOPE** for MVP:
   success: true,
   data: {
     analysis: {
-      faceDetected: boolean,
-      faceCount: number,
-      boundingBoxes: BoundingBox[],
-      confidence: number
+      status: 'success' | 'timeout' | 'error',
+      violations: string[],    // Array of violation types detected
+                               // Possible values: 'NO_FACE_DETECTED', 'MULTIPLE_FACES',
+                               // 'LOOKING_AWAY', 'FACE_DETECTED' (no violation)
+      confidence: number,      // 0.0 to 1.0
+      message: string,         // Human-readable result description
+      metadata?: {
+        processingTimeMs: number,  // Analysis duration in milliseconds
+        error?: string             // Error details if status is 'error'
+      }
     },
-    eventLogged: boolean,
-    eventType: ProctoringEventType | null,
-    usedFallback: boolean
+    eventLogged: boolean,          // true if a violation event was created
+    eventType: ProctoringEventType | null,  // Type of event logged, if any
+    usedFallback: boolean          // true if mock analyzer was used due to ML service failure
   },
   message: "Face analysis completed",
   timestamp: string
 }
 ```
+
+**Analysis Status Values:**
+- `success` - ML analysis completed normally
+- `timeout` - ML service timeout, exam continues (graceful degradation)
+- `error` - ML service error, exam continues (graceful degradation)
+
+**Violation Types:**
+- `NO_FACE_DETECTED` - No face found in image (HIGH severity)
+- `MULTIPLE_FACES` - More than one face detected (HIGH severity)
+- `LOOKING_AWAY` - Face detected but not looking at screen (MEDIUM severity)
+- `FACE_DETECTED` - Face properly detected, no violation (LOW severity, not logged)
 
 ---
 
@@ -1862,6 +1917,7 @@ interface ProctoringEvent {
   id: number;
   userExamId: number;
   eventType: ProctoringEventType;
+  severity: Severity;             // LOW | MEDIUM | HIGH - auto-determined by event type
   metadata: Record<string, any> | null;
   createdAt: string;
 }
@@ -1874,6 +1930,12 @@ interface ProctoringEventWithDetails extends ProctoringEvent {
     exam: { id: number; title: string };
   };
 }
+
+// Severity is auto-determined based on event type:
+// - NO_FACE_DETECTED → HIGH
+// - MULTIPLE_FACES → HIGH
+// - LOOKING_AWAY → MEDIUM
+// - FACE_DETECTED → LOW
 ```
 
 ### 4.8 ScoreByType

@@ -26,8 +26,8 @@ const PROCTORING_EVENT_SELECT = {
   userExamId: true,
   eventType: true,
   metadata: true,
-  timestamp: true,
-  severity: true, // ✅ Added
+  createdAt: true,
+  severity: true,
 } as const;
 
 const PROCTORING_EVENT_WITH_EXAM_SELECT = {
@@ -84,7 +84,7 @@ export const logEvent = async (input: LogEventInput) => {
       eventType,
       severity,
       ...(metadata && { metadata: metadata as Prisma.InputJsonValue }),
-      timestamp: new Date(),
+      createdAt: new Date(),
     },
     select: PROCTORING_EVENT_SELECT,
   });
@@ -124,14 +124,14 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
   };
 
   if (startDate || endDate) {
-    where.timestamp = {};
-    if (startDate) where.timestamp.gte = new Date(startDate);
-    if (endDate) where.timestamp.lte = new Date(endDate);
+    where.createdAt = {};
+    if (startDate) where.createdAt.gte = new Date(startDate);
+    if (endDate) where.createdAt.lte = new Date(endDate);
   }
 
   const skip = (page - 1) * limit;
   const orderBy: Prisma.ProctoringEventOrderByWithRelationInput = {
-    timestamp: sortOrder,
+    createdAt: sortOrder,
   };
 
   const [events, total] = await Promise.all([
@@ -160,14 +160,14 @@ export const getAdminEvents = async (filter: GetAdminEventsQuery) => {
   };
 
   if (startDate || endDate) {
-    where.timestamp = {};
-    if (startDate) where.timestamp.gte = new Date(startDate);
-    if (endDate) where.timestamp.lte = new Date(endDate);
+    where.createdAt = {};
+    if (startDate) where.createdAt.gte = new Date(startDate);
+    if (endDate) where.createdAt.lte = new Date(endDate);
   }
 
   const skip = (page - 1) * limit;
   const orderBy: Prisma.ProctoringEventOrderByWithRelationInput = {
-    timestamp: sortOrder,
+    createdAt: sortOrder,
   };
 
   const [events, total] = await Promise.all([
@@ -327,7 +327,7 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
           eventType,
           severity,
           metadata: eventMetadata,
-          timestamp: new Date(),
+          createdAt: new Date(),
         },
       });
 

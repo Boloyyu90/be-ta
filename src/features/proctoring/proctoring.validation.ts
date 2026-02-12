@@ -138,7 +138,7 @@ export interface ProctoringEventData {
   userExamId: number;
   eventType: ProctoringEventType;
   metadata: Record<string, any> | null;
-  timestamp: Date;
+  createdAt: Date;
   severity: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 

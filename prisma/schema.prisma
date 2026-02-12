@@ -140,14 +140,14 @@ model ProctoringEvent {
   id         Int                 @id @default(autoincrement())
   userExamId Int                 @map("user_exam_id")
   eventType  ProctoringEventType @map("event_type")
-  timestamp  DateTime            @default(now())
+  createdAt  DateTime            @default(now()) @map("created_at")
   severity   String              @default("LOW") // LOW, MEDIUM, HIGH
   metadata   Json?
   userExam   UserExam            @relation(fields: [userExamId], references: [id], onDelete: Cascade)
 
   @@index([userExamId])
   @@index([eventType])
-  @@index([timestamp])
+  @@index([createdAt])
   @@index([severity])
   @@map("proctoring_events")
 }

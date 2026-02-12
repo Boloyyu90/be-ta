@@ -9,11 +9,14 @@ info:
     in the Authorization header: `Authorization: Bearer <token>`
 
     ## Rate Limits
-    - Global: 100 requests / 15 minutes
-    - Auth: 5 requests / 15 minutes
+    - Global: 100 requests / 15 minutes (skips proctoring, answers, submit routes)
+    - Auth: 5 requests / 15 minutes (successful requests not counted)
+    - Token Refresh: 10 requests / 15 minutes
     - Proctoring: 30 requests / 1 minute
-    - Transactions: 10 requests / 15 minutes
-    - Webhook: 100 requests / 1 minute
+    - Answer Submission: 100 requests / 1 minute
+    - Exam Submit: 10 requests / 5 minutes
+    - Transactions: 10 requests / 15 minutes (configurable via ENV)
+    - Webhook: 100 requests / 1 minute (configurable via ENV)
 
     ## Exam Retake System
     The system supports configurable exam retakes:
@@ -401,6 +404,9 @@ components:
           type: integer
         eventType:
           $ref: "#/components/schemas/ProctoringEventType"
+        severity:
+          $ref: "#/components/schemas/Severity"
+          description: Auto-determined based on event type (NO_FACE_DETECTED/MULTIPLE_FACES=HIGH, LOOKING_AWAY=MEDIUM, FACE_DETECTED=LOW)
         metadata:
           type: object
           nullable: true
@@ -411,32 +417,58 @@ components:
         - id
         - userExamId
         - eventType
+        - severity
         - createdAt
 
     FaceAnalysisResult:
       type: object
+      description: |
+        Result from ML face analysis service.
+
+        **Status Values:**
+        - `success`: ML analysis completed normally
+        - `timeout`: ML service timeout, exam continues (graceful degradation)
+        - `error`: ML service error, exam continues (graceful degradation)
+
+        **Violation Types:**
+        - `NO_FACE_DETECTED`: No face found in image (HIGH severity)
+        - `MULTIPLE_FACES`: More than one face detected (HIGH severity)
+        - `LOOKING_AWAY`: Face detected but not looking at screen (MEDIUM severity)
+        - `FACE_DETECTED`: Face properly detected, no violation (LOW severity, not logged)
       properties:
-        faceDetected:
-          type: boolean
-        faceCount:
-          type: integer
-        boundingBoxes:
+        status:
+          type: string
+          enum: [success, timeout, error]
+          description: ML analysis status
+        violations:
           type: array
           items:
-            type: object
-            properties:
-              x:
-                type: number
-              y:
-                type: number
-              width:
-                type: number
-              height:
-                type: number
-              confidence:
-                type: number
+            type: string
+            enum: [NO_FACE_DETECTED, MULTIPLE_FACES, LOOKING_AWAY, FACE_DETECTED]
+          description: Array of detected violations
         confidence:
           type: number
+          minimum: 0
+          maximum: 1
+          description: Detection confidence score (0.0 to 1.0)
+        message:
+          type: string
+          description: Human-readable result description
+        metadata:
+          type: object
+          description: Additional processing information
+          properties:
+            processingTimeMs:
+              type: number
+              description: Analysis duration in milliseconds
+            error:
+              type: string
+              description: Error details if status is 'error'
+      required:
+        - status
+        - violations
+        - confidence
+        - message
 
     ScoreByType:
       type: object
@@ -795,6 +827,11 @@ paths:
     patch:
       tags: [Users]
       summary: Update current user profile
+      description: |
+        Update user's name and/or password. At least one field must be provided.
+
+        **Security Note:** Current implementation does NOT require current password verification
+        when changing password. The new password is set directly.
       operationId: updateMe
       security:
         - bearerAuth: []
@@ -809,11 +846,13 @@ paths:
                   type: string
                   minLength: 2
                   maxLength: 100
-                currentPassword:
-                  type: string
-                newPassword:
+                  description: User's display name
+                password:
                   type: string
                   minLength: 8
+                  description: |
+                    New password. Must contain at least 1 uppercase, 1 lowercase, 1 number.
+                    Note: Does NOT require current password verification.
       responses:
         "200":
           description: Profile updated
@@ -904,14 +943,22 @@ paths:
         - $ref: "#/components/parameters/limitParam"
         - name: search
           in: query
+          description: Search in title/description
           schema:
             type: string
         - name: sortBy
           in: query
+          description: Sort field
           schema:
             type: string
-            enum: [title, createdAt, durationMinutes]
+            enum: [title, createdAt, updatedAt, startTime]
+            default: createdAt
         - $ref: "#/components/parameters/sortOrderParam"
+        - name: createdBy
+          in: query
+          description: Filter by creator user ID
+          schema:
+            type: integer
       responses:
         "200":
           description: List of exams
@@ -1282,6 +1329,16 @@ paths:
       parameters:
         - $ref: "#/components/parameters/pageParam"
         - $ref: "#/components/parameters/limitParam"
+        - name: status
+          in: query
+          description: Filter by exam status (default FINISHED)
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
+        - name: examId
+          in: query
+          description: Filter by specific exam
+          schema:
+            type: integer
       responses:
         "200":
           description: User's exam results
@@ -1687,12 +1744,28 @@ paths:
         - $ref: "#/components/parameters/limitParam"
         - name: role
           in: query
+          description: Filter by user role
           schema:
             $ref: "#/components/schemas/UserRole"
         - name: search
           in: query
+          description: Search by name or email
           schema:
             type: string
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [createdAt, name, email, role]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         "200":
           description: List of users
@@ -1743,6 +1816,7 @@ paths:
     patch:
       tags: [Users]
       summary: Update user (admin)
+      description: Update any user's profile. At least one field must be provided.
       operationId: updateUser
       security:
         - bearerAuth: []
@@ -1762,6 +1836,9 @@ paths:
                   $ref: "#/components/schemas/UserRole"
                 password:
                   type: string
+                isEmailVerified:
+                  type: boolean
+                  description: Admin can manually verify user's email
       responses:
         "200":
           description: User updated
@@ -1785,14 +1862,30 @@ paths:
       parameters:
         - $ref: "#/components/parameters/pageParam"
         - $ref: "#/components/parameters/limitParam"
-        - name: questionType
+        - name: type
           in: query
+          description: Filter by question type (TIU, TKP, TWK). Note param name is 'type', not 'questionType'
           schema:
             $ref: "#/components/schemas/QuestionType"
         - name: search
           in: query
+          description: Search in question content
           schema:
             type: string
+        - name: sortBy
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [createdAt, questionType, defaultScore]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         "200":
           description: List of questions
@@ -1811,6 +1904,9 @@ paths:
               properties:
                 content:
                   type: string
+                  minLength: 10
+                  maxLength: 5000
+                  description: Question content (10-5000 characters)
                 options:
                   $ref: "#/components/schemas/QuestionOptions"
                 correctAnswer:
@@ -1820,7 +1916,10 @@ paths:
                   $ref: "#/components/schemas/QuestionType"
                 defaultScore:
                   type: integer
+                  minimum: 1
+                  maximum: 100
                   default: 1
+                  description: Score for correct answer (1-100)
               required: [content, options, correctAnswer, questionType]
       responses:
         "201":
@@ -1897,30 +1996,45 @@ paths:
               properties:
                 title:
                   type: string
+                  minLength: 3
+                  maxLength: 200
+                  description: Exam title (3-200 characters)
                 description:
                   type: string
+                  maxLength: 2000
+                  description: Optional description (max 2000 characters)
                 durationMinutes:
                   type: integer
                   minimum: 1
+                  maximum: 300
+                  description: Exam duration in minutes (1-300, max 5 hours)
                 passingScore:
                   type: integer
+                  minimum: 0
                   default: 0
+                  description: Minimum score to pass
                 allowRetake:
                   type: boolean
                   default: false
+                  description: Whether users can retake after completion
                 maxAttempts:
                   type: integer
+                  minimum: 1
                   nullable: true
+                  description: Max attempts when retakes enabled (null = unlimited)
                 price:
                   type: integer
+                  minimum: 0
                   nullable: true
-                  description: Price in IDR (null = free)
+                  description: Price in IDR (null = free exam)
                 startTime:
                   type: string
                   format: date-time
+                  description: When exam becomes available
                 endTime:
                   type: string
                   format: date-time
+                  description: When exam is no longer available
               required: [title, durationMinutes]
       responses:
         "201":
@@ -2087,6 +2201,24 @@ paths:
       operationId: getAllResults
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/pageParam"
+        - $ref: "#/components/parameters/limitParam"
+        - name: examId
+          in: query
+          description: Filter by specific exam
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          description: Filter by specific user
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter by exam status
+          schema:
+            $ref: "#/components/schemas/ExamStatus"
       responses:
         "200":
           description: All results
