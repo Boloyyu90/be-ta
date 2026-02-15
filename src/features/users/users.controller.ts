@@ -155,7 +155,7 @@ export const getMyStats = async (
 
   sendSuccess(
     res,
-    { stats },
+    stats,
     SUCCESS_MESSAGES.STATS_RETRIEVED,
     HTTP_STATUS.OK
   );

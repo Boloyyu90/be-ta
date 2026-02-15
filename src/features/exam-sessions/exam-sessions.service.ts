@@ -950,7 +950,10 @@ export const getMyResults = async (userId: number, query: GetMyResultsQuery) => 
 
   const where: Prisma.UserExamWhereInput = {
     userId,
-    ...(status && { status }),    // ✅ conditional
+    ...(status
+        ? { status }
+        : { status: { not: ExamStatus.IN_PROGRESS } }
+    ),
     ...(examId && { examId }),
   };
 
