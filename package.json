@@ -29,8 +29,7 @@
     "db:push": "pnpm exec prisma db push",
     "test": "pnpm exec vitest",
     "test:ci": "pnpm exec vitest --run",
-    "coverage": "pnpm exec vitest run --coverage",
-    "prepare": "pnpm exec husky install"
+    "coverage": "pnpm exec vitest run --coverage"
   },
   "keywords": [
     "Express",

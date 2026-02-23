@@ -56,6 +56,7 @@ import type {
   CleanupResult,
   TokenCleanupResult,
   AnswerWithQuestion,
+  ScoreCalculationResult,
   UserExamListItem,
 } from './exam-sessions.validation';
 
@@ -826,10 +827,45 @@ export const getUserExam = async (userExamId: number, userId: number) => {
       ? getRemainingTime(userExam.startedAt, durationMinutes)
       : null;
 
+  // ✅ Calculate scoresByType for completed sessions
+  // Reuses calculateScore() from exam-sessions.score.ts (same logic as submit)
+  let scoresByType: Array<{
+    type: string;
+    score: number;
+    maxScore: number;
+    correctAnswers: number;
+    totalQuestions: number;
+    passingGrade: number;
+    isPassing: boolean;
+  }> = [];
+
+  if (userExam.status === ExamStatus.FINISHED || userExam.status === ExamStatus.TIMEOUT) {
+    const answers = await prisma.answer.findMany({
+      where: { userExamId: userExam.id },
+      include: {
+        examQuestion: {
+          include: {
+            question: {
+              select: {
+                questionType: true,
+                correctAnswer: true,
+                defaultScore: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const scoreResult = calculateScore(answers as unknown as AnswerWithQuestion[]);
+    scoresByType = scoreResult.scoresByType;
+  }
+
   return {
     ...userExam,
     durationMinutes,
     remainingTimeMs,
+    scoresByType,
   };
 };
 
@@ -943,6 +979,65 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
 };
 
 /**
+ * Batch calculate scoresByType for multiple userExams
+ *
+ * Efficiently fetches all answers for the given userExam IDs in a single query,
+ * groups them by userExamId, then calculates per-category scores for each.
+ *
+ * @param userExamIds - Array of userExam IDs (should be FINISHED or TIMEOUT only)
+ * @returns Map from userExamId to scoresByType array
+ */
+const batchCalculateScoresByType = async (
+  userExamIds: number[]
+): Promise<Map<number, ScoreCalculationResult['scoresByType']>> => {
+  if (userExamIds.length === 0) return new Map();
+
+  // Single query to fetch all answers with question details for all sessions
+  const answers = await prisma.answer.findMany({
+    where: { userExamId: { in: userExamIds } },
+    select: {
+      id: true,
+      selectedOption: true,
+      examQuestionId: true,
+      userExamId: true,
+      examQuestion: {
+        select: {
+          question: {
+            select: {
+              questionType: true,
+              correctAnswer: true,
+              defaultScore: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Group answers by userExamId
+  const answersByExam = new Map<number, AnswerWithQuestion[]>();
+  for (const answer of answers) {
+    const group = answersByExam.get(answer.userExamId) ?? [];
+    group.push({
+      id: answer.id,
+      selectedOption: answer.selectedOption,
+      examQuestionId: answer.examQuestionId,
+      examQuestion: answer.examQuestion,
+    });
+    answersByExam.set(answer.userExamId, group);
+  }
+
+  // Calculate scores per exam
+  const result = new Map<number, ScoreCalculationResult['scoresByType']>();
+  for (const [userExamId, examAnswers] of answersByExam) {
+    const scoreResult = calculateScore(examAnswers);
+    result.set(userExamId, scoreResult.scoresByType);
+  }
+
+  return result;
+};
+
+/**
  * Get user's exam results (participant view)
  */
 export const getMyResults = async (userId: number, query: GetMyResultsQuery) => {
@@ -972,6 +1067,12 @@ export const getMyResults = async (userId: number, query: GetMyResultsQuery) => 
     prisma.userExam.count({ where }),
   ]);
 
+  // Batch calculate scoresByType for FINISHED/TIMEOUT sessions
+  const completedIds = userExams
+    .filter((ue) => ue.status === ExamStatus.FINISHED || ue.status === ExamStatus.TIMEOUT)
+    .map((ue) => ue.id);
+  const scoresMap = await batchCalculateScoresByType(completedIds);
+
   const data: ExamResult[] = userExams.map((ue) => ({
     id: ue.id,
     exam: {
@@ -991,7 +1092,7 @@ export const getMyResults = async (userId: number, query: GetMyResultsQuery) => 
       : null,
     answeredQuestions: ue.answers.filter((a) => a.selectedOption !== null).length,
     totalQuestions: ue.exam.examQuestions.length,
-    scoresByType: [], // Can be populated if needed
+    scoresByType: scoresMap.get(ue.id) ?? [],
   }));
 
   return createPaginatedResponse(data, page, limit, total);
@@ -1024,6 +1125,12 @@ export const getResults = async (query: GetResultsQuery) => {
     prisma.userExam.count({ where }),
   ]);
 
+  // Batch calculate scoresByType for FINISHED/TIMEOUT sessions
+  const completedIds = userExams
+    .filter((ue) => ue.status === ExamStatus.FINISHED || ue.status === ExamStatus.TIMEOUT)
+    .map((ue) => ue.id);
+  const scoresMap = await batchCalculateScoresByType(completedIds);
+
   const data: ExamResult[] = userExams.map((ue) => ({
     id: ue.id,
     exam: {
@@ -1043,7 +1150,7 @@ export const getResults = async (query: GetResultsQuery) => {
     answeredQuestions: ue.answers.filter((a) => a.selectedOption !== null).length,
     totalQuestions: ue.exam.examQuestions.length,
     attemptNumber: ue.attemptNumber,
-    scoresByType: [],
+    scoresByType: scoresMap.get(ue.id) ?? [],
   }));
 
   return createPaginatedResponse(data, page, limit, total);
