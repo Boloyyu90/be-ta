@@ -110,8 +110,8 @@ model UserExam {
   submittedAt      DateTime?         @map("submitted_at")
   answers          Answer[]
   proctoringEvents ProctoringEvent[]
-  exam             Exam              @relation(fields: [examId], references: [id], onDelete: Cascade)
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam             Exam              @relation(fields: [examId], references: [id], onDelete: Restrict)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([userId, examId, attemptNumber])
   @@index([userId])
@@ -141,7 +141,7 @@ model ProctoringEvent {
   userExamId Int                 @map("user_exam_id")
   eventType  ProctoringEventType @map("event_type")
   createdAt  DateTime            @default(now()) @map("created_at")
-  severity   String              @default("LOW") // LOW, MEDIUM, HIGH
+  severity   ProctoringSeverity  @default(LOW)
   metadata   Json?
   userExam   UserExam            @relation(fields: [userExamId], references: [id], onDelete: Cascade)
 
@@ -168,8 +168,8 @@ model Transaction {
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([examId])
@@ -206,6 +206,13 @@ enum ProctoringEventType {
   NO_FACE_DETECTED
   MULTIPLE_FACES
   LOOKING_AWAY
+}
+
+enum ProctoringSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum TokenType {
