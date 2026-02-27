@@ -42,5 +42,5 @@ coverage/
 info.txt
 src/logs/
 
-.claude
-.idea
+.claude/
+.idea/
