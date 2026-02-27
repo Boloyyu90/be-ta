@@ -54,9 +54,8 @@ export const createUser = async (input: CreateUserInput) => {
   });
 
   if (existingUser) {
-    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, ERROR_CODES.AUTH_EMAIL_EXISTS, {
       email,
-      errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
     });
   }
 
@@ -134,9 +133,8 @@ export const getUserById = async (id: number) => {
   });
 
   if (!user) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, ERROR_CODES.USER_NOT_FOUND, {
       userId: id,
-      errorCode: ERROR_CODES.USER_NOT_FOUND,
     });
   }
 
@@ -157,9 +155,8 @@ export const getMe = async (userId: number) => {
   });
 
   if (!user) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, ERROR_CODES.USER_NOT_FOUND, {
       userId,
-      errorCode: ERROR_CODES.USER_NOT_FOUND,
     });
   }
 
@@ -182,9 +179,8 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
   });
 
   if (!existingUser) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, ERROR_CODES.USER_NOT_FOUND, {
       userId: id,
-      errorCode: ERROR_CODES.USER_NOT_FOUND,
     });
   }
 
@@ -195,10 +191,9 @@ export const updateUser = async (id: number, data: UpdateUserInput) => {
     });
 
     if (emailExists) {
-      throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
+      throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, ERROR_CODES.AUTH_EMAIL_EXISTS, {
         email: data.email,
         userId: id,
-        errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
       });
     }
   }
@@ -235,9 +230,8 @@ export const updateMe = async (userId: number, data: UpdateMeInput) => {
   });
 
   if (!existingUser) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, ERROR_CODES.USER_NOT_FOUND, {
       userId,
-      errorCode: ERROR_CODES.USER_NOT_FOUND,
     });
   }
 
@@ -280,9 +274,8 @@ export const deleteUser = async (id: number) => {
   });
 
   if (!existingUser) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND, ERROR_CODES.USER_NOT_FOUND, {
       userId: id,
-      errorCode: ERROR_CODES.USER_NOT_FOUND,
     });
   }
 
@@ -290,10 +283,10 @@ export const deleteUser = async (id: number) => {
   if (existingUser._count.userExams > 0) {
     throw new BadRequestError(
       ERROR_MESSAGES.USER_HAS_EXAM_ATTEMPTS,
+      ERROR_CODES.USER_HAS_EXAM_ATTEMPTS,
       {
         userId: id,
         examAttempts: existingUser._count.userExams,
-        errorCode: ERROR_CODES.USER_HAS_EXAM_ATTEMPTS,
       }
     );
   }
@@ -302,10 +295,10 @@ export const deleteUser = async (id: number) => {
   if (existingUser._count.createdExams > 0) {
     throw new BadRequestError(
       ERROR_MESSAGES.USER_HAS_CREATED_EXAMS,
+      ERROR_CODES.USER_HAS_CREATED_EXAMS,
       {
         userId: id,
         createdExams: existingUser._count.createdExams,
-        errorCode: ERROR_CODES.USER_HAS_CREATED_EXAMS,
       }
     );
   }

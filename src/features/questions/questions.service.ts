@@ -79,19 +79,17 @@ export const createQuestion = async (input: CreateQuestionInput) => {
 
   // Validate options format
   if (!validateOptions(options)) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, ERROR_CODES.QUESTION_INVALID_OPTIONS, {
       providedKeys: Object.keys(options),
       expectedKeys: ['A', 'B', 'C', 'D', 'E'],
-      errorCode: ERROR_CODES.QUESTION_INVALID_OPTIONS,
     });
   }
 
   // Validate correct answer
   if (!validateCorrectAnswer(correctAnswer, options)) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, ERROR_CODES.QUESTION_INVALID_ANSWER, {
       correctAnswer,
       availableOptions: Object.keys(options),
-      errorCode: ERROR_CODES.QUESTION_INVALID_ANSWER,
     });
   }
 
@@ -164,9 +162,8 @@ export const getQuestionById = async (id: number) => {
   });
 
   if (!question) {
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, ERROR_CODES.QUESTION_NOT_FOUND, {
       questionId: id,
-      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
     });
   }
 
@@ -190,18 +187,16 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
   });
 
   if (!existingQuestion) {
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, ERROR_CODES.QUESTION_NOT_FOUND, {
       questionId: id,
-      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
     });
   }
 
   // Validate options if provided
   if (data.options && !validateOptions(data.options)) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_OPTIONS_FORMAT, ERROR_CODES.QUESTION_INVALID_OPTIONS, {
       providedKeys: Object.keys(data.options),
       expectedKeys: ['A', 'B', 'C', 'D', 'E'],
-      errorCode: ERROR_CODES.QUESTION_INVALID_OPTIONS,
     });
   }
 
@@ -209,10 +204,9 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
   if (data.correctAnswer) {
     const optionsToCheck = (data.options || existingQuestion.options) as QuestionOptions;
     if (!validateCorrectAnswer(data.correctAnswer, optionsToCheck)) {
-      throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_CORRECT_ANSWER, ERROR_CODES.QUESTION_INVALID_ANSWER, {
         correctAnswer: data.correctAnswer,
         availableOptions: Object.keys(optionsToCheck),
-        errorCode: ERROR_CODES.QUESTION_INVALID_ANSWER,
       });
     }
   }
@@ -254,9 +248,8 @@ export const deleteQuestion = async (id: number) => {
   });
 
   if (!question) {
-    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.QUESTION_NOT_FOUND, ERROR_CODES.QUESTION_NOT_FOUND, {
       questionId: id,
-      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
     });
   }
 

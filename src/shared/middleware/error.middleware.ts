@@ -8,7 +8,9 @@ import { AppError } from '@/shared/errors/app-errors';
 
 /**
  * Centralized error handler middleware
- * Handles all errors thrown in the application and formats them consistently
+ *
+ * Order matters: check known error types first (warn level),
+ * then fall through to truly unexpected errors (error level).
  */
 export const errorHandler = (
   error: Error,
@@ -16,9 +18,16 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  // Handle custom application errors (operational errors)
+  const requestInfo = {
+    method: req.method,
+    url: req.url,
+    params: req.params,
+    query: req.query,
+    userId: req.user?.id,
+  };
+
+  // 1. Handle custom application errors (operational errors)
   if (error instanceof AppError && error.isOperational) {
-    // Operational errors are expected and should be logged as warnings
     logger.warn(
       {
         error: {
@@ -26,15 +35,9 @@ export const errorHandler = (
           statusCode: error.statusCode,
           errorCode: error.errorCode,
           name: error.name,
-          context: error.context, // Include context for debugging
+          context: error.context,
         },
-        request: {
-          method: req.method,
-          url: req.url,
-          params: req.params,
-          query: req.query,
-          userId: req.user?.id, // Include user info if available
-        },
+        request: requestInfo,
       },
       'Operational error occurred'
     );
@@ -43,34 +46,29 @@ export const errorHandler = (
       res,
       error.message,
       error.statusCode,
-      undefined, // No validation errors for operational errors
+      undefined,
       error.errorCode,
-      env.NODE_ENV === 'development' ? error.context : undefined // Only show context in dev
+      env.NODE_ENV === 'development'
+        ? { ...error.context, stack: error.stack }
+        : undefined
     );
   }
 
-  // All other errors are unexpected and should be logged with full details
-  logger.error(
-    {
-      error: {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-      },
-      request: {
-        method: req.method,
-        url: req.url,
-        body: req.body,
-        params: req.params,
-        query: req.query,
-        userId: req.user?.id,
-      },
-    },
-    'Unexpected error occurred'
-  );
-
-  // Handle Prisma errors
+  // 2. Handle Prisma errors (known, expected -- log as warn)
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    logger.warn(
+      {
+        error: {
+          message: error.message,
+          code: error.code,
+          meta: error.meta,
+          name: error.name,
+        },
+        request: requestInfo,
+      },
+      `Prisma known error: ${error.code}`
+    );
+
     if (error.code === 'P2002') {
       const field = (error.meta?.target as string[])?.[0] || 'field';
       return sendError(
@@ -123,6 +121,14 @@ export const errorHandler = (
   }
 
   if (error instanceof Prisma.PrismaClientValidationError) {
+    logger.warn(
+      {
+        error: { message: error.message, name: error.name },
+        request: requestInfo,
+      },
+      'Prisma validation error'
+    );
+
     return sendError(
       res,
       'Invalid data provided',
@@ -132,8 +138,16 @@ export const errorHandler = (
     );
   }
 
-  // Handle JWT errors
+  // 3. Handle JWT errors (known, expected -- log as warn)
   if (error.name === 'JsonWebTokenError') {
+    logger.warn(
+      {
+        error: { message: error.message, name: error.name },
+        request: requestInfo,
+      },
+      'JWT validation error'
+    );
+
     return sendError(
       res,
       'Invalid token',
@@ -144,6 +158,14 @@ export const errorHandler = (
   }
 
   if (error.name === 'TokenExpiredError') {
+    logger.warn(
+      {
+        error: { message: error.message, name: error.name },
+        request: requestInfo,
+      },
+      'JWT token expired'
+    );
+
     return sendError(
       res,
       'Token expired',
@@ -153,7 +175,22 @@ export const errorHandler = (
     );
   }
 
-  // Default - internal server error
+  // 4. Truly unexpected errors -- log at error level
+  logger.error(
+    {
+      error: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      },
+      request: {
+        ...requestInfo,
+        body: req.body,
+      },
+    },
+    'Unexpected error occurred'
+  );
+
   const message =
     env.NODE_ENV === 'development' ? error.message : 'Internal server error';
 
@@ -162,7 +199,8 @@ export const errorHandler = (
     message,
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     undefined,
-    'INTERNAL_ERROR'
+    'INTERNAL_ERROR',
+    env.NODE_ENV === 'development' ? { stack: error.stack } : undefined
   );
 };
 

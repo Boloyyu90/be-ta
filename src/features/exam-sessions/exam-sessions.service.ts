@@ -20,6 +20,7 @@ import {
   NotFoundError,
   BadRequestError,
   BusinessLogicError,
+  ConflictError,
   UnauthorizedError,
 } from '@/shared/errors/app-errors';
 import { logger } from '@/shared/utils/logger';
@@ -212,10 +213,9 @@ export const startExam = async (userId: number, examId: number) => {
   });
 
   if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, ERROR_CODES.EXAM_NOT_FOUND, {
       examId,
       userId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
     });
   }
 
@@ -295,10 +295,9 @@ export const startExam = async (userId: number, examId: number) => {
     );
 
     if (!userExam) {
-      throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, {
+      throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, ERROR_CODES.EXAM_SESSION_CREATE_FAILED, {
         examId,
         userId,
-        errorCode: ERROR_CODES.EXAM_SESSION_CREATE_FAILED,
       });
     }
 
@@ -389,42 +388,53 @@ export const startExam = async (userId: number, examId: number) => {
         }
       );
     }
+
   }
 
-  // Create new attempt
-  const userExam = await prisma.userExam.create({
-    data: {
-      userId,
-      examId,
-      attemptNumber: newAttemptNumber,
-      startedAt: new Date(),
-      status: ExamStatus.IN_PROGRESS,
-    },
-    include: {
-      exam: {
-        include: {
-          examQuestions: {
-            include: { question: true },
-            orderBy: { orderNumber: 'asc' },
+  // Create new attempt — wrapped in try-catch to handle race condition
+  // The partial unique index "user_exams_active_session_unique" ensures only
+  // one IN_PROGRESS session per user+exam at the database level.
+  // startedAt is omitted — filled by DB DEFAULT NOW() for time authority.
+  let userExam;
+  try {
+    userExam = await prisma.userExam.create({
+      data: {
+        userId,
+        examId,
+        attemptNumber: newAttemptNumber,
+        status: ExamStatus.IN_PROGRESS,
+        transactionId: accessCheck.transaction?.orderId ?? null,
+      },
+      include: {
+        exam: {
+          include: {
+            examQuestions: {
+              include: { question: true },
+              orderBy: { orderNumber: 'asc' },
+            },
           },
         },
+        answers: true,
       },
-      answers: true,
-    },
-  });
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictError(
+        ERROR_MESSAGES.EXAM_SESSION_ACTIVE_EXISTS,
+        ERROR_CODES.EXAM_SESSION_ACTIVE_CONFLICT,
+        { examId, userId }
+      );
+    }
+    throw error;
+  }
 
   logger.info(
     { userId, examId, userExamId: userExam.id, attemptNumber: newAttemptNumber },
     'New exam session created'
   );
-
-  if (!userExam) {
-    throw new BadRequestError(ERROR_MESSAGES.FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION, {
-      examId,
-      userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_CREATE_FAILED,
-    });
-  }
 
   // Prepare response
   const remainingTimeMs = getRemainingTime(userExam.startedAt!, exam.durationMinutes);
@@ -486,19 +496,17 @@ export const submitAnswer = async (
     });
 
     if (!userExam) {
-      throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
+      throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
         userExamId,
         userId,
-        errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
       });
     }
 
     if (userExam.userId !== userId) {
-      throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
+      throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, ERROR_CODES.UNAUTHORIZED, {
         userExamId,
         userId,
         ownerId: userExam.userId,
-        errorCode: ERROR_CODES.UNAUTHORIZED,
       });
     }
 
@@ -536,11 +544,10 @@ export const submitAnswer = async (
     );
 
     if (!examQuestion) {
-      throw new BadRequestError(ERROR_MESSAGES.INVALID_EXAM_QUESTION_FOR_EXAM, {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_EXAM_QUESTION_FOR_EXAM, ERROR_CODES.EXAM_SESSION_INVALID_QUESTION, {
         userExamId,
         examQuestionId: data.examQuestionId,
         examId: userExam.examId,
-        errorCode: ERROR_CODES.EXAM_SESSION_INVALID_QUESTION,
       });
     }
 
@@ -612,19 +619,17 @@ export const submitExam = async (userExamId: number, userId: number) => {
       });
 
       if (!userExam) {
-        throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
+        throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
           userExamId,
           userId,
-          errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
         });
       }
 
       if (userExam.userId !== userId) {
-        throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, {
+        throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, ERROR_CODES.UNAUTHORIZED, {
           userExamId,
           userId,
           ownerId: userExam.userId,
-          errorCode: ERROR_CODES.UNAUTHORIZED,
         });
       }
 
@@ -803,19 +808,17 @@ export const getUserExam = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EXAM_SESSION, {
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EXAM_SESSION, ERROR_CODES.EXAM_SESSION_UNAUTHORIZED, {
       userExamId,
       userId,
       ownerId: userExam.userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
     });
   }
 
@@ -888,19 +891,17 @@ export const getExamQuestions = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, ERROR_CODES.EXAM_SESSION_UNAUTHORIZED, {
       userExamId,
       userId,
       ownerId: userExam.userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
     });
   }
 
@@ -936,19 +937,17 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_SESSION_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, ERROR_CODES.EXAM_SESSION_UNAUTHORIZED, {
       userExamId,
       userId,
       ownerId: userExam.userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
     });
   }
 

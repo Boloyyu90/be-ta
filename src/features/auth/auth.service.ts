@@ -3,7 +3,8 @@ import { prisma } from '@/config/database';
 import { hash, compare, sha256 } from '@/shared/utils/hash';
 import { generateTokens, verifyRefreshToken } from '@/shared/utils/jwt';
 import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
-import { ConflictError, UnauthorizedError, NotFoundError } from '@/shared/errors/app-errors';
+import { BadRequestError, UnauthorizedError, NotFoundError } from '@/shared/errors/app-errors';
+import { authLogger } from '@/shared/utils/logger';
 import type { RegisterInput, LoginInput } from './auth.validation';
 
 // ==================== PRISMA SELECT OBJECTS ====================
@@ -38,7 +39,7 @@ const USER_WITH_PASSWORD_SELECT = {
  *
  * @param input - Registration data (email, password, name)
  * @returns User data and authentication tokens
- * @throws {ConflictError} If email already exists
+ * @throws {BadRequestError} If registration cannot be completed (generic to prevent user enumeration)
  */
 export const register = async (input: RegisterInput) => {
   const { email, password, name } = input;
@@ -49,10 +50,12 @@ export const register = async (input: RegisterInput) => {
   });
 
   if (existingUser) {
-    throw new ConflictError(ERROR_MESSAGES.EMAIL_EXISTS, {
-      email,
-      errorCode: ERROR_CODES.AUTH_EMAIL_EXISTS,
-    });
+    authLogger.registerFailed({ email, reason: 'email_already_exists' });
+    throw new BadRequestError(
+      ERROR_MESSAGES.REGISTRATION_FAILED,
+      ERROR_CODES.AUTH_EMAIL_EXISTS,
+      { email }
+    );
   }
 
   // Hash password
@@ -71,6 +74,8 @@ export const register = async (input: RegisterInput) => {
 
   // Generate tokens
   const tokens = await generateTokens(user.id, user.role);
+
+  authLogger.registerSuccess({ email, userId: user.id });
 
   return {
     user,
@@ -95,20 +100,24 @@ export const login = async (input: LoginInput) => {
   });
 
   if (!user) {
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS, {
-      email,
-      errorCode: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
-    });
+    authLogger.loginFailed({ email, reason: 'user_not_found' });
+    throw new UnauthorizedError(
+      ERROR_MESSAGES.INVALID_CREDENTIALS,
+      ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+      { email }
+    );
   }
 
   // Verify password
   const isPasswordValid = await compare(password, user.password);
 
   if (!isPasswordValid) {
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_CREDENTIALS, {
-      email,
-      errorCode: ERROR_CODES.AUTH_INVALID_CREDENTIALS,
-    });
+    authLogger.loginFailed({ email, reason: 'invalid_password' });
+    throw new UnauthorizedError(
+      ERROR_MESSAGES.INVALID_CREDENTIALS,
+      ERROR_CODES.AUTH_INVALID_CREDENTIALS,
+      { email }
+    );
   }
 
   // Generate tokens
@@ -116,6 +125,8 @@ export const login = async (input: LoginInput) => {
 
   // Remove password from response
   const { password: _, ...userWithoutPassword } = user;
+
+  authLogger.loginSuccess({ email, userId: user.id });
 
   return {
     user: userWithoutPassword,
@@ -151,9 +162,11 @@ export const refreshAccessToken = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    throw new UnauthorizedError(ERROR_MESSAGES.INVALID_REFRESH_TOKEN, {
-      errorCode: ERROR_CODES.AUTH_INVALID_TOKEN,
-    });
+    authLogger.tokenInvalid({ reason: 'refresh_token_not_found' });
+    throw new UnauthorizedError(
+      ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
+      ERROR_CODES.AUTH_INVALID_TOKEN
+    );
   }
 
   // Generate new tokens
@@ -163,6 +176,8 @@ export const refreshAccessToken = async (refreshToken: string) => {
   await prisma.token.delete({
     where: { id: tokenDoc.id },
   });
+
+  authLogger.tokenRefreshed({ userId: tokenDoc.user.id });
 
   return tokens;
 };
@@ -181,14 +196,17 @@ export const logout = async (refreshToken: string) => {
   });
 
   if (!tokenDoc) {
-    throw new NotFoundError(ERROR_MESSAGES.TOKEN_NOT_FOUND, {
-      errorCode: ERROR_CODES.AUTH_INVALID_TOKEN,
-    });
+    throw new NotFoundError(
+      ERROR_MESSAGES.TOKEN_NOT_FOUND,
+      ERROR_CODES.AUTH_INVALID_TOKEN
+    );
   }
 
   await prisma.token.delete({
     where: { id: tokenDoc.id },
   });
+
+  authLogger.logoutSuccess({ userId: tokenDoc.userId });
 
   return { success: true };
 };

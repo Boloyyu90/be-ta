@@ -41,8 +41,8 @@ export class AppError extends Error {
  * Error ketika resource tidak ditemukan (404)
  */
 export class NotFoundError extends AppError {
-  constructor(message: string = 'Resource not found', context?: ErrorContext) {
-    super(message, HTTP_STATUS.NOT_FOUND, undefined, context);
+  constructor(message: string = 'Resource not found', errorCode?: string, context?: ErrorContext) {
+    super(message, HTTP_STATUS.NOT_FOUND, errorCode, context);
     Object.setPrototypeOf(this, NotFoundError.prototype);
   }
 }
@@ -52,8 +52,8 @@ export class NotFoundError extends AppError {
  * Contoh: email sudah terdaftar, data duplikat
  */
 export class ConflictError extends AppError {
-  constructor(message: string = 'Resource already exists', context?: ErrorContext) {
-    super(message, HTTP_STATUS.CONFLICT, undefined, context);
+  constructor(message: string = 'Resource already exists', errorCode?: string, context?: ErrorContext) {
+    super(message, HTTP_STATUS.CONFLICT, errorCode, context);
     Object.setPrototypeOf(this, ConflictError.prototype);
   }
 }
@@ -62,8 +62,8 @@ export class ConflictError extends AppError {
  * Error ketika request tidak valid (400)
  */
 export class BadRequestError extends AppError {
-  constructor(message: string = 'Invalid request', context?: ErrorContext) {
-    super(message, HTTP_STATUS.BAD_REQUEST, undefined, context);
+  constructor(message: string = 'Invalid request', errorCode?: string, context?: ErrorContext) {
+    super(message, HTTP_STATUS.BAD_REQUEST, errorCode, context);
     Object.setPrototypeOf(this, BadRequestError.prototype);
   }
 }
@@ -72,8 +72,8 @@ export class BadRequestError extends AppError {
  * Error ketika user tidak terautentikasi (401)
  */
 export class UnauthorizedError extends AppError {
-  constructor(message: string = 'Unauthorized', context?: ErrorContext) {
-    super(message, HTTP_STATUS.UNAUTHORIZED, ERROR_CODES.UNAUTHORIZED, context);
+  constructor(message: string = 'Unauthorized', errorCode?: string, context?: ErrorContext) {
+    super(message, HTTP_STATUS.UNAUTHORIZED, errorCode ?? ERROR_CODES.UNAUTHORIZED, context);
     Object.setPrototypeOf(this, UnauthorizedError.prototype);
   }
 }
@@ -82,8 +82,8 @@ export class UnauthorizedError extends AppError {
  * Error ketika user tidak memiliki permission (403)
  */
 export class ForbiddenError extends AppError {
-  constructor(message: string = 'Forbidden', context?: ErrorContext) {
-    super(message, HTTP_STATUS.FORBIDDEN, ERROR_CODES.FORBIDDEN, context);
+  constructor(message: string = 'Forbidden', errorCode?: string, context?: ErrorContext) {
+    super(message, HTTP_STATUS.FORBIDDEN, errorCode ?? ERROR_CODES.FORBIDDEN, context);
     Object.setPrototypeOf(this, ForbiddenError.prototype);
   }
 }

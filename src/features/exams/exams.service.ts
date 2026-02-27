@@ -133,18 +133,16 @@ const verifyOwnership = async (examId: number, userId: number) => {
   });
 
   if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, ERROR_CODES.EXAM_NOT_FOUND, {
       examId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
     });
   }
 
   if (exam.createdBy !== userId) {
-    throw new ForbiddenError(ERROR_MESSAGES.NOT_EXAM_CREATOR, {
+    throw new ForbiddenError(ERROR_MESSAGES.NOT_EXAM_CREATOR, ERROR_CODES.EXAM_NOT_CREATOR, {
       examId,
       userId,
       createdBy: exam.createdBy,
-      errorCode: ERROR_CODES.EXAM_NOT_CREATOR,
     });
   }
 
@@ -181,9 +179,8 @@ const canDeleteExam = async (examId: number): Promise<{ canDelete: boolean; reas
   });
 
   if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, ERROR_CODES.EXAM_NOT_FOUND, {
       examId,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
     });
   }
 
@@ -222,11 +219,10 @@ export const createExam = async (userId: number, input: CreateExamInput) => {
   });
 
   if (existingExam) {
-    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_EXAM_TITLE, {
+    throw new ConflictError(ERROR_MESSAGES.DUPLICATE_EXAM_TITLE, ERROR_CODES.EXAM_DUPLICATE_TITLE, {
       title,
       userId,
       existingExamId: existingExam.id,
-      errorCode: ERROR_CODES.EXAM_DUPLICATE_TITLE,
     });
   }
 
@@ -314,9 +310,8 @@ export const getExamById = async (id: number, includeQuestions: boolean = false,
   });
 
   if (!exam) {
-    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.EXAM_NOT_FOUND, ERROR_CODES.EXAM_NOT_FOUND, {
       examId: id,
-      errorCode: ERROR_CODES.EXAM_NOT_FOUND,
     });
   }
 
@@ -466,11 +461,10 @@ export const attachQuestions = async (examId: number, userId: number, input: Att
   if (questions.length !== questionIds.length) {
     const foundIds = questions.map((q) => q.id);
     const missingIds = questionIds.filter((id) => !foundIds.includes(id));
-    throw new NotFoundError(ERROR_MESSAGES.QUESTIONS_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.QUESTIONS_NOT_FOUND, ERROR_CODES.QUESTION_NOT_FOUND, {
       examId,
       requestedIds: questionIds,
       missingIds,
-      errorCode: ERROR_CODES.QUESTION_NOT_FOUND,
     });
   }
 

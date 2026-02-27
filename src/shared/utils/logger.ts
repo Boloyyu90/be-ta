@@ -234,3 +234,67 @@ export const transactionLogger = {
     );
   },
 };
+
+// ============================================================================
+// AUTH-SPECIFIC LOGGING HELPERS
+// ============================================================================
+
+export interface AuthLogContext {
+  userId?: number;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+export const authLogger = {
+  loginSuccess: (context: AuthLogContext) => {
+    logger.info(
+      { event: 'auth.login.success', ...sanitize(context) },
+      `Login successful for user ${context.userId ?? context.email}`
+    );
+  },
+
+  loginFailed: (context: AuthLogContext) => {
+    logger.warn(
+      { event: 'auth.login.failed', ...sanitize(context) },
+      `Login failed for ${context.email}: ${context.reason ?? 'invalid credentials'}`
+    );
+  },
+
+  registerSuccess: (context: AuthLogContext) => {
+    logger.info(
+      { event: 'auth.register.success', ...sanitize(context) },
+      `Registration successful for ${context.email}`
+    );
+  },
+
+  registerFailed: (context: AuthLogContext) => {
+    logger.warn(
+      { event: 'auth.register.failed', ...sanitize(context) },
+      `Registration failed for ${context.email}: ${context.reason ?? 'unknown'}`
+    );
+  },
+
+  tokenRefreshed: (context: AuthLogContext) => {
+    logger.info(
+      { event: 'auth.token.refreshed', ...sanitize(context) },
+      `Token refreshed for user ${context.userId}`
+    );
+  },
+
+  tokenInvalid: (context: AuthLogContext) => {
+    logger.warn(
+      { event: 'auth.token.invalid', ...sanitize(context) },
+      `Invalid token attempt: ${context.reason ?? 'unknown'}`
+    );
+  },
+
+  logoutSuccess: (context: AuthLogContext) => {
+    logger.info(
+      { event: 'auth.logout.success', ...sanitize(context) },
+      `Logout successful for user ${context.userId}`
+    );
+  },
+};

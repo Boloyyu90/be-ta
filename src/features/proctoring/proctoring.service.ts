@@ -69,9 +69,8 @@ export const logEvent = async (input: LogEventInput) => {
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
@@ -104,17 +103,15 @@ export const getEvents = async (userExamId: number, userId: number, filter: GetE
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EVENTS, {
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_VIEW_EVENTS, ERROR_CODES.EXAM_SESSION_UNAUTHORIZED, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
     });
   }
 
@@ -204,17 +201,15 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
   });
 
   if (!userExam) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, {
+    throw new NotFoundError(ERROR_MESSAGES.USER_EXAM_NOT_FOUND, ERROR_CODES.EXAM_SESSION_NOT_FOUND, {
       userExamId,
-      errorCode: ERROR_CODES.EXAM_SESSION_NOT_FOUND,
     });
   }
 
   if (userExam.userId !== userId) {
-    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, {
+    throw new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION, ERROR_CODES.EXAM_SESSION_UNAUTHORIZED, {
       userExamId,
       userId,
-      errorCode: ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
     });
   }
 

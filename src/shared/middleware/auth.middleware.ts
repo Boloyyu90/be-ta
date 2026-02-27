@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '@prisma/client';
 import { verifyAccessToken } from '@/shared/utils/jwt';
-import { sendError } from '@/shared/utils/response';
-import { HTTP_STATUS, ERROR_MESSAGES } from '@/config/constants';
+import { ERROR_MESSAGES, ERROR_CODES } from '@/config/constants';
+import { UnauthorizedError, ForbiddenError } from '@/shared/errors/app-errors';
+import { authLogger } from '@/shared/utils/logger';
 
 export const authenticate = async (
   req: Request,
@@ -13,7 +14,10 @@ export const authenticate = async (
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      return sendError(res, ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+      authLogger.tokenInvalid({ ip: req.ip, reason: 'missing_bearer_token' });
+      return next(
+        new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, ERROR_CODES.AUTH_INVALID_TOKEN)
+      );
     }
 
     const token = authHeader.substring(7);
@@ -26,18 +30,25 @@ export const authenticate = async (
 
     next();
   } catch (error) {
-    sendError(res, 'Invalid or expired token', HTTP_STATUS.UNAUTHORIZED);
+    // JWT errors (JsonWebTokenError, TokenExpiredError) will be
+    // forwarded to the global error handler which already handles them
+    authLogger.tokenInvalid({ ip: req.ip, reason: 'jwt_verification_failed' });
+    next(error);
   }
 };
 
 export const authorize = (...allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return sendError(res, ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+      return next(
+        new UnauthorizedError(ERROR_MESSAGES.UNAUTHORIZED, ERROR_CODES.AUTH_INVALID_TOKEN)
+      );
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      return sendError(res, ERROR_MESSAGES.FORBIDDEN, HTTP_STATUS.FORBIDDEN);
+      return next(
+        new ForbiddenError(ERROR_MESSAGES.FORBIDDEN, ERROR_CODES.FORBIDDEN)
+      );
     }
 
     next();

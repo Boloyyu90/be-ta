@@ -43,6 +43,7 @@ export const ERROR_MESSAGES = {
   // Auth
   INVALID_CREDENTIALS: 'Invalid email or password',
   EMAIL_EXISTS: 'Email already exists',
+  REGISTRATION_FAILED: 'Registration could not be completed. Please check your information and try again.',
   INVALID_REFRESH_TOKEN: 'Invalid refresh token',
   TOKEN_NOT_FOUND: 'Token not found',
   TOKEN_EXPIRED: 'Token has expired',
@@ -73,6 +74,7 @@ export const ERROR_MESSAGES = {
   UNABLE_SUBMIT_ANSWER_EXAM_FINISHED: 'Cannot submit answer - exam already finished',
   INVALID_EXAM_QUESTION_FOR_EXAM: 'Invalid exam question ID for this exam',
   REVIEW_NOT_AVAILABLE_BEFORE_SUBMIT: 'Cannot review answers before submitting exam',
+  EXAM_SESSION_ACTIVE_EXISTS: 'Anda sudah memiliki sesi aktif untuk ujian ini',
   FAILED_TO_CREATE_OR_RETRIEVE_EXAM_SESSION: 'Failed to create or retrieve exam session',
 
   // Question
@@ -132,6 +134,7 @@ export const ERROR_CODES = {
   EXAM_SESSION_UNAUTHORIZED_ALT: 'EXAM_SESSION_009',
   EXAM_SESSION_RETAKE_DISABLED: 'EXAM_SESSION_010',
   EXAM_SESSION_MAX_ATTEMPTS: 'EXAM_SESSION_011',
+  EXAM_SESSION_ACTIVE_CONFLICT: 'EXAM_SESSION_012',
 
   // Question
   QUESTION_NOT_FOUND: 'QUESTION_001',
