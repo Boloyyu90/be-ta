@@ -41,3 +41,6 @@ coverage/
 # Your app-specific files
 info.txt
 src/logs/
+
+.claude
+.idea
