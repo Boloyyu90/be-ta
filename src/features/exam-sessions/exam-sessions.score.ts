@@ -22,11 +22,41 @@ import type {
 } from './exam-sessions.validation';
 
 /**
+ * Hitung skor per jawaban berdasarkan tipe soal
+ *
+ * - TWK/TIU: Binary scoring — benar = defaultScore, salah = 0
+ * - TKP: Weighted scoring — setiap opsi punya bobot berbeda (1-5)
+ * - Tidak menjawab: selalu 0
+ */
+const getAnswerScore = (
+  selectedOption: string | null,
+  question: AnswerWithQuestion['examQuestion']['question']
+): { score: number; isCorrect: boolean | null } => {
+  if (!selectedOption) {
+    return { score: 0, isCorrect: null };
+  }
+
+  // TKP: weighted scoring dari optionScores
+  if (question.questionType === QuestionType.TKP && question.optionScores) {
+    const scores = question.optionScores as Record<string, number>;
+    const score = scores[selectedOption] ?? 0;
+    return { score, isCorrect: null };
+  }
+
+  // TWK/TIU: binary scoring
+  const isCorrect = selectedOption === question.correctAnswer;
+  return {
+    score: isCorrect ? question.defaultScore : 0,
+    isCorrect,
+  };
+};
+
+/**
  * Hitung score berdasarkan jawaban dan correct answers
  *
  * Formula:
- * - Jawaban benar → dapat defaultScore
- * - Jawaban salah atau kosong → 0 point
+ * - TWK/TIU: Jawaban benar → defaultScore, salah/kosong → 0
+ * - TKP: Setiap opsi punya bobot 1-5 dari optionScores, tidak menjawab → 0
  * - No negative scoring (tidak ada pengurangan nilai)
  *
  * Returns breakdown score by question type (TIU, TWK, TKP) untuk
@@ -62,8 +92,10 @@ export const calculateScore = (
   // Hitung score per jawaban
   for (const answer of answers) {
     const question = answer.examQuestion.question;
-    const isCorrect = answer.selectedOption === question.correctAnswer;
-    const scoreEarned = isCorrect ? question.defaultScore : 0;
+    const { score: scoreEarned, isCorrect } = getAnswerScore(
+      answer.selectedOption,
+      question
+    );
 
     // Add ke total score
     totalScore += scoreEarned;
@@ -110,9 +142,12 @@ export const calculateScore = (
 };
 
 /**
- * Update correctness flag untuk semua answers dalam transaction
+ * Update correctness flag dan score untuk semua answers dalam transaction
  *
- * Digunakan saat submit exam untuk mark jawaban benar/salah.
+ * Digunakan saat submit exam untuk mark jawaban benar/salah dan simpan skor.
+ * - TWK/TIU: isCorrect = true/false, score = defaultScore atau 0
+ * - TKP: isCorrect = null (tidak ada konsep benar/salah), score = bobot opsi (1-5)
+ *
  * Harus dipanggil dalam Prisma transaction untuk atomicity.
  *
  * @param tx - Prisma transaction client
@@ -131,11 +166,14 @@ export const updateAnswerCorrectness = async (
 ): Promise<void> => {
   for (const answer of answers) {
     const question = answer.examQuestion.question;
-    const isCorrect = answer.selectedOption === question.correctAnswer;
+    const { score, isCorrect } = getAnswerScore(
+      answer.selectedOption,
+      question
+    );
 
     await tx.answer.update({
       where: { id: answer.id },
-      data: { isCorrect },
+      data: { isCorrect, score },
     });
   }
 };

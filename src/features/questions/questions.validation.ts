@@ -26,6 +26,22 @@ const correctAnswerSchema = z.enum(['A', 'B', 'C', 'D', 'E'], {
 });
 
 /**
+ * Option scores schema for TKP weighted scoring
+ * Each option (A-E) has a score value between 1-5
+ */
+const optionScoresSchema = z
+  .object({
+    A: z.number().int().min(1).max(5),
+    B: z.number().int().min(1).max(5),
+    C: z.number().int().min(1).max(5),
+    D: z.number().int().min(1).max(5),
+    E: z.number().int().min(1).max(5),
+  })
+  .strict()
+  .nullable()
+  .optional();
+
+/**
  * Question ID parameter validation
  */
 const questionIdParamSchema = z
@@ -62,6 +78,7 @@ export const createQuestionSchema = z.object({
       .max(100, 'Score must not exceed 100')
       .optional()
       .default(1),
+    optionScores: optionScoresSchema,
   }),
 });
 
@@ -97,6 +114,7 @@ export const updateQuestionSchema = z.object({
         .min(1, 'Score must be at least 1')
         .max(100, 'Score must not exceed 100')
         .optional(),
+      optionScores: optionScoresSchema,
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided for update',
@@ -180,6 +198,7 @@ export interface QuestionData {
     D: string;
     E: string;
   };
+  optionScores: Record<string, number> | null;
   correctAnswer: string;
   questionType: QuestionType;
   defaultScore: number;

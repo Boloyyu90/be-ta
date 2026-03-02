@@ -242,6 +242,7 @@ export interface AnswerReview {
     D: string;
     E: string;
   };
+  optionScores: Record<string, number> | null;
   selectedOption: string | null;
   correctAnswer: string;
   isCorrect: boolean | null;
@@ -335,6 +336,7 @@ export interface AnswerWithQuestion {
       questionType: QuestionType;
       correctAnswer: string;
       defaultScore: number;
+      optionScores: Record<string, number> | null;
     };
   };
 }

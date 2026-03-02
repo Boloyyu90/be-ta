@@ -47,6 +47,7 @@ model QuestionBank {
   options       Json
   correctAnswer String         @map("correct_answer")
   defaultScore  Int            @default(1) @map("default_score")
+  optionScores  Json?          @map("option_scores")
   questionType  QuestionType   @default(TIU) @map("question_type")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
@@ -75,7 +76,7 @@ model Exam {
   examQuestions   ExamQuestion[]
   creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
   userExams       UserExam[]
-  transactions    Transaction[] // Payment transactions for this exam
+  transactions    Transaction[]
 
   @@index([createdBy])
   @@index([startTime])
@@ -129,6 +130,7 @@ model Answer {
   examQuestionId Int          @map("exam_question_id")
   selectedOption String?      @map("selected_option")
   isCorrect      Boolean?     @map("is_correct")
+  score          Int?         @map("score")
   answeredAt     DateTime     @default(now()) @map("answered_at")
   examQuestion   ExamQuestion @relation(fields: [examQuestionId], references: [id])
   userExam       UserExam     @relation(fields: [userExamId], references: [id], onDelete: Cascade)
@@ -156,17 +158,17 @@ model ProctoringEvent {
 
 model Transaction {
   id              Int               @id @default(autoincrement())
-  orderId         String            @unique @map("order_id") // Midtrans order_id (unique per transaction)
+  orderId         String            @unique @map("order_id")
   userId          Int               @map("user_id")
   examId          Int               @map("exam_id")
-  amount          Int // Amount in IDR (Indonesian Rupiah)
+  amount          Int
   status          TransactionStatus @default(PENDING)
-  paymentType     String?           @map("payment_type") // e.g., "bank_transfer", "gopay", "qris"
-  snapToken       String?           @map("snap_token") // Midtrans Snap token for payment popup
-  snapRedirectUrl String?           @map("snap_redirect_url") // Midtrans redirect URL
-  paidAt          DateTime?         @map("paid_at") // Timestamp when payment confirmed
-  expiredAt       DateTime?         @map("expired_at") // Payment deadline
-  metadata        Json? // Store full Midtrans notification response
+  paymentType     String?           @map("payment_type")
+  snapToken       String?           @map("snap_token")
+  snapRedirectUrl String?           @map("snap_redirect_url")
+  paidAt          DateTime?         @map("paid_at")
+  expiredAt       DateTime?         @map("expired_at")
+  metadata        Json?
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
@@ -226,10 +228,10 @@ enum TokenType {
 }
 
 enum TransactionStatus {
-  PENDING // Waiting for payment (Snap token generated)
-  PAID // Payment successful (settlement received)
-  EXPIRED // Payment window expired (24 hours default)
-  CANCELLED // Cancelled by user or system
-  FAILED // Payment failed (denied, error)
-  REFUNDED // Refunded (future use for dispute handling)
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+  FAILED
+  REFUNDE
 }

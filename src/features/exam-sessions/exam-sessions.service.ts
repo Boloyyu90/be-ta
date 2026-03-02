@@ -853,6 +853,7 @@ export const getUserExam = async (userExamId: number, userId: number) => {
                 questionType: true,
                 correctAnswer: true,
                 defaultScore: true,
+                optionScores: true,
               },
             },
           },
@@ -961,16 +962,30 @@ export const getExamAnswers = async (userExamId: number, userId: number) => {
 
   const answers: AnswerReview[] = userExam.exam.examQuestions.map((eq) => {
     const answer = userExam.answers.find((a) => a.examQuestionId === eq.id);
+    const optionScores = eq.question.optionScores as Record<string, number> | null;
+
+    // Use stored score if available, otherwise calculate
+    let score = 0;
+    if (answer?.score != null) {
+      score = answer.score;
+    } else if (answer?.selectedOption) {
+      if (eq.question.questionType === 'TKP' && optionScores) {
+        score = optionScores[answer.selectedOption] ?? 0;
+      } else {
+        score = answer.isCorrect ? eq.question.defaultScore : 0;
+      }
+    }
 
     return {
       examQuestionId: eq.id,
       questionContent: eq.question.content,
       questionType: eq.question.questionType,
       options: eq.question.options as any,
+      optionScores,
       selectedOption: answer?.selectedOption || null,
       correctAnswer: eq.question.correctAnswer,
       isCorrect: answer?.isCorrect ?? null,
-      score: answer?.isCorrect ? eq.question.defaultScore : 0,
+      score,
     };
   });
 
@@ -1006,6 +1021,7 @@ const batchCalculateScoresByType = async (
               questionType: true,
               correctAnswer: true,
               defaultScore: true,
+              optionScores: true,
             },
           },
         },
@@ -1021,7 +1037,12 @@ const batchCalculateScoresByType = async (
       id: answer.id,
       selectedOption: answer.selectedOption,
       examQuestionId: answer.examQuestionId,
-      examQuestion: answer.examQuestion,
+      examQuestion: {
+        question: {
+          ...answer.examQuestion.question,
+          optionScores: answer.examQuestion.question.optionScores as Record<string, number> | null,
+        },
+      },
     });
     answersByExam.set(answer.userExamId, group);
   }
@@ -1193,25 +1214,17 @@ export const cleanupAbandonedSessions = async (): Promise<CleanupResult> => {
 
         const { totalScore } = calculateScore(answers as any);
 
-        for (const answer of answers) {
-          const isCorrect =
-            answer.selectedOption === answer.examQuestion.question.correctAnswer;
+        await prisma.$transaction(async (tx) => {
+          await updateAnswerCorrectness(tx, answers as any);
 
-          if (answer.isCorrect === null) {
-            await prisma.answer.update({
-              where: { id: answer.id },
-              data: { isCorrect },
-            });
-          }
-        }
-
-        await prisma.userExam.update({
-          where: { id: session.id },
-          data: {
-            status: ExamStatus.TIMEOUT,
-            submittedAt: new Date(),
-            totalScore,
-          },
+          await tx.userExam.update({
+            where: { id: session.id },
+            data: {
+              status: ExamStatus.TIMEOUT,
+              submittedAt: new Date(),
+              totalScore,
+            },
+          });
         });
 
         cleaned++;

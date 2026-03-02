@@ -28,6 +28,7 @@ const QUESTION_SELECT = {
   id: true,
   content: true,
   options: true,
+  optionScores: true,
   correctAnswer: true,
   questionType: true,
   defaultScore: true,
@@ -75,7 +76,7 @@ const validateCorrectAnswer = (correctAnswer: string, options: QuestionOptions):
  * @throws {BadRequestError} If options format is invalid
  */
 export const createQuestion = async (input: CreateQuestionInput) => {
-  const { content, options, correctAnswer, questionType, defaultScore } = input;
+  const { content, options, correctAnswer, questionType, defaultScore, optionScores } = input;
 
   // Validate options format
   if (!validateOptions(options)) {
@@ -101,6 +102,7 @@ export const createQuestion = async (input: CreateQuestionInput) => {
       correctAnswer,
       questionType,
       defaultScore: defaultScore || 1,
+      ...(optionScores && { optionScores: optionScores as Prisma.JsonObject }),
     },
     select: QUESTION_SELECT,
   });
@@ -211,10 +213,14 @@ export const updateQuestion = async (id: number, data: UpdateQuestionInput) => {
     }
   }
 
-  // Update question
+  // Update question — destructure JSON fields to handle Prisma types separately
+  const { options: rawOptions, optionScores: rawOptionScores, ...rest } = data;
   const updateData: Prisma.QuestionBankUpdateInput = {
-    ...data,
-    ...(data.options && { options: data.options as Prisma.JsonObject }),
+    ...rest,
+    ...(rawOptions && { options: rawOptions as Prisma.JsonObject }),
+    ...(rawOptionScores !== undefined && {
+      optionScores: rawOptionScores === null ? Prisma.DbNull : (rawOptionScores as Prisma.JsonObject),
+    }),
   };
 
   const question = await prisma.questionBank.update({
