@@ -1,5 +1,9 @@
 # Docker Compose for Exam Proctoring System
 # Includes: PostgreSQL, Node.js Backend, Python ML Service
+#
+# IMPORTANT: Set required env vars before running:
+#   DB_USER, DB_PASSWORD, JWT_SECRET
+# Use a .env file or export them in your shell.
 
 version: '3.8'
 
@@ -8,16 +12,17 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: proctoring_db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-proctoring_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-proctoring_pass}
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       POSTGRES_DB: ${DB_NAME:-proctoring_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-proctoring_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,14 +35,16 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: proctoring_backend
+    restart: unless-stopped
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
-      DATABASE_URL: postgresql://${DB_USER:-proctoring_user}:${DB_PASSWORD:-proctoring_pass}@postgres:5432/${DB_NAME:-proctoring_db}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-change-in-production}
-      JWT_ACCESS_EXPIRATION_MINUTES: 30
-      JWT_REFRESH_EXPIRATION_DAYS: 30
-      CORS_ORIGIN: "*"
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-proctoring_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRATION_MINUTES: ${JWT_ACCESS_EXPIRATION_MINUTES:-30}
+      JWT_REFRESH_EXPIRATION_DAYS: ${JWT_REFRESH_EXPIRATION_DAYS:-30}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      TRUST_PROXY: "true"
       # ML Configuration
       YOLO_ENABLED: "true"
       YOLO_SERVICE_URL: http://ml-service:8000
@@ -51,8 +58,6 @@ services:
         condition: service_healthy
       ml-service:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src:ro
     networks:
       - proctoring_network
 
@@ -62,6 +67,7 @@ services:
       context: ./ml-service
       dockerfile: Dockerfile
     container_name: proctoring_ml
+    restart: unless-stopped
     environment:
       YOLO_MODEL_PATH: ./models/yolov8n-face.pt
       CONFIDENCE_THRESHOLD: "0.5"

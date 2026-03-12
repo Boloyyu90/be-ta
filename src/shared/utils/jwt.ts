@@ -27,7 +27,7 @@ export const generateRefreshToken = (userId: number, role: UserRole): string => 
 };
 
 export const verifyAccessToken = (token: string): TokenPayload => {
-  const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+  const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
 
   if (decoded.type !== 'access') {
     throw new Error('Invalid token type');
@@ -37,7 +37,7 @@ export const verifyAccessToken = (token: string): TokenPayload => {
 };
 
 export const verifyRefreshToken = (token: string): TokenPayload => {
-  const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+  const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
 
   if (decoded.type !== 'refresh') {
     throw new Error('Invalid token type');

@@ -21,7 +21,8 @@ export const logEvent = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const result = await proctoringService.logEvent(req.body);
+  const userId = req.user!.id;
+  const result = await proctoringService.logEvent(userId, req.body);
 
   sendSuccess(
     res,

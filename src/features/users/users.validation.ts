@@ -197,18 +197,9 @@ export type DeleteUserParams = z.infer<typeof deleteUserSchema>['params'];
 
 // ==================== RESPONSE TYPES ====================
 
-/**
- * Public user data (without password)
- */
-export interface UserPublicData {
-  id: number;
-  email: string;
-  name: string;
-  role: UserRole;
-  isEmailVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+// Re-export from single source of truth
+export type { UserPublicData } from '@/shared/types/user.types';
+import type { UserPublicData } from '@/shared/types/user.types';
 
 /**
  * Detailed user data with counts

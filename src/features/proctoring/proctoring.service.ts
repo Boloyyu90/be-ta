@@ -1,4 +1,4 @@
-import { Prisma, ProctoringEventType } from '@prisma/client';
+import { Prisma, ProctoringEventType, ProctoringSeverity } from '@prisma/client';
 import { prisma } from '@/config/database';
 import { env } from '@/config/env';
 import {
@@ -59,13 +59,16 @@ const PROCTORING_EVENT_WITH_EXAM_SELECT = {
 
 /**
  * Log a proctoring event
+ *
+ * ✅ FIX C-1: Added userId parameter + ownership check + session status check.
+ * Previously accepted any authenticated user's request without verifying session ownership.
  */
-export const logEvent = async (input: LogEventInput) => {
+export const logEvent = async (userId: number, input: LogEventInput) => {
   const { userExamId, eventType, metadata } = input;
 
   const userExam = await prisma.userExam.findUnique({
     where: { id: userExamId },
-    select: { id: true, status: true },
+    select: { id: true, userId: true, status: true },
   });
 
   if (!userExam) {
@@ -74,7 +77,23 @@ export const logEvent = async (input: LogEventInput) => {
     });
   }
 
-  // ✅ Determine severity based on event type
+  if (userExam.userId !== userId) {
+    throw new UnauthorizedError(
+      ERROR_MESSAGES.UNAUTHORIZED_EXAM_SESSION,
+      ERROR_CODES.EXAM_SESSION_UNAUTHORIZED,
+      { userExamId, userId }
+    );
+  }
+
+  if (userExam.status !== 'IN_PROGRESS') {
+    throw new BadRequestError(
+      'Cannot log events for completed sessions',
+      'EXAM_SESSION_NOT_ACTIVE',
+      { userExamId, status: userExam.status }
+    );
+  }
+
+  // Determine severity based on event type
   const severity = determineSeverity(eventType);
 
   const event = await prisma.proctoringEvent.create({
@@ -350,8 +369,9 @@ export const analyzeFace = async (userExamId: number, userId: number, imageBase6
 
 /**
  * Map violation type to proctoring event type
+ * @internal Exported for testing
  */
-const mapViolationToEventType = (violation: string): ProctoringEventType | null => {
+export const mapViolationToEventType = (violation: string): ProctoringEventType | null => {
   switch (violation) {
     case 'NO_FACE_DETECTED':
       return ProctoringEventType.NO_FACE_DETECTED;
@@ -366,18 +386,19 @@ const mapViolationToEventType = (violation: string): ProctoringEventType | null 
 
 /**
  * Determine severity based on event type
+ * @internal Exported for testing
  */
-const determineSeverity = (eventType: ProctoringEventType): string => {
+export const determineSeverity = (eventType: ProctoringEventType): ProctoringSeverity => {
   switch (eventType) {
     case ProctoringEventType.NO_FACE_DETECTED:
-      return 'HIGH';
+      return ProctoringSeverity.HIGH;
     case ProctoringEventType.MULTIPLE_FACES:
-      return 'HIGH';
+      return ProctoringSeverity.HIGH;
     case ProctoringEventType.LOOKING_AWAY:
-      return 'MEDIUM';
+      return ProctoringSeverity.MEDIUM;
     case ProctoringEventType.FACE_DETECTED:
-      return 'LOW';
+      return ProctoringSeverity.LOW;
     default:
-      return 'LOW';
+      return ProctoringSeverity.LOW;
   }
 };

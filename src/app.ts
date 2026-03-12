@@ -15,8 +15,20 @@ import { globalLimiter } from '@/shared/middleware/rate-limit.middleware';
 import { sendSuccess } from '@/shared/utils/response';
 import { logger } from '@/shared/utils/logger';
 import { v1Router } from '@/routes/v1.route';
+import { getAnalyzerInfo } from '@/features/proctoring/ml/analyzer.factory';
 
 const app = express();
+
+// ==================== TRUST PROXY ====================
+
+/**
+ * Trust proxy setting for deployment behind reverse proxy (nginx, load balancer).
+ * Required for rate limiter to correctly identify client IPs instead of proxy IP.
+ * Set TRUST_PROXY=true in environment when behind a reverse proxy.
+ */
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
 
 // ==================== SECURITY & PARSING ====================
 
@@ -82,11 +94,25 @@ if (process.env.NODE_ENV === 'development') {
  * Returns status, uptime, environment untuk monitoring.
  */
 app.get('/health', (req, res) => {
+  // In production, return minimal info to prevent reconnaissance
+  if (process.env.NODE_ENV === 'production') {
+    return sendSuccess(res, {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Development: return detailed info for debugging
+  const mlInfo = getAnalyzerInfo();
   sendSuccess(res, {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
+    ml: {
+      type: mlInfo.type,
+      ready: mlInfo.ready,
+    },
   });
 });
 

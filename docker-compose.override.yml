@@ -1,0 +1,18 @@
+# Docker Compose Override for Development
+# Enables hot-reload for backend service
+#
+# Usage: docker compose up (automatically picks up override)
+# Production: docker compose -f docker-compose.yml up (skips override)
+
+services:
+  backend:
+    # Override command to use nodemon hot-reload
+    command: pnpm run dev
+    volumes:
+      # Mount source WITHOUT :ro so nodemon can watch for changes
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      # Prevent node_modules from being overwritten by host mount
+      - /app/node_modules
+    environment:
+      NODE_ENV: development

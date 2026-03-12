@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Git
+.git
+.gitignore
+
+# Environment files (secrets!)
+.env
+.env.*
+!.env.example
+
+# Test & coverage
+coverage
+*.test.ts
+*.spec.ts
+__tests__
+
+# IDE & editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Claude / AI tooling
+.claude
+
+# Logs
+*.log
+logs
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid recursive context)
+docker-compose*.yml
+Dockerfile
+.dockerignore

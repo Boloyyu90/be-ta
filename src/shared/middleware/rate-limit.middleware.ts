@@ -23,8 +23,8 @@ import { transactionLogger } from '@/shared/utils/logger';
  * - Reserve global limiter for non-exam routes (auth, profile, admin, etc.)
  */
 export const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: env.RATE_LIMIT_GLOBAL_WINDOW_MS,
+  max: env.RATE_LIMIT_GLOBAL_MAX,
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
@@ -47,10 +47,10 @@ export const globalLimiter = rateLimit({
  * Applied to authentication routes (login, register)
  */
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  windowMs: env.RATE_LIMIT_AUTH_WINDOW_MS,
+  max: env.RATE_LIMIT_AUTH_MAX,
   message: 'Too many authentication attempts, please try again later',
-  skipSuccessfulRequests: true, // Don't count successful requests
+  skipSuccessfulRequests: false, // Count ALL attempts (brute force protection)
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -60,8 +60,8 @@ export const authLimiter = rateLimit({
  * Applied to token refresh endpoint
  */
 export const refreshLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 refresh attempts per 15 minutes
+  windowMs: env.RATE_LIMIT_REFRESH_WINDOW_MS,
+  max: env.RATE_LIMIT_REFRESH_MAX,
   message: 'Too many token refresh attempts, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
@@ -76,8 +76,8 @@ export const refreshLimiter = rateLimit({
  * - Prevent abuse while allowing legitimate proctoring
  */
 export const proctoringLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 30, // 30 requests per minute (1 every 2 seconds)
+  windowMs: env.RATE_LIMIT_PROCTORING_WINDOW_MS,
+  max: env.RATE_LIMIT_PROCTORING_MAX,
   message: 'Too many proctoring requests, please slow down',
   standardHeaders: true,
   legacyHeaders: false,
@@ -100,8 +100,8 @@ export const proctoringLimiter = rateLimit({
  * - Separate from proctoring's 30/min limit
  */
 export const answerLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 100, // 100 answer submissions per minute (generous for exam)
+  windowMs: env.RATE_LIMIT_ANSWER_WINDOW_MS,
+  max: env.RATE_LIMIT_ANSWER_MAX,
   message: {
     success: false,
     message: 'Too many answer submissions, please wait a moment',
@@ -127,8 +127,8 @@ export const answerLimiter = rateLimit({
  * Config: 10 requests per 5 minutes per IP
  */
 export const examSubmitLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minute window
-  max: 10, // 10 submit attempts per 5 minutes
+  windowMs: env.RATE_LIMIT_EXAM_SUBMIT_WINDOW_MS,
+  max: env.RATE_LIMIT_EXAM_SUBMIT_MAX,
   message: {
     success: false,
     message: 'Too many exam submission attempts, please wait',

@@ -2,11 +2,20 @@
  * Transaction Validation Schemas
  *
  * Zod schemas for validating transaction-related requests.
- * Follows the same pattern as other features (auth.validation.ts, questions.validation.ts).
+ * Uses shared schemas from common.schemas.ts for consistency.
  */
 
 import { z } from 'zod';
 import { TransactionStatus } from '@prisma/client';
+import {
+  createIdParamSchema,
+  createPaginationSchema,
+  createOptionalIdQuerySchema,
+} from '@/shared/validation/common.schemas';
+
+// Reusable ID schemas for this module
+const transactionIdParamSchema = createIdParamSchema('Transaction ID');
+const examIdParamSchema = createIdParamSchema('Exam ID');
 
 // ============================================================================
 // CREATE TRANSACTION
@@ -39,12 +48,7 @@ export type CreateTransactionInput = z.infer<typeof createTransactionSchema>['bo
  */
 export const getTransactionSchema = z.object({
   params: z.object({
-    id: z
-      .string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => !isNaN(val) && val > 0, {
-        message: 'Transaction ID must be a positive integer',
-      }),
+    id: transactionIdParamSchema,
   }),
 });
 
@@ -79,18 +83,7 @@ export type GetTransactionByOrderIdParams = z.infer<typeof getTransactionByOrder
  */
 export const listTransactionsSchema = z.object({
   query: z.object({
-    page: z
-      .string()
-      .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 1))
-      .refine((val) => val >= 1, { message: 'Page must be at least 1' }),
-    limit: z
-      .string()
-      .optional()
-      .transform((val) => (val ? parseInt(val, 10) : 10))
-      .refine((val) => val >= 1 && val <= 100, {
-        message: 'Limit must be between 1 and 100',
-      }),
+    ...createPaginationSchema(),
     status: z
       .enum([
         TransactionStatus.PENDING,
@@ -101,13 +94,7 @@ export const listTransactionsSchema = z.object({
         TransactionStatus.REFUNDED,
       ])
       .optional(),
-    examId: z
-      .string()
-      .optional()
-      .transform((val) => (val ? parseInt(val, 10) : undefined))
-      .refine((val) => val === undefined || val > 0, {
-        message: 'Exam ID must be a positive integer',
-      }),
+    examId: createOptionalIdQuerySchema('Exam ID'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
   }),
 });
@@ -123,12 +110,7 @@ export type ListTransactionsQuery = z.infer<typeof listTransactionsSchema>['quer
  */
 export const checkExamAccessSchema = z.object({
   params: z.object({
-    examId: z
-      .string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => !isNaN(val) && val > 0, {
-        message: 'Exam ID must be a positive integer',
-      }),
+    examId: examIdParamSchema,
   }),
 });
 
@@ -172,12 +154,7 @@ export type WebhookNotificationBody = z.infer<typeof webhookNotificationSchema>[
  */
 export const cancelTransactionSchema = z.object({
   params: z.object({
-    id: z
-      .string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => !isNaN(val) && val > 0, {
-        message: 'Transaction ID must be a positive integer',
-      }),
+    id: transactionIdParamSchema,
   }),
 });
 
@@ -192,12 +169,7 @@ export type CancelTransactionParams = z.infer<typeof cancelTransactionSchema>['p
  */
 export const syncTransactionSchema = z.object({
   params: z.object({
-    id: z
-      .string()
-      .transform((val) => parseInt(val, 10))
-      .refine((val) => !isNaN(val) && val > 0, {
-        message: 'Transaction ID must be a positive integer',
-      }),
+    id: transactionIdParamSchema,
   }),
 });
 

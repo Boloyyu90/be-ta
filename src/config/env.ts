@@ -39,7 +39,19 @@ const envSchema = z.object({
     .default('false')
     .transform((val) => val === 'true'),
 
-  // Rate Limiting Config (configurable via env)
+  // Rate Limiting Config (configurable via env for tuning during demo/defense)
+  RATE_LIMIT_GLOBAL_MAX: z.string().transform(Number).default('100'),
+  RATE_LIMIT_GLOBAL_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 min
+  RATE_LIMIT_AUTH_MAX: z.string().transform(Number).default('5'),
+  RATE_LIMIT_AUTH_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 min
+  RATE_LIMIT_REFRESH_MAX: z.string().transform(Number).default('10'),
+  RATE_LIMIT_REFRESH_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 min
+  RATE_LIMIT_PROCTORING_MAX: z.string().transform(Number).default('30'),
+  RATE_LIMIT_PROCTORING_WINDOW_MS: z.string().transform(Number).default('60000'), // 1 min
+  RATE_LIMIT_ANSWER_MAX: z.string().transform(Number).default('100'),
+  RATE_LIMIT_ANSWER_WINDOW_MS: z.string().transform(Number).default('60000'), // 1 min
+  RATE_LIMIT_EXAM_SUBMIT_MAX: z.string().transform(Number).default('10'),
+  RATE_LIMIT_EXAM_SUBMIT_WINDOW_MS: z.string().transform(Number).default('300000'), // 5 min
   RATE_LIMIT_TRANSACTION_MAX: z.string().transform(Number).default('10'),
   RATE_LIMIT_TRANSACTION_WINDOW_MS: z.string().transform(Number).default('900000'), // 15 min
   RATE_LIMIT_WEBHOOK_MAX: z.string().transform(Number).default('100'),

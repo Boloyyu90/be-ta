@@ -390,20 +390,20 @@ export const listTransactions = async (
     where.examId = examId;
   }
 
-  // Get total count
-  const total = await prisma.transaction.count({ where });
-
-  // Get transactions
-  const transactions = await prisma.transaction.findMany({
-    where,
-    skip,
-    take: limit,
-    orderBy: { createdAt: sortOrder },
-    include: {
-      exam: { select: { id: true, title: true, price: true } },
-      user: { select: { id: true, name: true, email: true } },
-    },
-  });
+  // Parallel fetch: count + data (independent queries)
+  const [transactions, total] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: sortOrder },
+      include: {
+        exam: { select: { id: true, title: true, price: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    }),
+    prisma.transaction.count({ where }),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 

@@ -35,6 +35,7 @@ export const startExamSchema = z.object({
 export const getUserExamsSchema = z.object({
   query: paginationSchema.extend({
     status: z.nativeEnum(ExamStatus).optional(),
+    examId: z.coerce.number().int().positive().optional(),
   }),
 });
 

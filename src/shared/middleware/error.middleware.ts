@@ -176,6 +176,8 @@ export const errorHandler = (
   }
 
   // 4. Truly unexpected errors -- log at error level
+  // NOTE: req.body is intentionally EXCLUDED to prevent leaking
+  // sensitive data (passwords, tokens) in unexpected error logs.
   logger.error(
     {
       error: {
@@ -183,10 +185,7 @@ export const errorHandler = (
         stack: error.stack,
         name: error.name,
       },
-      request: {
-        ...requestInfo,
-        body: req.body,
-      },
+      request: requestInfo,
     },
     'Unexpected error occurred'
   );

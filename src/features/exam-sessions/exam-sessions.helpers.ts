@@ -10,6 +10,12 @@
  * @module exam-sessions.helpers
  */
 
+import type {
+  ParticipantQuestion,
+  ParticipantAnswer,
+  UserExamSession,
+} from './exam-sessions.validation';
+
 /**
  * Cek apakah exam masih dalam batas waktu
  *
@@ -156,4 +162,85 @@ export const isAbandonedSession = (
 export const calculateProgress = (answered: number, total: number): number => {
   if (total === 0) return 0;
   return Math.round((answered / total) * 100);
+};
+
+/**
+ * Build standardized session response from userExam data
+ *
+ * Shared helper for both "resume existing session" and "create new session" paths
+ * to eliminate response mapping duplication.
+ *
+ * @param userExam - UserExam with included exam.examQuestions.question + answers
+ * @param durationMinutes - Exam duration in minutes
+ * @param attemptNumber - Current attempt number
+ * @returns Formatted session response with userExam, questions, and answers
+ */
+export const buildSessionResponse = (
+  userExam: {
+    id: number;
+    examId: number;
+    startedAt: Date | null;
+    submittedAt: Date | null;
+    status: string;
+    exam: {
+      title: string;
+      examQuestions: Array<{
+        id: number;
+        orderNumber: number;
+        question: {
+          id: number;
+          content: string;
+          options: unknown;
+          questionType: string;
+        };
+      }>;
+    };
+    answers: Array<{
+      examQuestionId: number;
+      selectedOption: string | null;
+      answeredAt: Date | null;
+    }>;
+  },
+  durationMinutes: number,
+  attemptNumber: number
+): {
+  userExam: UserExamSession;
+  questions: ParticipantQuestion[];
+  answers: ParticipantAnswer[];
+} => {
+  const questions: ParticipantQuestion[] = userExam.exam.examQuestions.map((eq) => ({
+    id: eq.question.id,
+    examQuestionId: eq.id,
+    content: eq.question.content,
+    options: eq.question.options as ParticipantQuestion['options'],
+    questionType: eq.question.questionType as ParticipantQuestion['questionType'],
+    orderNumber: eq.orderNumber,
+  }));
+
+  const answers: ParticipantAnswer[] = questions.map((q) => {
+    const existingAnswer = userExam.answers.find((a) => a.examQuestionId === q.examQuestionId);
+    return {
+      examQuestionId: q.examQuestionId,
+      selectedOption: existingAnswer?.selectedOption || null,
+      answeredAt: existingAnswer?.answeredAt || null,
+    };
+  });
+
+  const remainingTimeMs = getRemainingTime(userExam.startedAt!, durationMinutes);
+
+  const session: UserExamSession = {
+    id: userExam.id,
+    examId: userExam.examId,
+    examTitle: userExam.exam.title,
+    durationMinutes,
+    startedAt: userExam.startedAt!,
+    submittedAt: userExam.submittedAt,
+    status: userExam.status as UserExamSession['status'],
+    remainingTimeMs,
+    totalQuestions: questions.length,
+    answeredQuestions: answers.filter((a) => a.selectedOption !== null).length,
+    attemptNumber,
+  };
+
+  return { userExam: session, questions, answers };
 };

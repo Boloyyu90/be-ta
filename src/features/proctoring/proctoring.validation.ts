@@ -115,7 +115,8 @@ export const analyzeFaceSchema = z.object({
   body: z.object({
     imageBase64: z
       .string({ required_error: 'Image data is required' })
-      .min(100, 'Image data too short'),
+      .min(100, 'Image data too short')
+      .max(700_000, 'Image data too large (max ~500KB)'),
   }),
 });
 

@@ -12,6 +12,7 @@ import * as transactionsService from './transactions.service';
 import { sendSuccess } from '@/shared/utils/response';
 import { HTTP_STATUS } from '@/config/constants';
 import { MidtransNotification } from './transactions.types';
+import type { ListTransactionsQuery } from './transactions.validation';
 import { transactionLogger } from '@/shared/utils/logger';
 
 // ============================================================================
@@ -39,19 +40,12 @@ export const createTransaction = async (req: Request, res: Response): Promise<vo
  *
  * @access Authenticated (Participant)
  */
-export const listMyTransactions = async (req: Request, res: Response): Promise<void> => {
+export const listMyTransactions = async (req: Request<{}, {}, {}, ListTransactionsQuery>, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const { page, limit, status, examId, sortOrder } = req.query;
 
   const result = await transactionsService.listTransactions(
     userId,
-    {
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
-      status: status as any,
-      examId: examId ? Number(examId) : undefined,
-      sortOrder: sortOrder as 'asc' | 'desc',
-    },
+    req.query, // Zod validation middleware already parsed & defaulted
     false // isAdmin = false
   );
 
@@ -91,7 +85,7 @@ export const getTransaction = async (req: Request, res: Response): Promise<void>
  */
 export const getTransactionByOrderId = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const { orderId } = req.params;
+  const orderId = req.params.orderId as string;
 
   const transaction = await transactionsService.getTransactionByOrderId(orderId);
 
@@ -182,19 +176,12 @@ export const getClientKey = async (req: Request, res: Response): Promise<void> =
  *
  * @access Admin only
  */
-export const listAllTransactions = async (req: Request, res: Response): Promise<void> => {
+export const listAllTransactions = async (req: Request<{}, {}, {}, ListTransactionsQuery>, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const { page, limit, status, examId, sortOrder } = req.query;
 
   const result = await transactionsService.listTransactions(
     userId,
-    {
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
-      status: status as any,
-      examId: examId ? Number(examId) : undefined,
-      sortOrder: sortOrder as 'asc' | 'desc',
-    },
+    req.query, // Zod validation middleware already parsed & defaulted
     true // isAdmin = true (can see all transactions)
   );
 

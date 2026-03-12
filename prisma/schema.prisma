@@ -72,7 +72,7 @@ model Exam {
   price           Int?           @map("price") // Price in IDR (null = free exam)
   createdBy       Int            @map("created_by")
   createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @default(now()) @map("updated_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
   examQuestions   ExamQuestion[]
   creator         User           @relation("ExamCreator", fields: [createdBy], references: [id])
   userExams       UserExam[]
@@ -91,7 +91,7 @@ model ExamQuestion {
   orderNumber Int          @map("order_number")
   answers     Answer[]
   exam        Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
-  question    QuestionBank @relation(fields: [questionId], references: [id])
+  question    QuestionBank @relation(fields: [questionId], references: [id], onDelete: Restrict)
 
   @@unique([examId, questionId])
   @@index([examId])
@@ -137,6 +137,7 @@ model Answer {
 
   @@unique([userExamId, examQuestionId])
   @@index([userExamId])
+  @@index([examQuestionId])
   @@map("answers")
 }
 
@@ -217,7 +218,6 @@ enum ProctoringSeverity {
   LOW
   MEDIUM
   HIGH
-  CRITICAL
 }
 
 enum TokenType {
@@ -233,5 +233,5 @@ enum TransactionStatus {
   EXPIRED
   CANCELLED
   FAILED
-  REFUNDE
+  REFUNDED
 }

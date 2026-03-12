@@ -34,28 +34,10 @@ export interface TransactionWithRelations extends Transaction {
 }
 
 // ============================================================================
-// REQUEST TYPES
+// REQUEST TYPES — Single source of truth: transactions.validation.ts
+// Re-export: CreateTransactionInput, ListTransactionsQuery
 // ============================================================================
-
-/**
- * Request body for creating a new transaction
- * POST /api/v1/transactions
- */
-export interface CreateTransactionInput {
-  examId: number;
-}
-
-/**
- * Query parameters for listing transactions
- * GET /api/v1/transactions
- */
-export interface ListTransactionsQuery {
-  page?: number;
-  limit?: number;
-  status?: TransactionStatus;
-  examId?: number;
-  sortOrder?: 'asc' | 'desc';
-}
+export type { CreateTransactionInput, ListTransactionsQuery } from './transactions.validation';
 
 // ============================================================================
 // RESPONSE TYPES
